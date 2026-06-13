@@ -1,0 +1,33 @@
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum, Index
+from sqlalchemy.orm import relationship
+from datetime import datetime
+from app.database.base import Base
+
+class User(Base):
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    email = Column(String(100), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    full_name = Column(String(100))
+    avatar_url = Column(String(500))
+    role = Column(Enum("user", "admin", name="user_role"), default="user")
+    timezone = Column(String(50), default="UTC")
+    language = Column(String(10), default="zh-CN")
+    is_active = Column(Boolean, default=True)
+    is_deleted = Column(Boolean, default=False)
+    
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )
+    
+    # 关系
+    stations = relationship("Station", back_populates="user", cascade="all, delete-orphan")
+    qso_logs = relationship("QSOLog", back_populates="user", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<User {self.username}>"

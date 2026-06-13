@@ -1,0 +1,26 @@
+{
+  "name": "radiomanager",
+  "version": "1.0.0",
+  "description": "RadioManager - Amateur Radio QSO Log Management",
+  "main": "electron/main.js",
+  "scripts": {
+    "electron": "electron .",
+    "electron-dev": "electron . --debug",
+    "electron-build": "electron-builder"
+  },
+  "build": {
+    "appId": "com.radiomanager.app",
+    "productName": "RadioManager",
+    "files": [
+      "dist/**/*",
+      "node_modules/**/*"
+    ],
+    "directories": {
+      "buildResources": "assets"
+    }
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.6.4"
+  }
+}

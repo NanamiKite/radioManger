@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: radiomanager_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: radiomanager
+      MYSQL_USER: radiomanager
+      MYSQL_PASSWORD: password123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - radiomanager
+
+  redis:
+    image: redis:7-alpine
+    container_name: radiomanager_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - radiomanager
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: radiomanager_backend
+    environment:
+      DATABASE_URL: mysql+pymysql://radiomanager:password123@mysql:3306/radiomanager
+      REDIS_URL: redis://redis:6379
+      SECRET_KEY: your-super-secret-key-change-this-in-production
+      DEBUG: "false"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mysql
+      - redis
+    volumes:
+      - ./backend:/app
+    networks:
+      - radiomanager
+    command: >
+      sh -c "
+      pip install --no-cache-dir -r requirements.txt &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: radiomanager_frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - radiomanager
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000/api/v1
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  radiomanager:
+    driver: bridge
