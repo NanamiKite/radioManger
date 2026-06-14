@@ -60,16 +60,16 @@ if __name__ == "__main__":
 from fastapi import Request
 import time
 
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    body = await request.body()
-    print("\n===== REQUEST =====")
-    print("URL:", request.url)
-    print("METHOD:", request.method)
-    print("BODY:", body.decode())
+# @app.middleware("http") 调试日志打印
+# async def log_requests(request: Request, call_next):
+#     body = await request.body()
+#     print("\n===== REQUEST =====")
+#     print("URL:", request.url)
+#     print("METHOD:", request.method)
+#     print("BODY:", body.decode())
 
-    response = await call_next(request)
+#     response = await call_next(request)
 
-    print("STATUS:", response.status_code)
-    print("===================\n")
-    return response
+#     print("STATUS:", response.status_code)
+#     print("===================\n")
+#     return response
