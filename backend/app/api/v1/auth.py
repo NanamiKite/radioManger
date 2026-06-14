@@ -68,13 +68,76 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
             "refresh_token": refresh_token,
             "token_type": "Bearer",
             "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "user": user
+            # "user": user
+            "user": UserResponse.model_validate(user)
         }
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e)
         )
+# @router.post("/login", response_model=TokenResponse)
+# async def login(user_data: UserLogin, db: Session = Depends(get_db)):
+#     """用户登录"""
+
+#     print("\n===== LOGIN DEBUG =====")
+#     print("INPUT username:", user_data.username)
+
+#     try:
+#         user = UserService.authenticate_user(
+#             db, user_data.username, user_data.password
+#         )
+
+#         print("AUTH RESULT:", user)
+#         print("STEP 1 auth check OK")
+
+#         if not user:
+#             raise HTTPException(
+#                 status_code=status.HTTP_401_UNAUTHORIZED,
+#                 detail="Invalid credentials"
+#             )
+
+#         # 创建 access token
+#         access_token_expires = timedelta(
+#             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+#         )
+
+#         access_token = SecurityUtils.create_token(
+#             data={"sub": str(user.id)},
+#             expires_delta=access_token_expires
+#         )
+
+#         print("STEP 2 access token OK")
+
+#         refresh_token = SecurityUtils.create_token(
+#             data={"sub": str(user.id)},
+#             expires_delta=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+#         )
+
+#         print("STEP 3 refresh token OK")
+
+#         return {
+#             "access_token": access_token,
+#             "refresh_token": refresh_token,
+#             "token_type": "Bearer",
+#             "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+#             "user": {
+#                 "id": user.id,
+#                 "username": user.username,
+#                 "email": user.email
+#             }
+#         }
+
+#     except Exception as e:
+#         import traceback
+#         print("\n===== LOGIN ERROR =====")
+#         traceback.print_exc()
+#         print("=======================\n")
+
+#         raise HTTPException(
+#             status_code=status.HTTP_401_UNAUTHORIZED,
+#             detail="Login failed"
+#         )
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(current_user = Depends(get_current_user)):

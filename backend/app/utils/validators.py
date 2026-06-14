@@ -7,7 +7,7 @@ class RadioValidators:
     @staticmethod
     def validate_callsign(callsign: str) -> bool:
         """验证呼号格式"""
-        # 支持格式: B7/BG6VBM, JA1ABC, 4I1EBD, E2A等
+        # 支持格式:JA1ABC, 4I1EBD, E2A等
         pattern = r'^[A-Z0-9]{1,3}/[A-Z0-9]{3,10}$|^[A-Z0-9]{2,6}$|^[A-Z0-9]{1,3}/[A-Z0-9]{1,3}/[A-Z0-9]{1,6}$'
         return bool(re.match(pattern, callsign.upper()))
     

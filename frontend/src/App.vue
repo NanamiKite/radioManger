@@ -69,6 +69,7 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const { locale } = useI18n()
+const { t } = useI18n()
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const currentUser = computed(() => authStore.user)
@@ -86,7 +87,7 @@ const handleLanguageChange = (language: string): void => {
 
 const handleLogout = (): void => {
   authStore.logout()
-  ElMessage.success($t('auth.logoutSuccess'))
+  ElMessage.success(t('auth.logoutSuccess'))
   router.push({ name: 'Login' })
 }
 

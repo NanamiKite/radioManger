@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/auth'
 
+
 const api: AxiosInstance = axios.create({
   baseURL: '/api/v1',
   timeout: 10000
@@ -35,3 +36,30 @@ api.interceptors.response.use(
 )
 
 export default api
+
+// import { logsApiLocal } from './local/logs'
+// import { logsApiHttp } from './http/logs'
+
+// const mode = import.meta.env.VITE_MODE
+
+// function pickAPI() {
+//   switch (mode) {
+//     case 'local':
+//       console.log('[RadioManager] LOCAL mode')
+//       return {
+//         logs: logsApiLocal
+//       }
+
+//     case 'lan':
+//     case 'cloud':
+//       console.log('[RadioManager] HTTP mode:', mode)
+//       return {
+//         logs: logsApiHttp
+//       }
+
+//     default:
+//       throw new Error('Unknown VITE_MODE: ' + mode)
+//   }
+// }
+
+// export const api = pickAPI()

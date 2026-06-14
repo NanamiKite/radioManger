@@ -41,3 +41,14 @@ class TokenResponse(BaseModel):
     token_type: str = "Bearer"
     expires_in: int
     user: UserResponse
+from pydantic import BaseModel, ConfigDict
+
+class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    username: str
+    email: str
+    role: str
+    is_active: bool
+    created_at: datetime

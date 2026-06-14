@@ -15,7 +15,9 @@ function createWindow() {
     win.loadURL('http://localhost:5173')
     win.webContents.openDevTools()
   } else {
-    win.loadFile(path.join(__dirname, '../dist/index.html'))
+    // win.loadFile(path.join(__dirname, '../dist/index.html'))
+    // 修改后：直接去当前运行环境下的 dist 目录里找
+    win.loadFile(path.join(app.getAppPath(), 'dist/index.html'))
   }
 }
 

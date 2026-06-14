@@ -1,15 +1,15 @@
 <template>
   <div class="dashboard-container">
     <div class="dashboard-header">
-      <h1>Dashboard</h1>
-      <p>Welcome back, {{ currentUser?.username }}!</p>
+      <h1>{{ $t('dashboard.title') }}</h1>
+      <p>{{ $t('auth.welcomeBack', { username: currentUser?.username || '' }) }}</p>
     </div>
 
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-icon">📊</div>
         <div class="stat-content">
-          <div class="stat-label">Total QSO</div>
+          <div class="stat-label">{{ $t('dashboard.totalQSO') }}</div>
           <div class="stat-value">{{ statistics?.total_qso || 0 }}</div>
         </div>
       </div>
@@ -17,7 +17,7 @@
       <div class="stat-card">
         <div class="stat-icon">🌍</div>
         <div class="stat-content">
-          <div class="stat-label">DXCC</div>
+          <div class="stat-label">{{ $t('dashboard.dxcc') }}</div>
           <div class="stat-value">{{ statistics?.total_dxcc || 0 }}</div>
         </div>
       </div>
@@ -25,7 +25,7 @@
       <div class="stat-card">
         <div class="stat-icon">📮</div>
         <div class="stat-content">
-          <div class="stat-label">QSL Received</div>
+          <div class="stat-label">{{ $t('dashboard.qslReceived') }}</div>
           <div class="stat-value">{{ statistics?.qsl_rcvd || 0 }}</div>
         </div>
       </div>
@@ -33,16 +33,16 @@
       <div class="stat-card">
         <div class="stat-icon">🚀</div>
         <div class="stat-content">
-          <div class="stat-label">LOTW Confirmed</div>
+          <div class="stat-label">{{ $t('dashboard.lotwConfirmed') }}</div>
           <div class="stat-value">{{ statistics?.lotw_confirmed || 0 }}</div>
         </div>
       </div>
     </div>
 
     <div class="actions">
-      <el-button type="primary" @click="goToLogs">View Logs</el-button>
-      <el-button @click="goToStations">Manage Stations</el-button>
-      <el-button @click="goToAnalysis">View Analysis</el-button>
+      <el-button type="primary" @click="goToLogs">{{ $t('dashboard.viewLogs') }}</el-button>
+      <el-button @click="goToStations">{{ $t('dashboard.manageStations') }}</el-button>
+      <el-button @click="goToAnalysis">{{ $t('dashboard.viewAnalysis') }}</el-button>
     </div>
   </div>
 </template>
@@ -127,10 +127,10 @@ const goToAnalysis = () => {
           color: #409eff;
           font-size: 28px;
           font-weight: bold;
+          }
         }
       }
     }
-  }
 
   .actions {
     display: flex;

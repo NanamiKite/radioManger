@@ -40,3 +40,7 @@ export const logsApi = {
     return api.get('/logs/stats/overview')
   }
 }
+
+// import { api } from './index'
+
+// export const logsApi = api.logs

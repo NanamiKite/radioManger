@@ -1,10 +1,13 @@
 <template>
   <div class="stations-container">
-    <h1>Stations</h1>
+    <h1>{{ $t('stations.title') }}</h1>
+    
     <p>Manage your amateur radio stations</p>
 
     <div class="stations-content">
-      <el-button type="primary" @click="showCreateForm = true">New Station</el-button>
+      <el-button type="primary" @click="showCreateForm = true">
+        {{ $t('stations.newStation') }}
+      </el-button>
     </div>
   </div>
 </template>

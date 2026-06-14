@@ -2,6 +2,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.api.v1 import auth, users, logs, stations, stats
+from app.database.base import engine  # ✔ 正确位置
+from app.database.base import Base
+
+import app.models 
+
+Base.metadata.create_all(bind=engine)
+
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -50,3 +57,19 @@ if __name__ == "__main__":
         port=8000,
         workers=settings.WORKERS
     )
+from fastapi import Request
+import time
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    body = await request.body()
+    print("\n===== REQUEST =====")
+    print("URL:", request.url)
+    print("METHOD:", request.method)
+    print("BODY:", body.decode())
+
+    response = await call_next(request)
+
+    print("STATUS:", response.status_code)
+    print("===================\n")
+    return response

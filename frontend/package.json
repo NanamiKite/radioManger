@@ -2,6 +2,7 @@
   "name": "radiomanager-frontend",
   "private": true,
   "version": "1.0.0",
+  "main": "./electron/main.js",
   "description": "Amateur Radio QSO Log Management System - Frontend",
   "type": "module",
   "scripts": {
