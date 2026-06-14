@@ -4,19 +4,17 @@
       <el-header v-if="isAuthenticated" class="app-header">
         <div class="header-content">
           <div class="logo">
-            <h1>📻 RadioManager</h1>
+            <h1>RadioManager</h1>
           </div>
           <div class="header-right">
-            <el-select v-model="currentLanguage" @change="handleLanguageChange" style="width: 120px; margin-right: 20px">
+            <el-select v-model="currentLanguage" @change="handleLanguageChange" style="width: 100px; margin-right: 16px">
               <el-option label="中文" value="zh-CN" />
-              <el-option label="English" value="en-US" />
+              <el-option label="EN" value="en-US" />
             </el-select>
             <el-dropdown>
               <span class="el-dropdown-link">
                 {{ currentUser?.username }}
-                <el-icon class="el-icon--right">
-                  <arrow-down />
-                </el-icon>
+                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
               </span>
               <template #dropdown>
                 <el-dropdown-menu>
@@ -34,16 +32,25 @@
         <el-aside v-if="isAuthenticated" width="200px" class="app-aside">
           <el-menu :router="true" :default-active="activeMenu">
             <el-menu-item index="/dashboard">
-              <span>Dashboard</span>
+              <span>📊 {{ $t('nav.dashboard') }}</span>
             </el-menu-item>
             <el-menu-item index="/logs">
-              <span>QSO Logs</span>
+              <span>📝 {{ $t('nav.logs') }}</span>
             </el-menu-item>
             <el-menu-item index="/stations">
-              <span>Stations</span>
+              <span>📡 {{ $t('nav.stations') }}</span>
             </el-menu-item>
             <el-menu-item index="/analysis">
-              <span>Analysis</span>
+              <span>📈 {{ $t('nav.analysis') }}</span>
+            </el-menu-item>
+            <el-menu-item index="/callsigns">
+              <span>🔍 {{ $t('nav.callsigns') }}</span>
+            </el-menu-item>
+            <el-menu-item index="/shortcuts">
+              <span>🔗 {{ $t('nav.shortcuts') }}</span>
+            </el-menu-item>
+            <el-menu-item index="/settings">
+              <span>⚙️ {{ $t('nav.settings') }}</span>
             </el-menu-item>
           </el-menu>
         </el-aside>
@@ -57,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, type Ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
@@ -69,77 +76,61 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const { locale } = useI18n()
-const { t } = useI18n()
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const currentUser = computed(() => authStore.user)
-const activeMenu: Ref<string> = ref(route.path)
-const currentLanguage: Ref<string> = ref(getLanguage())
+const activeMenu = ref(route.path)
+const currentLanguage = ref(getLanguage())
 
 watch(() => route.path, (newPath: string) => {
   activeMenu.value = newPath
 })
 
-const handleLanguageChange = (language: string): void => {
+const handleLanguageChange = (language: string) => {
   setLanguage(language)
   locale.value = language as any
 }
 
-const handleLogout = (): void => {
+const handleLogout = () => {
   authStore.logout()
-  ElMessage.success(t('auth.logoutSuccess'))
-  router.push({ name: 'Login' })
+  // logout() 会通过 window.location.href 跳转到 /login
 }
 
-const goToSettings = (): void => {
+const goToSettings = () => {
   router.push({ name: 'Settings' })
 }
 </script>
 
 <style scoped lang="scss">
-#app {
-  height: 100vh;
-}
+#app { height: 100vh; }
 
-.app-container {
-  height: 100%;
-}
+.app-container { height: 100%; }
 
 .app-header {
   background-color: #409eff;
-  border-bottom: 1px solid #dcdfe6;
   padding: 0 20px;
-
   .header-content {
     display: flex;
     justify-content: space-between;
     align-items: center;
     height: 100%;
     color: white;
-
-    .logo h1 {
-      margin: 0;
-      font-size: 24px;
-    }
-
+    .logo h1 { margin: 0; font-size: 22px; letter-spacing: 1px; }
     .header-right {
+      display: flex;
+      align-items: center;
       .el-dropdown-link {
         cursor: pointer;
         display: flex;
         align-items: center;
         color: white;
-
-        &:hover {
-          opacity: 0.8;
-        }
+        &:hover { opacity: 0.8; }
       }
     }
   }
 }
 
-.main-container {
-  height: calc(100% - 60px);
-}
+.main-container { height: calc(100% - 60px); }
 
 .app-aside {
   background-color: #f5f7fa;

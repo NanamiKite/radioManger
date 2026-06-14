@@ -42,6 +42,18 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/callsigns',
+    name: 'Callsigns',
+    component: () => import('@/views/callsigns/CallsignSearchView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/shortcuts',
+    name: 'Shortcuts',
+    component: () => import('@/views/shortcuts/ShortcutsView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/analysis',
     name: 'Analysis',
     component: () => import('@/views/AnalysisView.vue'),
@@ -66,7 +78,7 @@ const router = createRouter({
 })
 
 // 路由守卫
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   const authStore = useAuthStore()
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {

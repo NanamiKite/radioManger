@@ -15,17 +15,11 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const login = async (username: string, password: string) => {
-    const response = await authApi.login({
-      username,
-      password
-    })
-
+    const response = await authApi.login({ username, password })
     token.value = response.access_token
     user.value = response.user
-
     storage.setToken(response.access_token)
     storage.setUser(response.user)
-
     return response
   }
 
@@ -33,6 +27,8 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     user.value = null
     storage.clear()
+    // 强制跳转登录页并刷新以清除所有Pinia状态
+    window.location.href = '/login'
   }
 
   const getCurrentUser = async () => {
@@ -47,13 +43,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return {
-    user,
-    token,
-    isAuthenticated,
-    register,
-    login,
-    logout,
-    getCurrentUser
-  }
+  return { user, token, isAuthenticated, register, login, logout, getCurrentUser }
 })

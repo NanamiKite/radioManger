@@ -1,41 +1,42 @@
 import { defineStore } from 'pinia'
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive } from 'vue'
 import type { QSOLog, Station } from '@/types'
 import { logsApi } from '@/api/logs'
 import { stationsApi } from '@/api/stations'
+import { locationsApi } from '@/api/locations'
 
 export const useLogsStore = defineStore('logs', () => {
   const logs = ref<QSOLog[]>([])
   const stations = ref<Station[]>([])
-  const currentStation = ref<Station | null>(null)
+  const activeStation = ref<Station | null>(null)
   const pagination = reactive({
-    page: 1,
-    page_size: 20,
-    total: 0,
-    pages: 0
+    page: 1, page_size: 20, total: 0, pages: 0
   })
-
+  const sortBy = ref('qso_date')
+  const sortOrder = ref('desc')
   const filters = reactive({
-    start_date: '',
-    end_date: '',
-    band: '',
-    mode: '',
-    call_sign: ''
+    start_date: '', end_date: '', band: '', mode: '', call_sign: '',
+    station_id: null as number | null,
   })
-
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
-  // 获取日志列表
+  const buildParams = () => {
+    const params: Record<string, any> = {
+      page: pagination.page, page_size: pagination.page_size,
+      sort_by: sortBy.value, sort_order: sortOrder.value,
+    }
+    for (const [key, val] of Object.entries(filters)) {
+      if (val !== '' && val !== null && val !== undefined) params[key] = val
+    }
+    return params
+  }
+
   const fetchLogs = async () => {
     isLoading.value = true
     error.value = null
     try {
-      const response = await logsApi.list({
-        page: pagination.page,
-        page_size: pagination.page_size,
-        ...filters
-      })
+      const response = await logsApi.list(buildParams())
       logs.value = response.items
       pagination.total = response.total
       pagination.pages = response.pages
@@ -46,19 +47,34 @@ export const useLogsStore = defineStore('logs', () => {
     }
   }
 
-  // 获取台站列表
   const fetchStations = async () => {
     try {
       stations.value = await stationsApi.list()
-      if (stations.value.length > 0 && !currentStation.value) {
-        currentStation.value = stations.value[0]
+      // 通过激活的位置找到激活的台站
+      try {
+        const activeLoc = await locationsApi.getActive()
+        if (activeLoc.station_id) {
+          const match = stations.value.find(s => s.id === activeLoc.station_id)
+          if (match) activeStation.value = match
+        }
+      } catch {
+        if (stations.value.length > 0 && !activeStation.value) {
+          activeStation.value = stations.value[0]
+        }
       }
     } catch (err: any) {
       error.value = err.message || 'Failed to fetch stations'
     }
   }
 
-  // 创建日志
+  const refreshActiveStation = async () => {
+    try {
+      const activeLoc = await locationsApi.getActive()
+      const match = stations.value.find(s => s.id === activeLoc.station_id)
+      if (match) activeStation.value = match
+    } catch { /* no active location */ }
+  }
+
   const createLog = async (data: any) => {
     try {
       const log = await logsApi.create(data)
@@ -70,14 +86,11 @@ export const useLogsStore = defineStore('logs', () => {
     }
   }
 
-  // 更新日志
   const updateLog = async (id: number, data: any) => {
     try {
       const updated = await logsApi.update(id, data)
       const index = logs.value.findIndex(log => log.id === id)
-      if (index > -1) {
-        logs.value[index] = updated
-      }
+      if (index > -1) logs.value[index] = updated
       return updated
     } catch (err: any) {
       error.value = err.message || 'Failed to update log'
@@ -85,7 +98,6 @@ export const useLogsStore = defineStore('logs', () => {
     }
   }
 
-  // 删除日志
   const deleteLog = async (id: number) => {
     try {
       await logsApi.delete(id)
@@ -96,42 +108,22 @@ export const useLogsStore = defineStore('logs', () => {
     }
   }
 
-  // 创建台站
   const createStation = async (data: any) => {
-    try {
-      const station = await stationsApi.create(data)
-      stations.value.push(station)
-      return station
-    } catch (err: any) {
-      error.value = err.message || 'Failed to create station'
-      throw err
-    }
+    const station = await stationsApi.create(data)
+    stations.value.push(station)
+    return station
   }
 
-  // 清空过滤条件
   const clearFilters = () => {
-    filters.start_date = ''
-    filters.end_date = ''
-    filters.band = ''
-    filters.mode = ''
-    filters.call_sign = ''
+    filters.start_date = ''; filters.end_date = ''
+    filters.band = ''; filters.mode = ''; filters.call_sign = ''
+    filters.station_id = null
     pagination.page = 1
   }
 
   return {
-    logs,
-    stations,
-    currentStation,
-    pagination,
-    filters,
-    isLoading,
-    error,
-    fetchLogs,
-    fetchStations,
-    createLog,
-    updateLog,
-    deleteLog,
-    createStation,
-    clearFilters
+    logs, stations, activeStation, pagination, sortBy, sortOrder, filters, isLoading, error,
+    fetchLogs, fetchStations, refreshActiveStation,
+    createLog, updateLog, deleteLog, createStation, clearFilters,
   }
 })

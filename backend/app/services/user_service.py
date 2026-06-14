@@ -52,7 +52,7 @@ class UserService:
     @staticmethod
     def update_user(db: Session, user: User, user_data: UserUpdate) -> User:
         """更新用户信息"""
-        update_data = user_data.dict(exclude_unset=True)
+        update_data = user_data.model_dump(exclude_unset=True)
         
         for key, value in update_data.items():
             setattr(user, key, value)

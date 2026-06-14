@@ -1,12 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import timedelta
+from pydantic import BaseModel
 from app.database.session import get_db
 from app.schemas.user import UserRegister, UserLogin, UserResponse, TokenResponse, UserUpdate
 from app.services.user_service import UserService
 from app.utils.security import SecurityUtils
 from app.config import settings
 from app.dependencies import get_current_user
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+    confirm_password: str
+
 
 router = APIRouter()
 
@@ -156,21 +164,19 @@ async def update_user_info(
 
 @router.post("/change-password")
 async def change_password(
-    old_password: str,
-    new_password: str,
-    confirm_password: str,
+    req: ChangePasswordRequest,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
     """修改密码"""
-    if new_password != confirm_password:
+    if req.new_password != req.confirm_password:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Passwords do not match"
         )
-    
+
     try:
-        UserService.change_password(db, current_user, old_password, new_password)
+        UserService.change_password(db, current_user, req.old_password, req.new_password)
         return {"message": "Password changed successfully"}
     except ValueError as e:
         raise HTTPException(

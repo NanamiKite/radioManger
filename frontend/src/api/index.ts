@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios'
+import axios, { AxiosInstance, AxiosError } from 'axios'
 import { useAuthStore } from '@/stores/auth'
 
 
