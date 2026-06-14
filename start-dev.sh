@@ -1,48 +1,66 @@
 #!/bin/bash
 
-# RadioManager 本地开发启动脚本
+# RadioManager 开发环境启动脚本
+# 数据库: 自动选择 SQLite（默认）或 MySQL
+#
+# 用法:
+#   ./start-dev.sh             # 使用 SQLite (默认)
+#   DATABASE_MODE=mysql ./start-dev.sh  # 使用 MySQL
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
+
 echo "================================================"
-echo "RadioManager - 本地开发环境启动"
+echo "RadioManager - 开发环境启动"
 echo "================================================"
 
-# 创建logs目录
-mkdir -p logs
+# 创建必要目录
+mkdir -p backend/logs backend/uploads
 
 echo ""
-echo "1. 创建Python虚拟环境..."
+echo "1. 设置数据库模式..."
+DB_MODE="${DATABASE_MODE:-sqlite}"
+echo "   数据库模式: $DB_MODE"
+export DATABASE_MODE=$DB_MODE
+
+echo ""
+echo "2. 检查Python虚拟环境..."
 if [ ! -d "backend/venv" ]; then
+  echo "   创建虚拟环境..."
   cd backend
   python3 -m venv venv
   source venv/bin/activate
-  pip install --upgrade pip
-  pip install -r requirements.txt
+  pip install --upgrade pip -q
+  pip install -r requirements.txt -q
   cd ..
 else
   source backend/venv/bin/activate
 fi
 
 echo ""
-echo "2. 检查MySQL连接..."
-if ! command -v mysql &> /dev/null; then
-  echo "警告: MySQL客户端未安装，跳过连接检查"
-else
-  echo "MySQL检查通过"
-fi
+echo "3. 初始化数据库..."
+cd backend
+python -m app.scripts.init_db
+cd ..
 
 echo ""
-echo "3. 启动后端服务..."
+echo "4. 启动后端服务..."
 cd backend
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &
+PYTHONPATH="$SCRIPT_DIR/backend" uvicorn app.main:app \
+  --reload \
+  --host 0.0.0.0 \
+  --port 8000 &
 BACKEND_PID=$!
 cd ..
 
 echo ""
-echo "4. 启动前端开发服务器..."
+echo "5. 启动前端开发服务器..."
 cd frontend
-npm install
+if [ ! -d "node_modules" ]; then
+  npm install
+fi
 npm run dev &
 FRONTEND_PID=$!
 cd ..
@@ -59,5 +77,12 @@ echo ""
 echo "按 Ctrl+C 停止所有服务"
 echo ""
 
-# 等待
+cleanup() {
+  echo "正在停止服务..."
+  kill $BACKEND_PID 2>/dev/null || true
+  kill $FRONTEND_PID 2>/dev/null || true
+  wait
+}
+trap cleanup EXIT INT TERM
+
 wait $BACKEND_PID $FRONTEND_PID

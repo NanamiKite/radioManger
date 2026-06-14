@@ -26,13 +26,15 @@ class QSOLogBase(BaseModel):
     lotw_sent: Optional[str] = "N"
     lotw_rcvd: Optional[str] = "N"
     distance: Optional[int] = None
+    dxcc: Optional[str] = None         # DXCC实体（自动从呼号推断，可手动修改）
     comment: Optional[str] = None
 
 class QSOLogCreate(QSOLogBase):
-    pass
+    station_id: Optional[int] = None  # 未指定时由 LogService 自动填入激活台站
 
 class QSOLogUpdate(BaseModel):
     call_sign: Optional[str] = None
+    dxcc: Optional[str] = None
     qso_date: Optional[date] = None
     time_on: Optional[time] = None
     time_off: Optional[time] = None
@@ -58,9 +60,10 @@ class QSOLogUpdate(BaseModel):
 class QSOLogResponse(QSOLogBase):
     id: int
     user_id: int
+    station_callsign: Optional[str] = None
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 

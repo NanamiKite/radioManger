@@ -1,8 +1,22 @@
 <template>
   <div class="dashboard-container">
     <div class="dashboard-header">
-      <h1>{{ $t('dashboard.title') }}</h1>
-      <p>{{ $t('auth.welcomeBack', { username: currentUser?.username || '' }) }}</p>
+      <div class="welcome-section">
+        <h1>{{ $t('dashboard.title') }}</h1>
+        <p>{{ $t('auth.welcomeBack', { username: currentUser?.username || '' }) }}</p>
+      </div>
+
+      <!-- UTC + 本地时钟 -->
+      <div class="clock-section">
+        <div class="clock-box">
+          <div class="clock-label">{{ $t('dashboard.utcTime') }}</div>
+          <div class="clock-time">{{ utcTime }}</div>
+        </div>
+        <div class="clock-box">
+          <div class="clock-label">{{ $t('dashboard.localTime') }}</div>
+          <div class="clock-time">{{ localTime }}</div>
+        </div>
+      </div>
     </div>
 
     <div class="stats-grid">
@@ -23,6 +37,14 @@
       </div>
 
       <div class="stat-card">
+        <div class="stat-icon">🏆</div>
+        <div class="stat-content">
+          <div class="stat-label">{{ $t('dashboard.totalWaz') }}</div>
+          <div class="stat-value">{{ statistics?.total_waz || 0 }}</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
         <div class="stat-icon">📮</div>
         <div class="stat-content">
           <div class="stat-label">{{ $t('dashboard.qslReceived') }}</div>
@@ -31,10 +53,34 @@
       </div>
 
       <div class="stat-card">
-        <div class="stat-icon">🚀</div>
+        <div class="stat-icon">✉️</div>
+        <div class="stat-content">
+          <div class="stat-label">{{ $t('dashboard.qslSent') }}</div>
+          <div class="stat-value">{{ statistics?.qsl_sent || 0 }}</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon">✅</div>
         <div class="stat-content">
           <div class="stat-label">{{ $t('dashboard.lotwConfirmed') }}</div>
           <div class="stat-value">{{ statistics?.lotw_confirmed || 0 }}</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon">📏</div>
+        <div class="stat-content">
+          <div class="stat-label">{{ $t('dashboard.totalDistance') }}</div>
+          <div class="stat-value">{{ (statistics?.total_distance || 0).toLocaleString() }} km</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon">🔄</div>
+        <div class="stat-content">
+          <div class="stat-label">{{ $t('dashboard.lastQso') }}</div>
+          <div class="stat-value stat-date">{{ statistics?.last_qso_date || 'N/A' }}</div>
         </div>
       </div>
     </div>
@@ -42,13 +88,14 @@
     <div class="actions">
       <el-button type="primary" @click="goToLogs">{{ $t('dashboard.viewLogs') }}</el-button>
       <el-button @click="goToStations">{{ $t('dashboard.manageStations') }}</el-button>
+      <el-button @click="goToCallsigns">🔍 {{ $t('dashboard.queryCallsign') }}</el-button>
       <el-button @click="goToAnalysis">{{ $t('dashboard.viewAnalysis') }}</el-button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useStatsStore } from '@/stores/stats'
@@ -59,82 +106,70 @@ const statsStore = useStatsStore()
 
 const currentUser = computed(() => authStore.user)
 const statistics = computed(() => statsStore.statistics)
+const userTimezone = computed(() => currentUser.value?.timezone || 'UTC')
+
+const utcTime = ref('')
+const localTime = ref('')
+let timer: number | null = null
+
+function updateClock() {
+  const now = new Date()
+  utcTime.value = now.toUTCString().split(' ')[4]
+  try {
+    localTime.value = now.toLocaleTimeString([], {
+      timeZone: currentUser.value?.timezone || 'UTC',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    })
+  } catch {
+    localTime.value = now.toLocaleTimeString()
+  }
+}
 
 onMounted(() => {
   statsStore.fetchStats()
+  updateClock()
+  timer = window.setInterval(updateClock, 1000)
 })
 
-const goToLogs = () => {
-  router.push({ name: 'Logs' })
-}
+onUnmounted(() => { if (timer) clearInterval(timer) })
 
-const goToStations = () => {
-  router.push({ name: 'Stations' })
-}
-
-const goToAnalysis = () => {
-  router.push({ name: 'Analysis' })
-}
+const goToLogs = () => router.push({ name: 'Logs' })
+const goToStations = () => router.push({ name: 'Stations' })
+const goToCallsigns = () => router.push({ name: 'Callsigns' })
+const goToAnalysis = () => router.push({ name: 'Analysis' })
 </script>
 
 <style scoped lang="scss">
 .dashboard-container {
-  max-width: 1200px;
-  margin: 0 auto;
-
+  max-width: 1200px; margin: 0 auto;
   .dashboard-header {
-    margin-bottom: 30px;
-
-    h1 {
-      margin-bottom: 10px;
-      color: #303133;
+    display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;
+    .welcome-section {
+      h1 { margin: 0 0 6px; color: #303133; }
+      p { margin: 0; color: #909399; }
     }
-
-    p {
-      color: #909399;
+    .clock-section {
+      display: flex; gap: 16px;
+      .clock-box {
+        background: white; border-radius: 8px; padding: 12px 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        .clock-label { font-size: 11px; color: #909399; margin-bottom: 4px; }
+        .clock-time { font-size: 22px; font-weight: bold; color: #409eff; font-family: monospace; }
+      }
     }
   }
-
   .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 20px;
-    margin-bottom: 30px;
-
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;
     .stat-card {
-      background: white;
-      border-radius: 8px;
-      padding: 20px;
-      display: flex;
-      align-items: center;
-      gap: 15px;
-      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-
-      .stat-icon {
-        font-size: 32px;
-      }
-
+      background: white; border-radius: 8px; padding: 20px; display: flex; align-items: center; gap: 15px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      .stat-icon { font-size: 28px; }
       .stat-content {
         flex: 1;
-
-        .stat-label {
-          color: #909399;
-          font-size: 14px;
-          margin-bottom: 5px;
-        }
-
-        .stat-value {
-          color: #409eff;
-          font-size: 28px;
-          font-weight: bold;
-          }
-        }
+        .stat-label { color: #909399; font-size: 13px; margin-bottom: 4px; }
+        .stat-value { color: #409eff; font-size: 24px; font-weight: bold; }
+        .stat-date { font-size: 16px; }
       }
     }
-
-  .actions {
-    display: flex;
-    gap: 10px;
   }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; }
 }
 </style>

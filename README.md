@@ -1,144 +1,118 @@
-有人说我对AI的使用程度不足10%，但是我没有token可以烧，只能拿freeplan造个轮子玩玩了 
-# RadioManager：一款多功能业余无线电日志管理工具
+# RadioManager — 业余无线电日志管理工具
 
-## 快速启动
+一款基于 FastAPI + Vue3 的跨平台业余无线电日志管理系统。支持 SQLite 本地部署与 MySQL 云端部署，提供日志管理、台站与位置管理、呼号查询、统计分析等功能。
 
-### 前置条件
-- Python 3.11+
-- Node.js 18+
-- MySQL 8.0+
-- Redis 7+
-
-### 本地开发
-
-#### 1. 后端设置
+## 快速启动（本地开发，SQLite）
 
 ```bash
+# 一键启动
+./start-local.sh
+```
+
+或手动：
+
+```bash
+# 后端
 cd backend
-
-# 创建虚拟环境
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# 安装依赖
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-
-# 配置环境变量
 cp .env.example .env
-# 编辑.env文件，设置正确的数据库连接和其他参数
+python -m app.scripts.init_db
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# 创建数据库
-mysql -u root -p
-CREATE DATABASE radiomanager CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-# 运行应用
-python -m uvicorn app.main:app --reload
-```
-
-#### 2. 前端设置
-
-```bash
+# 前端
 cd frontend
-
-# 安装依赖
 npm install
-
-# 开发模式
 npm run dev
-
-# 构建生产版本
-npm run build
 ```
 
-### Docker 开发
-
-```bash
-# 启动所有服务
-docker-compose up -d
-
-# 查看日志
-docker-compose logs -f
-
-# 停止服务
-docker-compose down
-```
+- 前端: http://localhost:5173
+- API 文档: http://localhost:8000/docs
+- 测试账号: `admin` / `admin123`
 
 ## 项目结构
 
 ```
 radioManger/
-├── backend/                 # 后端项目 (FastAPI)
+├── backend/                          # FastAPI 后端
 │   ├── app/
-│   │   ├── api/v1/         # API路由
-│   │   ├── models/         # SQLAlchemy模型
-│   │   ├── schemas/        # Pydantic模型
-│   │   ├── services/       # 业务逻辑
-│   │   ├── utils/          # 工具函数
-│   │   ├── middleware/     # 中间件
-│   │   ├── database/       # 数据库配置
-│   │   ├── dependencies.py # 依赖注入
-│   │   ├── config.py       # 配置管理
-│   │   └── main.py         # FastAPI应用入口
-│   ├── requirements.txt    # Python依赖
-│   ├── .env.example        # 环境变量示例
-│   ├── Dockerfile          # Docker镜像配置
-│   └── tests/              # 测试文件
+│   │   ├── api/v1/                  # 9 个路由模块
+│   │   │   ├── auth.py              # 认证
+│   │   │   ├── users.py             # 用户
+│   │   │   ├── logs.py              # 日志 (含导入导出)
+│   │   │   ├── stations.py          # 台站
+│   │   │   ├── locations.py         # 位置
+│   │   │   ├── stats.py             # 统计
+│   │   │   ├── callsigns.py         # 呼号查询
+│   │   │   ├── sync.py              # 数据同步
+│   │   │   └── shortcuts.py         # 快捷链接
+│   │   ├── models/                  # 9 个 SQLAlchemy 模型
+│   │   ├── schemas/                 # Pydantic V2 模式
+│   │   ├── services/                # 10 个业务服务
+│   │   ├── utils/                   # 7 个工具模块
+│   │   ├── middleware/              # 3 个中间件
+│   │   ├── database/                # 数据库引擎与会话
+│   │   ├── scripts/                 # 初始化与部署脚本
+│   │   ├── config.py                # 配置管理
+│   │   ├── dependencies.py          # 依赖注入
+│   │   └── main.py                  # FastAPI 入口
+│   ├── tests/                       # 测试套件
+│   └── requirements.txt
 │
-├── frontend/               # 前端项目 (Vue3 + TypeScript)
+├── frontend/                         # Vue 3 + TypeScript
 │   ├── src/
-│   │   ├── api/            # API客户端
-│   │   ├── components/     # Vue组件
-│   │   ├── views/          # 页面
-│   │   ├── stores/         # Pinia状态管理
-│   │   ├── router/         # Vue Router
-│   │   ├── utils/          # 工具函数
-│   │   ├── types/          # TypeScript类型定义
-│   │   ├── styles/         # 样式文件
-│   │   ├── App.vue         # 根组件
-│   │   └── main.ts         # 入口文件
-│   ├── package.json        # 依赖配置
-│   ├── vite.config.ts      # Vite配置
-│   ├── tsconfig.json       # TypeScript配置
-│   ├── Dockerfile          # Docker镜像配置
-│   └── index.html          # HTML入口
+│   │   ├── api/                     # 10 个 API 客户端模块
+│   │   ├── views/                   # 10 个页面视图
+│   │   ├── stores/                  # Pinia 状态管理
+│   │   ├── router/                  # Vue Router 路由
+│   │   ├── types/                   # TypeScript 类型定义
+│   │   ├── locales/                 # i18n 国际化 (zh-CN + en-US)
+│   │   ├── utils/                   # 工具函数
+│   │   ├── styles/                  # 样式文件
+│   │   ├── App.vue                  # 根组件
+│   │   └── main.ts                  # 入口文件
+│   ├── electron/                    # Electron 主进程
+│   ├── package.json
+│   └── vite.config.ts
 │
-├── docker-compose.yml      # Docker Compose配置
-├── .gitignore              # Git忽略列表
-└── README.md               # 项目说明
+├── doc/                             # 设计文档
+├── start-local.sh                   # 本地一键启动脚本
+├── start-dev.sh                     # 开发环境启动脚本
+├── docker-compose.yml               # Docker 编排
+└── nginx.conf                       # Nginx 反向代理配置
 ```
 
-## API文档
+## 技术栈
 
-启动后端后，访问以下地址查看API文档：
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+| 层 | 技术 |
+|---|------|
+| **前端** | Vue 3 + TypeScript + Vite + Element Plus + Pinia + Vue Router |
+| **后端** | FastAPI + SQLAlchemy + Pydantic V2 |
+| **数据库** | SQLite（本地）/ MySQL 8.0+（生产） |
+| **桌面端** | Electron（可选） |
+| **容器化** | Docker + Docker Compose |
 
-## 数据库
+## 数据库模式
 
-应用使用MySQL存储数据。数据库结构在设计文档 `02_数据库设计说明.md` 中详细说明。
+支持 `DATABASE_MODE=sqlite`（默认）和 `DATABASE_MODE=mysql`：
 
-## 环境变量
+```bash
+# 使用 SQLite（默认，无需安装 MySQL）
+DATABASE_MODE=sqlite ./start-dev.sh
 
-参考 `backend/.env.example` 配置文件。关键变量：
-- `DATABASE_URL`: MySQL连接字符串
-- `SECRET_KEY`: JWT加密密钥
-- `REDIS_URL`: Redis连接地址
-- `CORS_ORIGINS`: 允许的CORS源
+# 使用 MySQL
+DATABASE_MODE=mysql ./start-dev.sh
+```
 
-## 常见问题
+## 部署方式
 
-### 1. MySQL连接错误
-确保MySQL服务运行，且环境变量中的连接信息正确。
+- **纯本地部署**：SQLite + 可选后端，`./start-local.sh`
+- **局域网部署**：Docker + MySQL，`docker-compose up -d`
+- **云服务器部署**：Docker + Nginx + SSL，参考 `doc/06_部署说明.md`
 
-### 2. 前端无法连接后端
-检查环境变量中的API基础URL，确保后端服务正在运行。
+## 文档
 
-### 3. Docker构建失败
-清除构建缓存: `docker-compose build --no-cache`
-
-## 部署
-
-参考设计文档 `06_部署说明.md` 了解详细的部署步骤。
+设计文档位于 `doc/` 目录，包含：项目总说明、数据库设计、API 设计、前后端架构、部署说明、系统架构图。
 
 ## 许可证
 

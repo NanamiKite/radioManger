@@ -1,5 +1,21 @@
-from fastapi import APIRouter
+from app.api.v1.auth import router as auth_router
+from app.api.v1.users import router as users_router
+from app.api.v1.logs import router as logs_router
+from app.api.v1.stations import router as stations_router
+from app.api.v1.locations import router as locations_router
+from app.api.v1.stats import router as stats_router
+from app.api.v1.callsigns import router as callsigns_router
+from app.api.v1.sync import router as sync_router
+from app.api.v1.shortcuts import router as shortcuts_router
 
-router = APIRouter()
-
-# 路由将在这里注册
+__all__ = [
+    "auth_router",
+    "users_router",
+    "logs_router",
+    "stations_router",
+    "locations_router",
+    "stats_router",
+    "callsigns_router",
+    "sync_router",
+    "shortcuts_router",
+]

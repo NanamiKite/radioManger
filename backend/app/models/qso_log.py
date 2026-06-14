@@ -42,6 +42,7 @@ class QSOLog(Base):
     
     # 扩展信息
     distance = Column(Integer)
+    dxcc = Column(String(100))           # DXCC实体名称
     comment = Column(Text)
     is_deleted = Column(Boolean, default=False)
     

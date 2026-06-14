@@ -37,7 +37,12 @@ export default {
     upload: 'Upload',
     refresh: 'Refresh',
     export: 'Export',
-    import: 'Import'
+    import: 'Import',
+    operations: 'Operations',
+    confirmDelete: 'Confirm Delete',
+    editLog: 'Edit Log',
+    deleteLog: 'Delete Log',
+    details: 'Details'
   },
   auth: {
     login: 'Login',
@@ -53,13 +58,24 @@ export default {
     emailExists: 'Email already registered',
     passwordMismatch: 'Passwords do not match',
     passwordTooShort: 'Password must be at least 8 characters',
-    welcomeBack: 'Welcome back, {username}!'
+    welcomeBack: 'Welcome back, {username}!',
+    searchCallsign: 'Callsign Lookup',
+    searchCallsignHint: 'Query callsign information via QRZ.com',
+    enterCallsign: 'Enter callsign',
+    lookup: 'Search',
+    clear: 'Clear',
+    cached: 'Cached',
+    live: 'Live',
+    notFoundOnQRZ: 'Callsign not found on QRZ.com',
+    opensOnQRZ: 'Open on QRZ.com →'
   },
   nav: {
     dashboard: 'Dashboard',
     logs: 'QSO Logs',
     stations: 'Stations',
     analysis: 'Analysis',
+    callsigns: 'Callsigns',
+    shortcuts: 'Shortcuts',
     settings: 'Settings',
     about: 'About'
   },
@@ -67,12 +83,19 @@ export default {
     title: 'Dashboard',
     totalQSO: 'Total QSO',
     dxcc: 'DXCC Countries',
+    totalWaz: 'WAZ Zones',
+    qslSent: 'QSL Sent',
     qslReceived: 'QSL Received',
     lotwConfirmed: 'LOTW Confirmed',
+    totalDistance: 'Total Distance',
+    lastQso: 'Last QSO',
     viewLogs: 'View Logs',
     manageStations: 'Manage Stations',
+    queryCallsign: 'Query Callsign',
     viewAnalysis: 'View Analysis',
-    recentActivity: 'Recent Activity'
+    recentActivity: 'Recent Activity',
+    utcTime: 'UTC+0',
+    localTime: 'Local Time'
   },
   logs: {
     title: 'QSO Logs',
@@ -94,7 +117,19 @@ export default {
     deleteLog: 'Delete Log',
     exportLogs: 'Export Logs',
     importLogs: 'Import Logs',
-    statistics: 'Statistics'
+    statistics: 'Statistics',
+    logDetail: 'Log Detail',
+    freqMhz: 'Freq (MHz)',
+    allBands: 'All Bands',
+    allModes: 'All Modes',
+    editLogTitle: 'Edit QSO Log',
+    createLogTitle: 'New QSO Log',
+    confirmDeleteMsg: 'Are you sure you want to delete this log?',
+    stationId: 'Station',
+    yes: 'Yes',
+    no: 'No',
+    requested: 'Requested',
+    ignore: 'Ignore'
   },
   stations: {
     title: 'Stations',
@@ -105,10 +140,15 @@ export default {
     antennaModel: 'Antenna Model',
     qth: 'QTH',
     primary: 'Primary',
+    secondary: 'Secondary',
     noStations: 'No stations yet',
     addStation: 'Add Station',
     editStation: 'Edit Station',
-    deleteStation: 'Delete Station'
+    deleteStation: 'Delete Station',
+    confirmDeleteMsg: 'Delete station {callsign}?',
+    cannotDeleteLast: 'Cannot delete the last station',
+    primaryTag: 'Primary',
+    secondaryTag: 'Secondary'
   },
   analysis: {
     title: 'Analysis',
@@ -118,7 +158,14 @@ export default {
     modes: 'Mode Distribution',
     countries: 'Country Distribution',
     timeRange: 'Time Range',
-    refreshStats: 'Refresh Statistics'
+    refreshStats: 'Refresh Statistics',
+    qslStats: 'QSL Statistics',
+    activity: 'Activity',
+    totalQso: 'Total QSOs',
+    dxccEntities: 'DXCC Entities',
+    lastQso: 'Last QSO',
+    avgDistance: 'Avg Distance',
+    km: 'km'
   },
   settings: {
     title: 'Settings',
@@ -136,7 +183,18 @@ export default {
     currentPassword: 'Current Password',
     newPassword: 'New Password',
     confirmPassword: 'Confirm Password',
-    passwordChanged: 'Password changed'
+    passwordChanged: 'Password changed',
+    joined: 'Joined',
+    role: 'Role',
+    version: 'Version',
+    dbMode: 'Database Mode',
+    apiServer: 'API Server',
+    manageAccount: 'Manage your account and preferences'
+  },
+  shortcuts: {
+    title: 'Shortcuts',
+    subtitle: 'Quick links to amateur radio websites',
+    noShortcuts: 'No shortcuts configured'
   },
   validation: {
     required: 'This field is required',

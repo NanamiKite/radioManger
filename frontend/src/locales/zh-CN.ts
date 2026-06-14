@@ -37,7 +37,12 @@ export default {
     upload: '上传',
     refresh: '刷新',
     export: '导出',
-    import: '导入'
+    import: '导入',
+    operations: '操作',
+    confirmDelete: '确认删除',
+    editLog: '编辑日志',
+    deleteLog: '删除日志',
+    details: '详情'
   },
   auth: {
     login: '登录',
@@ -53,13 +58,24 @@ export default {
     emailExists: '邮箱已被注册',
     passwordMismatch: '两次输入的密码不一致',
     passwordTooShort: '密码至少需要8个字符',
-    welcomeBack: '欢迎回来，{username}！'
+    welcomeBack: '欢迎回来，{username}！',
+    searchCallsign: '呼号查询',
+    searchCallsignHint: '通过QRZ.com查询呼号信息',
+    enterCallsign: '请输入呼号',
+    lookup: '查询',
+    clear: '清空',
+    cached: '缓存',
+    live: '实时',
+    notFoundOnQRZ: '该呼号未在QRZ.com注册',
+    opensOnQRZ: '在QRZ.com上查看 →'
   },
   nav: {
     dashboard: '仪表板',
     logs: 'QSO日志',
     stations: '台站管理',
     analysis: '数据分析',
+    callsigns: '呼号查询',
+    shortcuts: '快捷链接',
     settings: '设置',
     about: '关于'
   },
@@ -67,12 +83,19 @@ export default {
     title: '仪表板',
     totalQSO: '总通联数',
     dxcc: 'DXCC国家数',
+    totalWaz: 'WAZ分区数',
+    qslSent: '已发QSL',
     qslReceived: '收到QSL',
     lotwConfirmed: 'LOTW已确认',
+    totalDistance: '总距离',
+    lastQso: '最近通联',
     viewLogs: '查看日志',
     manageStations: '管理台站',
+    queryCallsign: '查询呼号',
     viewAnalysis: '查看分析',
-    recentActivity: '最近活动'
+    recentActivity: '最近活动',
+    utcTime: 'UTC+0',
+    localTime: '本地时间'
   },
   logs: {
     title: 'QSO日志',
@@ -85,8 +108,8 @@ export default {
     rstSent: '发送信号报告',
     rstReceived: '收到信号报告',
     gridSquare: '梅登网格',
-    qslSent: '已发送QSL',
-    qslReceived: '已收到QSL',
+    qslSent: '已发QSL',
+    qslReceived: '收到QSL',
     comment: '备注',
     noLogs: '暂无日志',
     addLog: '添加日志',
@@ -94,7 +117,19 @@ export default {
     deleteLog: '删除日志',
     exportLogs: '导出日志',
     importLogs: '导入日志',
-    statistics: '统计'
+    statistics: '统计',
+    logDetail: '日志详情',
+    freqMhz: '频率(MHz)',
+    allBands: '所有波段',
+    allModes: '所有模式',
+    editLogTitle: '编辑通联日志',
+    createLogTitle: '新建通联日志',
+    confirmDeleteMsg: '确定要删除该日志吗？',
+    stationId: '使用台站',
+    yes: '是',
+    no: '否',
+    requested: '已索取',
+    ignore: '忽略'
   },
   stations: {
     title: '台站管理',
@@ -105,10 +140,15 @@ export default {
     antennaModel: '天线型号',
     qth: 'QTH',
     primary: '主台站',
+    secondary: '副台站',
     noStations: '暂无台站',
     addStation: '添加台站',
     editStation: '编辑台站',
-    deleteStation: '删除台站'
+    deleteStation: '删除台站',
+    confirmDeleteMsg: '确定要删除台站 {callsign} 吗？',
+    cannotDeleteLast: '不能删除最后一个台站',
+    primaryTag: '主要',
+    secondaryTag: '次要'
   },
   analysis: {
     title: '数据分析',
@@ -118,7 +158,14 @@ export default {
     modes: '模式分布',
     countries: '国家分布',
     timeRange: '时间范围',
-    refreshStats: '刷新统计'
+    refreshStats: '刷新统计',
+    qslStats: 'QSL统计',
+    activity: '活动概况',
+    totalQso: '总通联数',
+    dxccEntities: 'DXCC实体',
+    lastQso: '最后通联',
+    avgDistance: '平均距离',
+    km: '公里'
   },
   settings: {
     title: '设置',
@@ -136,7 +183,18 @@ export default {
     currentPassword: '当前密码',
     newPassword: '新密码',
     confirmPassword: '确认密码',
-    passwordChanged: '密码已修改'
+    passwordChanged: '密码已修改',
+    joined: '注册时间',
+    role: '角色',
+    version: '版本',
+    dbMode: '数据库模式',
+    apiServer: 'API地址',
+    manageAccount: '管理您的账户和偏好'
+  },
+  shortcuts: {
+    title: '快捷链接',
+    subtitle: '业余无线电相关网站快速跳转',
+    noShortcuts: '暂无快捷链接'
   },
   validation: {
     required: '此字段为必填项',
