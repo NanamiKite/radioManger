@@ -5,8 +5,10 @@ from decimal import Decimal
 
 class QSOLogBase(BaseModel):
     station_id: int
+    location_id: Optional[int] = None
     call_sign: str = Field(..., max_length=20)
     qso_date: date
+    qso_date_off: Optional[date] = None
     time_on: Optional[time] = None
     time_off: Optional[time] = None
     freq: Optional[Decimal] = None
@@ -26,16 +28,22 @@ class QSOLogBase(BaseModel):
     lotw_sent: Optional[str] = "N"
     lotw_rcvd: Optional[str] = "N"
     distance: Optional[int] = None
-    dxcc: Optional[str] = None         # DXCC实体（自动从呼号推断，可手动修改）
+    dxcc: Optional[str] = None
+    tx_pwr: Optional[int] = None
+    my_gridsquare: Optional[str] = None
+    station_callsign: Optional[str] = None
     comment: Optional[str] = None
 
 class QSOLogCreate(QSOLogBase):
-    station_id: Optional[int] = None  # 未指定时由 LogService 自动填入激活台站
+    station_id: Optional[int] = None
+    location_id: Optional[int] = None
 
 class QSOLogUpdate(BaseModel):
     call_sign: Optional[str] = None
+    location_id: Optional[int] = None
     dxcc: Optional[str] = None
     qso_date: Optional[date] = None
+    qso_date_off: Optional[date] = None
     time_on: Optional[time] = None
     time_off: Optional[time] = None
     freq: Optional[Decimal] = None
@@ -55,12 +63,16 @@ class QSOLogUpdate(BaseModel):
     lotw_sent: Optional[str] = None
     lotw_rcvd: Optional[str] = None
     distance: Optional[int] = None
+    tx_pwr: Optional[int] = None
+    my_gridsquare: Optional[str] = None
+    station_callsign: Optional[str] = None
     comment: Optional[str] = None
 
 class QSOLogResponse(QSOLogBase):
     id: int
     user_id: int
     station_callsign: Optional[str] = None
+    location_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

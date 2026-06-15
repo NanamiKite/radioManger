@@ -38,9 +38,12 @@ export interface QSOLog {
   id: number
   user_id: number
   station_id: number
+  location_id?: number
+  location_name?: string
   station_callsign?: string
   call_sign: string
   qso_date: string
+  qso_date_off?: string
   time_on?: string
   time_off?: string
   freq?: number
@@ -50,6 +53,9 @@ export interface QSOLog {
   rst_rcvd?: string
   grid_square?: string
   dxcc?: string
+  tx_pwr?: number
+  my_gridsquare?: string
+  station_callsign?: string
   qsl_sent: string
   qsl_rcvd: string
   comment?: string

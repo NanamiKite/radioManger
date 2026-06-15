@@ -1,0 +1,94 @@
+<template>
+  <div class="recycle-container">
+    <div class="page-header">
+      <div>
+        <h1>Recycle Bin</h1>
+        <p>Deleted logs are kept for 7 days before permanent removal</p>
+      </div>
+    </div>
+
+    <el-card>
+      <el-table :data="items" v-loading="loading" stripe style="width:100%">
+        <el-table-column prop="call_sign" label="Call Sign" width="120" />
+        <el-table-column prop="qso_date" label="Date" width="120" />
+        <el-table-column prop="band" label="Band" width="70" />
+        <el-table-column prop="mode" label="Mode" width="80" />
+        <el-table-column prop="dxcc" label="DXCC" width="120" />
+        <el-table-column prop="delete_reason" label="Reason" width="150" />
+        <el-table-column label="Expires" width="120">
+          <template #default="scope">
+            <el-tag v-if="scope.row.days_remaining && scope.row.days_remaining > 0"
+              :type="scope.row.days_remaining <= 1 ? 'danger' : 'warning'" size="small">
+              {{ scope.row.days_remaining }} days
+            </el-tag>
+            <el-tag v-else type="danger" size="small">Expired</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="Operations" width="120" fixed="right">
+          <template #default="scope">
+            <el-button size="small" type="primary"
+              :disabled="!scope.row.days_remaining || scope.row.days_remaining <= 0"
+              @click="handleRestore(scope.row)">Restore</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div v-if="items.length === 0 && !loading" style="text-align:center;padding:40px">
+        <el-empty description="Recycle bin is empty" />
+      </div>
+
+      <div class="pagination-wrapper">
+        <el-pagination
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
+          :total="total"
+          :page-sizes="[10,20,50]"
+          layout="total, sizes, prev, pager, next"
+          @change="fetchItems"
+        />
+      </div>
+    </el-card>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { recycleApi } from '@/api/deleted_logs'
+import { ElMessage } from 'element-plus'
+import type { DeletedLogItem } from '@/api/deleted_logs'
+
+const items = ref<DeletedLogItem[]>([])
+const loading = ref(false)
+const page = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
+
+const fetchItems = async () => {
+  loading.value = true
+  try {
+    const res = await recycleApi.list({ page: page.value, page_size: pageSize.value })
+    items.value = res.items
+    total.value = res.total
+  } catch { ElMessage.error('Failed to load recycle bin') }
+  finally { loading.value = false }
+}
+
+const handleRestore = async (item: DeletedLogItem) => {
+  try {
+    await recycleApi.restore(item.id)
+    ElMessage.success(`Restored log: ${item.call_sign}`)
+    await fetchItems()
+  } catch (err: any) {
+    ElMessage.error(err?.response?.data?.detail || 'Restore failed')
+  }
+}
+
+onMounted(fetchItems)
+</script>
+
+<style scoped lang="scss">
+.recycle-container {
+  .page-header { margin-bottom:20px; h1 { margin-bottom:5px; } p { color:#909399; } }
+  .pagination-wrapper { margin-top:16px; display:flex; justify-content:flex-end; }
+}
+</style>

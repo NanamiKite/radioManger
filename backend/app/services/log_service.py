@@ -19,7 +19,7 @@ SORTABLE_FIELDS = {
 class LogService:
     @staticmethod
     def create_log(db: Session, user_id: int, log_data: QSOLogCreate) -> QSOLog:
-        """创建日志。自动推断DXCC。未指定station_id时使用激活台站。"""
+        """创建日志。自动推断DXCC+location_id。未指定station_id时使用激活台站。"""
         data = log_data.model_dump()
 
         if not data.get("station_id"):
@@ -34,17 +34,39 @@ class LogService:
             )
             if location:
                 data["station_id"] = location.station_id
+                data["location_id"] = location.id
             else:
                 raise ValueError(
                     "No active location. Please create a location and activate it first."
                 )
+        elif not data.get("location_id"):
+            # 有 station_id 但没有 location_id 时，尝试填充该台站的激活位置
+            location = (
+                db.query(Location)
+                .filter(
+                    Location.user_id == user_id,
+                    Location.station_id == data["station_id"],
+                    Location.is_active == True,
+                    Location.is_deleted == False,
+                )
+                .first()
+            )
+            if location:
+                data["location_id"] = location.id
 
         if "call_sign" in data and data["call_sign"]:
             cs = data["call_sign"].strip().upper()
             data["call_sign"] = cs
-            # 自动推断DXCC（用户未手动指定时）
             if not data.get("dxcc"):
                 data["dxcc"] = lookup_dxcc(cs)
+
+        # QSL/LOTW 联动逻辑：收到确认即代表已发出确认
+        if data.get("qsl_rcvd") == "Y":
+            data["qsl_sent"] = "Y"
+            data["lotw_sent"] = "Y"
+            data["lotw_rcvd"] = "Y"
+            data["eqsl_sent"] = "Y"
+            data["eqsl_rcvd"] = "Y"
 
         db_log = QSOLog(user_id=user_id, **data)
         db.add(db_log)
@@ -132,37 +154,35 @@ class LogService:
         db.commit()
 
     @staticmethod
-    def get_stats(db: Session, user_id: int) -> dict:
+    def get_stats(db: Session, user_id: int, station_id: Optional[int] = None) -> dict:
+        """获取统计概览。可指定 station_id 只统计激活台站。"""
         from sqlalchemy import func
 
         query = db.query(QSOLog).filter(
             QSOLog.user_id == user_id, QSOLog.is_deleted == False
         )
+        if station_id:
+            query = query.filter(QSOLog.station_id == station_id)
+
         total_qso = query.count()
 
+        # DXCC：按 dxcc 实体字段去重
         total_dxcc = (
-            db.query(func.count(func.distinct(QSOLog.call_sign)))
-            .filter(QSOLog.user_id == user_id, QSOLog.is_deleted == False)
+            db.query(func.count(func.distinct(QSOLog.dxcc)))
+            .filter(QSOLog.user_id == user_id, QSOLog.is_deleted == False,
+                    QSOLog.dxcc.isnot(None), QSOLog.dxcc != "")
             .scalar()
             or 0
         )
+
+        # 最后通联日期（从查询中取，已按 station_id 过滤）
+        last_qso = query.order_by(QSOLog.qso_date.desc()).first()
 
         qsl_sent = query.filter(QSOLog.qsl_sent == "Y").count()
         qsl_rcvd = query.filter(QSOLog.qsl_rcvd == "Y").count()
         eqsl_sent = query.filter(QSOLog.eqsl_sent == "Y").count()
         eqsl_rcvd = query.filter(QSOLog.eqsl_rcvd == "Y").count()
         lotw_confirmed = query.filter(QSOLog.lotw_rcvd == "Y").count()
-
-        distance_sum = (
-            db.query(func.sum(QSOLog.distance))
-            .filter(
-                QSOLog.user_id == user_id,
-                QSOLog.is_deleted == False,
-                QSOLog.distance.isnot(None),
-            )
-            .scalar()
-            or 0
-        )
 
         return {
             "total_qso": total_qso,
@@ -172,5 +192,5 @@ class LogService:
             "eqsl_sent": eqsl_sent,
             "eqsl_rcvd": eqsl_rcvd,
             "lotw_confirmed": lotw_confirmed,
-            "total_distance": int(distance_sum) if distance_sum else 0,
+            "last_qso_date": str(last_qso.qso_date) if last_qso else None,
         }
