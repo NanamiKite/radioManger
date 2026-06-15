@@ -71,7 +71,7 @@
       <el-tab-pane :label="$t('settings.about')" name="about">
         <el-card>
           <h2>RadioManager</h2>
-          <p>{{ $t('settings.version') }}: 1.0.0</p>
+          <p>{{ $t('settings.version') }}: 2.1.0</p>
           <p>Amateur Radio Log Management System</p>
           <el-divider />
           <p>{{ $t('settings.dbMode') }}: {{ dbMode }}</p>

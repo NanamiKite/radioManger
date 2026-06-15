@@ -26,6 +26,9 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: false
-  }
+    sourcemap: false,
+    // 使用相对路径支持 Electron file:// 协议
+    assetsDir: 'assets',
+  },
+  base: './',
 })
