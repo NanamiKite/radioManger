@@ -69,18 +69,10 @@
       </div>
 
       <div class="stat-card">
-        <div class="stat-icon">📏</div>
-        <div class="stat-content">
-          <div class="stat-label">{{ $t('dashboard.totalDistance') }}</div>
-          <div class="stat-value">{{ (statistics?.total_distance || 0).toLocaleString() }} km</div>
-        </div>
-      </div>
-
-      <div class="stat-card">
         <div class="stat-icon">🔄</div>
         <div class="stat-content">
           <div class="stat-label">{{ $t('dashboard.lastQso') }}</div>
-          <div class="stat-value stat-date">{{ statistics?.last_qso_date || 'N/A' }}</div>
+          <div class="stat-value stat-date">{{ lastQsoDisplay }}</div>
         </div>
       </div>
     </div>
@@ -99,15 +91,26 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useStatsStore } from '@/stores/stats'
+import { useLogsStore } from '@/stores/logs'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const statsStore = useStatsStore()
+const logsStore = useLogsStore()
 
 const currentUser = computed(() => authStore.user)
 const statistics = computed(() => statsStore.statistics)
 const userTimezone = computed(() => currentUser.value?.timezone || 'UTC')
+const activeStation = computed(() => logsStore.activeStation)
 
+// 获取激活台站的最新通联日期显示
+const lastQsoDisplay = computed(() => {
+  if (!statistics.value?.last_qso_date) return 'N/A'
+  // 如果是跨年同日期的特殊处理
+  return statistics.value.last_qso_date
+})
+
+// 时钟
 const utcTime = ref('')
 const localTime = ref('')
 let timer: number | null = null
@@ -125,8 +128,14 @@ function updateClock() {
   }
 }
 
-onMounted(() => {
-  statsStore.fetchStats()
+onMounted(async () => {
+  await logsStore.fetchStations()
+  // 按激活台站获取统计
+  if (logsStore.activeStation) {
+    await statsStore.fetchStats(logsStore.activeStation.id)
+  } else {
+    await statsStore.fetchStats()
+  }
   updateClock()
   timer = window.setInterval(updateClock, 1000)
 })

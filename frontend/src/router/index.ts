@@ -66,6 +66,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/recycle',
+    name: 'RecycleBin',
+    component: () => import('@/views/recycle/RecycleBinView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     component: () => import('@/views/NotFoundView.vue')

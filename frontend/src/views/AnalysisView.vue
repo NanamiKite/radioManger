@@ -53,7 +53,6 @@
             <el-descriptions-item label="eQSL Sent">{{ stats?.eqsl_sent || 0 }}</el-descriptions-item>
             <el-descriptions-item label="eQSL Received">{{ stats?.eqsl_rcvd || 0 }}</el-descriptions-item>
             <el-descriptions-item :label="$t('dashboard.lotwConfirmed')">{{ stats?.lotw_confirmed || 0 }}</el-descriptions-item>
-            <el-descriptions-item :label="$t('dashboard.totalDistance')">{{ stats?.total_distance || 0 }} {{ $t('analysis.km') }}</el-descriptions-item>
           </el-descriptions>
         </el-card>
       </el-col>
@@ -64,7 +63,6 @@
             <p>{{ $t('analysis.totalQso') }}: <strong>{{ stats.total_qso }}</strong></p>
             <p>{{ $t('analysis.dxccEntities') }}: <strong>{{ stats.total_dxcc }}</strong></p>
             <p>{{ $t('analysis.lastQso') }}: <strong>{{ stats.last_qso_date || 'N/A' }}</strong></p>
-            <p>{{ $t('analysis.avgDistance') }}: <strong>{{ stats.average_distance || 0 }} {{ $t('analysis.km') }}</strong></p>
           </div>
         </el-card>
       </el-col>
@@ -75,13 +73,29 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useStatsStore } from '@/stores/stats'
+import { useLogsStore } from '@/stores/logs'
 
 const statsStore = useStatsStore()
+const logsStore = useLogsStore()
 const stats = computed(() => statsStore.statistics)
 const loading = computed(() => statsStore.isLoading)
 
-const refreshStats = () => statsStore.fetchStats()
-onMounted(() => statsStore.fetchStats())
+const refreshStats = () => {
+  if (logsStore.activeStation) {
+    statsStore.fetchStats(logsStore.activeStation.id)
+  } else {
+    statsStore.fetchStats()
+  }
+}
+
+onMounted(async () => {
+  await logsStore.fetchStations()
+  if (logsStore.activeStation) {
+    statsStore.fetchStats(logsStore.activeStation.id)
+  } else {
+    statsStore.fetchStats()
+  }
+})
 </script>
 
 <style scoped lang="scss">

@@ -20,6 +20,9 @@
           <div v-if="data._type === 'station'" class="tree-station">
             <span class="station-callsign">📡 {{ data.callsign }}</span>
             <span class="station-meta">({{ data.locationCount }} locations)</span>
+            <div class="station-actions">
+              <el-button size="small" text type="danger" @click="handleDeleteStation(data)">{{ $t('common.delete') }}</el-button>
+            </div>
           </div>
 
           <!-- Location 节点 -->
@@ -105,6 +108,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { stationsApi } from '@/api/stations'
 import { locationsApi } from '@/api/locations'
+import { logsApi } from '@/api/logs'
 import { useLogsStore } from '@/stores/logs'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
@@ -124,6 +128,7 @@ const activeLocationId = ref<number | null>(null)
 const treeData = computed(() => {
   return stations.value.map(st => ({
     _type: 'station' as const,
+    _sid: st.id,
     id: `s-${st.id}`,
     callsign: st.callsign,
     locationCount: locations.value.filter(l => l.station_id === st.id).length,
@@ -148,9 +153,9 @@ const locationForm = reactive({
   antenna_model: '', antenna_height: null as number | null, qth: ''
 })
 const locationRules = {
-  station_id: [{ required: true, message: 'Select station', trigger: 'change' }],
-  name: [{ required: true, message: 'Enter location name', trigger: 'blur' }],
-  grid_square: [{ required: true, message: 'Enter grid square', trigger: 'blur' }],
+  station_id: [{ required: true, message: t('validation.required'), trigger: 'change' }],
+  name: [{ required: true, message: t('validation.required'), trigger: 'blur' }],
+  grid_square: [{ required: true, message: t('validation.gridSquare'), trigger: 'blur' }],
 }
 
 // 加载数据
@@ -161,7 +166,7 @@ const loadData = async () => {
     locations.value = await locationsApi.list()
     const active = locations.value.find(l => l.is_active)
     activeLocationId.value = active?.id ?? null
-  } catch (err: any) { ElMessage.error(err.message || 'Failed to load') }
+  } catch (err: any) { ElMessage.error(err.message || t('errors.serverError')) }
   finally { loading.value = false }
 }
 
@@ -170,9 +175,60 @@ const handleActivate = async (id: number) => {
   try {
     const loc = await locationsApi.activate(id)
     activeLocationId.value = loc.id
-    ElMessage.success(`Activated: ${loc.station_callsign} / ${loc.name}`)
+    ElMessage.success(`${t('common.activated')}: ${loc.station_callsign} / ${loc.name}`)
     await logsStore.refreshActiveStation()
-  } catch (err: any) { ElMessage.error(err?.response?.data?.detail || 'Failed') }
+  } catch (err: any) { ElMessage.error(err?.response?.data?.detail || t('errors.serverError')) }
+}
+
+// 删除台站（含导出提示）
+const handleDeleteStation = async (station: any) => {
+  const sid = station._sid
+  const callsign = station.callsign
+
+  try {
+    // 先查询该台站有多少日志
+    const logsResp = await logsApi.list({ station_id: sid, page_size: 1 })
+    const logCount = logsResp.total
+
+    let action = 'delete'
+    if (logCount > 0) {
+      const result = await ElMessageBox.confirm(
+        `${t('common.stationLogs', { count: logCount })} ` +
+        t('common.deleteWithoutExport'),
+        t('common.deleteStationWarning', { callsign }),
+        {
+          confirmButtonText: 'Delete anyway',
+          cancelButtonText: 'Cancel',
+          distinguishCancelAndClose: true,
+          type: 'warning',
+        }
+      ).catch((action_: any) => action_)
+
+      if (result === 'cancel' || result === 'close' || !result) return
+
+      // 如果确认直接删除
+      await stationsApi.delete(sid)
+      ElMessage.success(t('common.success'))
+      await loadData()
+      await logsStore.fetchStations()
+    } else {
+      await ElMessageBox.confirm(
+        t('common.deleteStationWarning', { callsign }),
+        t('common.confirmDelete'),
+        { type: 'warning', confirmButtonText: t('common.delete') }
+      )
+      await stationsApi.delete(sid)
+      ElMessage.success(t('common.success'))
+      await loadData()
+      await logsStore.fetchStations()
+    }
+  } catch (err: any) {
+    if (err?.response?.status === 400) {
+      ElMessage.error(err?.response?.data?.detail || 'Cannot delete this station')
+    } else if (err !== 'cancel' && err !== 'close') {
+      ElMessage.error(err?.message || t('errors.serverError'))
+    }
+  }
 }
 
 // 创建台站
@@ -210,7 +266,7 @@ const handleSubmitLocation = async () => {
     submitting.value = true
     if (editingLocation.value) {
       await locationsApi.update(getLocationRealId(editingLocation.value), locationForm)
-      ElMessage.success('Location updated')
+      ElMessage.success(t('common.updateSuccess'))
     } else {
       await locationsApi.create({
         station_id: locationForm.station_id,
@@ -221,7 +277,7 @@ const handleSubmitLocation = async () => {
         antenna_height: locationForm.antenna_height ?? undefined,
         qth: locationForm.qth || undefined,
       })
-      ElMessage.success('Location created')
+      ElMessage.success(t('common.createSuccess'))
     }
     showLocationDialog.value = false
     editingLocation.value = null
@@ -236,7 +292,7 @@ const handleDeleteLocation = async (loc: any) => {
   try {
     await ElMessageBox.confirm(`Delete location "${loc.name}"?`, t('common.confirmDelete'), { type: 'warning' })
     await locationsApi.delete(getLocationRealId(loc))
-    ElMessage.success('Deleted')
+    ElMessage.success(t('common.deleteSuccess'))
     await loadData()
     await logsStore.refreshActiveStation()
   } catch { /* cancelled */ }
@@ -265,9 +321,10 @@ onMounted(async () => {
     h1 { margin-bottom:5px; } p { color:#909399; } .header-actions { display:flex; gap:8px; } }
 }
 .tree-station {
-  display:flex; align-items:center; gap:8px; padding:4px 0;
+  display:flex; align-items:center; gap:8px; padding:4px 0; width:100%;
   .station-callsign { font-size:16px; font-weight:bold; }
   .station-meta { font-size:12px; color:#909399; }
+  .station-actions { margin-left:auto; flex-shrink:0; }
 }
 .tree-location {
   display:flex; align-items:center; gap:12px; width:100%; padding:4px 0; flex-wrap:wrap;

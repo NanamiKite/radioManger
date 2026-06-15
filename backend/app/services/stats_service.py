@@ -22,10 +22,15 @@ class StatsService:
 
         total_qso = query.count()
 
-        # DXCC（按呼号去重预估）
+        # DXCC（按dxcc字段去重识别实体数）
         total_dxcc = (
-            db.query(func.count(func.distinct(QSOLog.call_sign)))
-            .filter(QSOLog.user_id == user_id, QSOLog.is_deleted == False)
+            db.query(func.count(func.distinct(QSOLog.dxcc)))
+            .filter(
+                QSOLog.user_id == user_id,
+                QSOLog.is_deleted == False,
+                QSOLog.dxcc.isnot(None),
+                QSOLog.dxcc != "",
+            )
             .scalar()
             or 0
         )

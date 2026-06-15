@@ -31,12 +31,14 @@
 import { ref, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const { t } = useI18n()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 
@@ -60,12 +62,12 @@ const handleLogin = async () => {
     loading.value = true
 
     await authStore.login(form.username, form.password)
-    ElMessage.success('Login successful')
+    ElMessage.success(t('auth.loginSuccess'))
 
     const redirect = route.query.redirect as string
     router.push(redirect || '/dashboard')
   } catch (error: any) {
-    ElMessage.error(error.message || 'Login failed')
+    ElMessage.error(error.message || t('errors.serverError'))
   } finally {
     loading.value = false
   }

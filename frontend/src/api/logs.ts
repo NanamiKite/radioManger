@@ -49,7 +49,8 @@ export const logsApi = {
     formData.append('file', file)
     const params: any = {}
     if (station_id) params.station_id = station_id
-    return api.post('/logs/import', formData, { params })
+    // 导入可能处理大量数据，设置120秒超时
+    return api.post('/logs/import', formData, { params, timeout: 120000 })
   },
 
   exportLogs(params: {

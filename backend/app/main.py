@@ -24,7 +24,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="RadioManager API",
     description="Amateur Radio Log Management System API",
-    version="2.0.0",
+    version="2.0.1",
     docs_url="/docs",
     redoc_url="/redoc",
 )

@@ -8,9 +8,13 @@ from sqlalchemy.orm import Session
 from app.utils.adi_parser import ADIParser
 from app.models.qso_log import QSOLog
 from app.models.log_file import LogFile
-from app.services.log_service import LogService
+from app.models.location import Location
+from app.utils.dxcc import lookup_dxcc
 
 logger = logging.getLogger("radiomanager.import_export")
+
+# 批量提交阈值
+BATCH_COMMIT_SIZE = 500
 
 
 class ImportExportService:
@@ -24,18 +28,29 @@ class ImportExportService:
         file_name: str,
         station_id: Optional[int] = None,
     ) -> dict:
-        """导入ADI文件"""
-        # 解析
+        """导入ADI文件（支持大量记录，批量提交避免超时）"""
         records = ADIParser.parse_adi_file(file_content)
         mapped_records = [ADIParser.map_adi_fields(r) for r in records]
+
+        # 解析激活位置
+        active_location = (
+            db.query(Location)
+            .filter(
+                Location.user_id == user_id,
+                Location.is_active == True,
+                Location.is_deleted == False,
+                Location.station_id == station_id,
+            )
+            .first()
+        ) if station_id else None
 
         imported = 0
         skipped = 0
         duplicates = 0
         errors = []
+        batch = []
 
-        # 预加载用户现有日志用于去重比对
-        # 去重依据: qso_date + call_sign + band（与设计文档要求一致）
+        # 预加载现有日志去重集
         existing_set = set()
         existing_logs = (
             db.query(QSOLog.call_sign, QSOLog.qso_date, QSOLog.band)
@@ -46,11 +61,10 @@ class ImportExportService:
             .all()
         )
         for row in existing_logs:
-            existing_set.add((row.call_sign, str(row.qso_date), row.band))
+            existing_set.add((row.call_sign, str(row.qso_date), row.band or ""))
 
         for idx, record in enumerate(mapped_records):
             try:
-                # 确保必需字段
                 if not record.get("call_sign") or not record.get("qso_date"):
                     skipped += 1
                     errors.append({
@@ -60,7 +74,6 @@ class ImportExportService:
                     })
                     continue
 
-                # 如果没有 station_id，跳过（需要前端传入）
                 if not station_id:
                     skipped += 1
                     continue
@@ -72,24 +85,27 @@ class ImportExportService:
                     qso_date = datetime.strptime(str(record["qso_date"]), "%Y-%m-%d").date()
 
                 call_sign = record.get("call_sign", "").upper()
-                band = record.get("band")
+                # 关键修复：band为None时用空字符串，避免不同记录在去重时误判为重复
+                band = record.get("band") or ""
 
-                # 去重比对：(call_sign, qso_date, band)
                 dedup_key = (call_sign, str(qso_date), band)
                 if dedup_key in existing_set:
                     duplicates += 1
                     continue
 
-                # 从schemas创建
-                from app.schemas.qso_log import QSOLogCreate
                 from decimal import Decimal
 
-                log_data = QSOLogCreate(
+                # 直接创建模型对象（不通过 LogService.create_log 避免逐条commit）
+                db_log = QSOLog(
+                    user_id=user_id,
                     station_id=station_id,
+                    location_id=active_location.id if active_location else None,
                     call_sign=call_sign,
                     qso_date=qso_date,
+                    dxcc=lookup_dxcc(call_sign),
+                    time_on=None,
                     time_off=None,
-                    band=record.get("band"),
+                    band=band,
                     freq=Decimal(str(record["freq"])) if record.get("freq") else None,
                     mode=record.get("mode"),
                     rst_sent=record.get("rst_sent"),
@@ -100,10 +116,23 @@ class ImportExportService:
                     comment=record.get("comment"),
                 )
 
-                LogService.create_log(db, user_id, log_data)
-                # 新插入的记录加入去重集合，避免同批导入的重复
+                # QSL/LOTW 联动逻辑：收到即代表已发出
+                if db_log.qsl_rcvd == "Y":
+                    db_log.qsl_sent = "Y"
+                    db_log.lotw_sent = "Y"
+                    db_log.lotw_rcvd = "Y"
+                    db_log.eqsl_sent = "Y"
+                    db_log.eqsl_rcvd = "Y"
+
+                db.add(db_log)
+                batch.append(db_log)
                 existing_set.add(dedup_key)
                 imported += 1
+
+                # 批量提交，避免事务过大
+                if len(batch) >= BATCH_COMMIT_SIZE:
+                    db.commit()
+                    batch = []
 
             except Exception as e:
                 skipped += 1
@@ -113,14 +142,18 @@ class ImportExportService:
                     "error": str(e),
                 })
 
-        # 记录文件导入历史
+        # 最后一批提交
+        if batch:
+            db.commit()
+            batch = []
+
         log_file = LogFile(
             user_id=user_id,
             file_name=file_name,
             file_size=len(file_content),
             format="adi",
             qso_count=imported,
-            import_status="success" if errors else "partial" if skipped else "success",
+            import_status="success" if not errors else "partial" if skipped else "success",
             import_error=str(errors) if errors else None,
         )
         db.add(log_file)
@@ -132,7 +165,7 @@ class ImportExportService:
             "imported": imported,
             "skipped": skipped,
             "duplicates": duplicates,
-            "errors": errors[:10],  # 只返回前10个错误
+            "errors": errors[:10],
         }
 
     @staticmethod
@@ -144,21 +177,26 @@ class ImportExportService:
         band: Optional[str] = None,
         station_id: Optional[int] = None,
     ) -> Tuple[str, str]:
-        """导出为ADI格式。返回 (ADI内容, 台站呼号/AllStations)"""
+        """导出为ADI格式（WSJT-X兼容）。返回 (ADI内容, 台站呼号/AllStations)"""
         from app.models.station import Station
+        from app.models.location import Location
 
-        # 确定导出台站呼号
         export_callsign = "AllStations"
+        active_my_grid = ""
         if station_id:
             stn = db.query(Station).filter(Station.id == station_id, Station.is_deleted == False).first()
             if stn:
                 export_callsign = stn.callsign
+                # 从激活位置获取 my_gridsquare
+                loc = db.query(Location).filter(
+                    Location.station_id == station_id, Location.is_active == True, Location.is_deleted == False
+                ).first()
+                if loc:
+                    active_my_grid = loc.grid_square or ""
 
         query = db.query(QSOLog).filter(
-            QSOLog.user_id == user_id,
-            QSOLog.is_deleted == False,
+            QSOLog.user_id == user_id, QSOLog.is_deleted == False,
         )
-
         if station_id:
             query = query.filter(QSOLog.station_id == station_id)
         if start_date:
@@ -169,28 +207,54 @@ class ImportExportService:
             query = query.filter(QSOLog.band == band)
 
         logs = query.order_by(QSOLog.qso_date).all()
+        stations = {s.id: s.callsign for s in db.query(Station.id, Station.callsign).filter(Station.is_deleted == False).all()}
 
-        # 预加载台站信息，减少 N+1 查询
-        stations = {s.id: s.callsign for s in db.query(Station).filter(Station.is_deleted == False).all()}
-
-        records = []
+        # RadioManager 格式导出
+        content = "RadioManager ADIF Export<eoh>\n"
         for log in logs:
-            station_callsign = stations.get(log.station_id, "")
-            record = {
-                "station_callsign": station_callsign,
-                "call": log.call_sign,
-                "qso_date": log.qso_date.strftime("%Y%m%d") if log.qso_date else None,
-                "time_on": str(log.time_on) if log.time_on else None,
-                "band": log.band,
-                "freq": str(log.freq) if log.freq else None,
-                "mode": log.mode,
-                "rst_sent": log.rst_sent,
-                "rst_rcvd": log.rst_rcvd,
-                "gridsquare": log.grid_square,
-                "qsl_sent": log.qsl_sent,
-                "qsl_rcvd": log.qsl_rcvd,
-                "comment": log.comment,
-            }
-            records.append({k: v for k, v in record.items() if v is not None})
+            parts = []
+            parts.append(f"<call:{len(log.call_sign)}>{log.call_sign}")
+            if log.grid_square:
+                parts.append(f"<gridsquare:{len(log.grid_square)}>{log.grid_square}")
+            if log.mode:
+                parts.append(f"<mode:{len(log.mode)}>{log.mode}")
+            if log.rst_sent:
+                parts.append(f"<rst_sent:{len(log.rst_sent)}>{log.rst_sent}")
+            if log.rst_rcvd:
+                parts.append(f"<rst_rcvd:{len(log.rst_rcvd)}>{log.rst_rcvd}")
+            if log.qso_date:
+                ds = log.qso_date.strftime("%Y%m%d")
+                parts.append(f"<qso_date:{len(ds)}>{ds}")
+            if log.time_on:
+                ts = str(log.time_on).replace(":", "")[:6]
+                parts.append(f"<time_on:{len(ts)}>{ts}")
+            # qso_date_off
+            dod = log.qso_date_off or log.qso_date
+            if dod:
+                ds = dod.strftime("%Y%m%d")
+                parts.append(f"<qso_date_off:{len(ds)}>{ds}")
+            if log.time_off:
+                ts = str(log.time_off).replace(":", "")[:6]
+                parts.append(f"<time_off:{len(ts)}>{ts}")
+            if log.band:
+                parts.append(f"<band:{len(log.band)}>{log.band}")
+            if log.freq:
+                fs = str(log.freq)
+                parts.append(f"<freq:{len(fs)}>{fs}")
+            # 台站呼号（从关联表获取）
+            sc = stations.get(log.station_id, "")
+            if sc:
+                parts.append(f"<station_callsign:{len(sc)}>{sc}")
+            # my_gridsquare
+            mg = log.my_gridsquare or active_my_grid
+            if mg:
+                parts.append(f"<my_gridsquare:{len(mg)}>{mg}")
+            if log.tx_pwr:
+                pw = str(log.tx_pwr)
+                parts.append(f"<tx_pwr:{len(pw)}>{pw}")
+            if log.comment:
+                parts.append(f"<comment:{len(log.comment)}>{log.comment}")
 
-        return ADIParser.generate_adi_file(records), export_callsign
+            content += " ".join(parts) + " <eor>\n"
+
+        return content, export_callsign

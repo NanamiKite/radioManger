@@ -9,10 +9,12 @@ class QSOLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     station_id = Column(Integer, ForeignKey("stations.id", ondelete="RESTRICT"), nullable=False)
+    location_id = Column(Integer, ForeignKey("locations.id", ondelete="SET NULL"), nullable=True, index=True)
     
     # 基本通联信息
     call_sign = Column(String(20), nullable=False, index=True)
     qso_date = Column(Date, nullable=False, index=True)
+    qso_date_off = Column(Date)
     time_on = Column(Time)
     time_off = Column(Time)
     
@@ -43,6 +45,9 @@ class QSOLog(Base):
     # 扩展信息
     distance = Column(Integer)
     dxcc = Column(String(100))           # DXCC实体名称
+    tx_pwr = Column(Integer)             # 发射功率(W)
+    my_gridsquare = Column(String(6))    # 操作员梅登网格
+    station_callsign = Column(String(20)) # 台站呼号（WSJT-X导出字段）
     comment = Column(Text)
     is_deleted = Column(Boolean, default=False)
     
@@ -52,6 +57,7 @@ class QSOLog(Base):
     # 关系
     user = relationship("User", back_populates="qso_logs")
     station = relationship("Station", back_populates="qso_logs")
+    location = relationship("Location", foreign_keys=[location_id])
     
     # 索引
     __table_args__ = (

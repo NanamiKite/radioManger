@@ -49,6 +49,9 @@
             <el-menu-item index="/shortcuts">
               <span>🔗 {{ $t('nav.shortcuts') }}</span>
             </el-menu-item>
+            <el-menu-item index="/recycle">
+              <span>🗑️ Recycle Bin</span>
+            </el-menu-item>
             <el-menu-item index="/settings">
               <span>⚙️ {{ $t('nav.settings') }}</span>
             </el-menu-item>

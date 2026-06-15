@@ -91,7 +91,7 @@ import { ElMessage } from 'element-plus'
 import api from '@/api/index'
 
 const authStore = useAuthStore()
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 
 const activeTab = ref('account')
 const currentUser = computed(() => authStore.user)
@@ -134,9 +134,9 @@ const savePreferences = async () => {
     authStore.user = { ...authStore.user, timezone: timezone.value, language: language.value } as any
     // 同步到 storage
     localStorage.setItem('user', JSON.stringify(authStore.user))
-    prefResult.value = 'Settings saved successfully'
+    prefResult.value = t('settings.settingsSaved')
   } catch (err: any) {
-    prefResult.value = 'Error: ' + (err?.response?.data?.detail || 'Failed to save')
+    prefResult.value = t('errors.serverError') + ': ' + (err?.response?.data?.detail || '')
   } finally {
     savingPrefs.value = false
     setTimeout(() => { prefResult.value = '' }, 3000)
@@ -145,7 +145,7 @@ const savePreferences = async () => {
 
 const changePassword = async () => {
   if (passwordForm.value.new_password !== passwordForm.value.confirm_password) {
-    ElMessage.error('Passwords do not match')
+    ElMessage.error(t('validation.passwordMismatch'))
     return
   }
   changingPassword.value = true
