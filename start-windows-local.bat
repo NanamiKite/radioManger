@@ -1,6 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
-pushd %~dp0
+set PROJECT_DIR=%~dp0
+pushd !PROJECT_DIR!
 title RadioManager - Local Deployment
 
 echo ================================================
@@ -8,138 +9,139 @@ echo   RadioManager - Local Deployment (SQLite)
 echo ================================================
 echo.
 
-:: ============ Python Detection ============
+:: Python
 set PY_CMD=
-python --version >nul 2>&1
-if %errorlevel% equ 0 (set PY_CMD=python & goto :PYTHON_FOUND)
-py --version >nul 2>&1
-if %errorlevel% equ 0 (set PY_CMD=py & goto :PYTHON_FOUND)
+python --version >/dev/null 2>&1
+if %errorlevel% equ 0 (set PY_CMD=python & goto :PY_FOUND)
+py --version >/dev/null 2>&1
+if %errorlevel% equ 0 (set PY_CMD=py & goto :PY_FOUND)
+echo [ERROR] Python not found. Install from https://www.python.org/
+pause & exit /b 1
 
-echo [ERROR] Python not found. Tried: python, py
-echo   If using conda: conda activate radiomanager
-echo   Or install from https://www.python.org/downloads/
-pause
-exit /b 1
-
-:PYTHON_FOUND
+:PY_FOUND
 for /f "delims=" %%v in ('%PY_CMD% --version') do set PY_VERSION=%%v
 echo [OK] Python: %PY_CMD% - %PY_VERSION%
 
-if not "%CONDA_DEFAULT_ENV%"=="" echo [INFO] Conda: %CONDA_DEFAULT_ENV%
-
-:: ============ Node.js Detection ============
-node --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [ERROR] Node.js not found. Install from https://nodejs.org/
-    pause & exit /b 1
-)
+:: Node
+node --version >/dev/null 2>&1
+if %errorlevel% neq 0 (echo [ERROR] Node.js not found & pause & exit /b 1)
 for /f "delims=" %%v in ('node --version') do set NODE_VERSION=%%v
 echo [OK] Node.js: %NODE_VERSION%
 echo.
 
-:: ============ Directory Check ============
-if not exist "%~dp0backend" (echo [ERROR] Missing backend & pause & exit /b 1)
-if not exist "%~dp0frontend" (echo [ERROR] Missing frontend & pause & exit /b 1)
+:: Check dirs
+if not exist "!PROJECT_DIR!backend" (echo [ERROR] Missing backend dir: !PROJECT_DIR!backend & pause & exit /b 1)
+if not exist "!PROJECT_DIR!frontend" (echo [ERROR] Missing frontend dir: !PROJECT_DIR!frontend & pause & exit /b 1)
+if not exist "!PROJECT_DIR!backend\logs" mkdir "!PROJECT_DIR!backend\logs"
+if not exist "!PROJECT_DIR!backend\uploads" mkdir "!PROJECT_DIR!backend\uploads"
 
-if not exist "%~dp0backend\logs" mkdir "%~dp0backend\logs"
-if not exist "%~dp0backend\uploads" mkdir "%~dp0backend\uploads"
-
-:: ============ Step 1: Database ============
+:: Step 1: Database
 echo.
-echo [1/4] Initializing database (SQLite)...
-pushd "%~dp0backend"
+echo [1/4] Initializing database...
+pushd "!PROJECT_DIR!backend"
 
+set USE_VENV=1
 if not exist venv (
     echo   Creating Python virtual environment...
     %PY_CMD% -m venv venv
     if !errorlevel! neq 0 (
-        echo [ERROR] Failed to create venv. Try: conda deactivate
-        pause & popd & exit /b 1
+        echo   [INFO] venv creation failed - will use system Python
+        set USE_VENV=0
     )
-) else (
-    echo   Using existing virtual environment
 )
-
-call venv\Scripts\activate.bat
-
-echo   Installing Python dependencies...
+if !USE_VENV! equ 1 (
+    if exist venv\Scripts\activate.bat (
+        echo   Activating virtual environment...
+        call venv\Scripts\activate.bat
+    )
+)
+echo   Installing Python dependencies (this may take a while)...
 %PY_CMD% -m pip install -r requirements.txt
-if %errorlevel% neq 0 (
-    echo [ERROR] pip install failed.
-    pause & popd & exit /b 1
-)
-
-echo.
-echo   Creating database tables...
+if !errorlevel! neq 0 (echo [ERROR] pip install failed & popd & pause & exit /b 1)
 %PY_CMD% -m app.scripts.init_db
-if %errorlevel% neq 0 (
-    echo [ERROR] Database init failed.
-    pause & popd & exit /b 1
-)
+if !errorlevel! neq 0 (echo [ERROR] Database init failed & popd & pause & exit /b 1)
 popd
 
-:: ============ Step 2: Backend ============
+:: Step 2: Backend
 echo.
 echo [2/4] Starting backend on port 8000...
-start "RadioManager-Backend" cmd /c "cd /d %~dp0backend && call venv\Scripts\activate.bat && uvicorn app.main:app --host 0.0.0.0 --port 8000"
-
-:: Wait for backend to respond (up to 20 seconds)
-echo   Waiting for backend to start...
-set WAIT_MAX=20
-set WAIT_COUNT=0
-:BACKEND_WAIT
-timeout /t 1 /nobreak >nul
-set /a WAIT_COUNT+=1
-
-:: Health check - try curl first, then powershell
-set BACKEND_OK=0
-where curl >nul 2>&1
-if %errorlevel% equ 0 (
-    curl -s http://localhost:8000/health >nul 2>&1
-    if !errorlevel! equ 0 set BACKEND_OK=1
+if exist "!PROJECT_DIR!backend\venv\Scripts\python.exe" (
+    set "PY_EXE=!PROJECT_DIR!backend\venv\Scripts\python.exe"
 ) else (
-    powershell -Command "try { $r = Invoke-WebRequest -Uri 'http://localhost:8000/health' -UseBasicParsing; if ($r.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
-    if !errorlevel! equ 0 set BACKEND_OK=1
+    echo   [INFO] venv not available, using system python
+    set "PY_EXE=python"
 )
+(
+echo @echo off
+echo cd /d "!PROJECT_DIR!backend"
+echo "!PY_EXE!" -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+echo pause
+) > "%TEMP%\radiomanager_backend.bat"
+start "RadioManager-Backend" cmd /k "%TEMP%\radiomanager_backend.bat"
+echo   Waiting for backend (up to 15 seconds)...
+set WAIT_MAX=15
+set /a WAIT_COUNT=0
 
-if !BACKEND_OK! equ 1 (
-    echo   [OK] Backend is running on http://localhost:8000
-    goto :BACKEND_UP
-)
+:BACKEND_WAIT
+timeout /t 1 /nobreak >/dev/null
+set /a WAIT_COUNT+=1
+powershell -NoProfile -NonInteractive -Command "try { $r = Invoke-WebRequest -Uri 'http://localhost:8000/health' -UseBasicParsing -TimeoutSec 1; if ($r.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >/dev/null 2>&1
+if !errorlevel! equ 0 (echo   [OK] Backend is running & goto :BACKEND_UP)
 if %WAIT_COUNT% lss %WAIT_MAX% goto :BACKEND_WAIT
-
-echo.
-echo [WARN] Backend did not start within %WAIT_MAX% seconds.
-echo   Check if the backend window shows any errors.
-echo   You can start it manually: cd %~dp0backend ^&^& venv\Scripts\activate ^&^& uvicorn app.main:app --host 0.0.0.0 --port 8000
-echo   The frontend will still be started, but login will fail without the backend.
+echo [WARN] Backend not responding - check RadioManager-Backend window.
 
 :BACKEND_UP
 echo.
 
-:: ============ Step 3: Frontend ============
-echo.
+:: Step 3: Frontend
 echo [3/4] Building frontend...
-pushd "%~dp0frontend"
-if not exist node_modules (call npm install --no-audit --no-fund)
-call npm run build
-if %errorlevel% neq 0 (echo [ERROR] Frontend build failed & pause & popd & exit /b 1)
-popd
-
-:: ============ Step 4: Electron ============
-echo.
-echo [4/4] Starting Electron...
-pushd "%~dp0frontend"
-call npx --yes electron . 2>nul
-if %errorlevel% neq 0 (
-    echo   Electron unavailable, starting web on http://localhost:5173
-    start cmd /c "npm run dev"
+echo   Project dir: !PROJECT_DIR!
+if not exist "!PROJECT_DIR!frontend" (
+    echo [ERROR] Frontend directory not found at: !PROJECT_DIR!frontend
+    pause & exit /b 1
 )
-popd
+echo   OK - frontend directory exists
 
+where npm >/dev/null 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] npm not found. Install Node.js from https://nodejs.org/
+    pause & exit /b 1
+)
+echo   OK - npm found
+
+cd /d "!PROJECT_DIR!frontend"
+echo   Current directory: !CD!
+echo   Installing frontend dependencies...
+call npm install
+if !errorlevel! neq 0 (
+    echo [ERROR] npm install failed
+    pause & exit /b 1
+)
+echo.
+echo   Building frontend...
+call npm run build
+if !errorlevel! neq 0 (
+    echo [ERROR] Frontend build failed
+    pause & exit /b 1
+)
+
+:: Step 4: Start
+echo.
+echo [4/4] Starting frontend...
+(
+echo @echo off
+echo cd /d "!PROJECT_DIR!frontend"
+echo npm run dev
+) > "%TEMP%\radiomanager_frontend.bat"
+start "RadioManager-Frontend" cmd /k "%TEMP%\radiomanager_frontend.bat"
+echo   Frontend starting on http://localhost:5173
+
+:DONE
 echo.
 echo ================================================
-echo   Done
+echo   RadioManager is running
+echo   Frontend: http://localhost:5173
+echo   Backend:  http://localhost:8000
 echo ================================================
 pause
 endlocal
