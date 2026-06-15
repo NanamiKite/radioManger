@@ -1,8 +1,14 @@
 {
   "name": "radiomanager",
-  "version": "1.0.0",
-  "description": "RadioManager - Amateur Radio QSO Log Management",
+  "version": "2.1.0",
+  "description": "RadioManager - Amateur Radio QSO Log Management System",
   "main": "electron/main.js",
+  "homepage": "https://github.com/NanamiKite/radioManger",
+  "author": {
+    "name": "Nanami Kite",
+    "email": "nanami@radiomanager.dev"
+  },
+  "license": "MIT",
   "scripts": {
     "electron": "electron .",
     "electron-dev": "electron . --debug",
@@ -16,7 +22,11 @@
       "node_modules/**/*"
     ],
     "directories": {
-      "buildResources": "assets"
+      "output": "release",
+      "buildResources": "build"
+    },
+    "linux": {
+      "category": "HamRadio"
     }
   },
   "devDependencies": {

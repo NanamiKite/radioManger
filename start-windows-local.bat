@@ -1,90 +1,88 @@
 @echo off
-chcp 65001 >nul
-title RadioManager - 纯本地部署启动 (SQLite)
+cd /d "%~dp0"
+title RadioManager - Local Deployment (SQLite)
 
 echo ================================================
-echo   RadioManager - 纯本地部署启动
-echo   数据库: SQLite
-echo   架构: 前端(Electron) + 后端(FastAPI)
+echo   RadioManager - Local Deployment (SQLite)
+echo   Architecture: Frontend(Electron) + Backend(FastAPI)
 echo ================================================
 echo.
 
-:: 检查Python
-python --version >nul 2>&1
+:: Check Python
+where python >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [错误] 未找到 Python，请安装 Python 3.10+
+    echo [ERROR] Python not found. Please install Python 3.10+
     pause
     exit /b 1
 )
 
-:: 检查Node.js
-node --version >nul 2>&1
+:: Check Node.js
+where node >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [错误] 未找到 Node.js，请安装 Node.js 18+
+    echo [ERROR] Node.js not found. Please install Node.js 18+
     pause
     exit /b 1
 )
 
-:: 创建必要目录
+:: Create required directories
 if not exist backend\logs mkdir backend\logs
 if not exist backend\uploads mkdir backend\uploads
 
 echo.
-echo [1/4] 初始化数据库 (SQLite)...
-cd backend
+echo [1/4] Initializing database (SQLite)...
+pushd backend
 if not exist venv (
-    echo   创建Python虚拟环境...
+    echo   Creating Python virtual environment...
     python -m venv venv
 )
 call venv\Scripts\activate.bat
 pip install -r requirements.txt -q >nul 2>&1
 python -m app.scripts.init_db
 if %errorlevel% neq 0 (
-    echo [错误] 数据库初始化失败
+    echo [ERROR] Database initialization failed
     pause
+    popd
     exit /b 1
 )
-cd ..
+popd
 
 echo.
-echo [2/4] 启动后端服务...
-cd backend
+echo [2/4] Starting backend...
+pushd backend
 start "RadioManager-Backend" cmd /c "call venv\Scripts\activate.bat && uvicorn app.main:app --host 0.0.0.0 --port 8000"
-cd ..
-echo   后端已启动: http://localhost:8000
+popd
+echo   Backend started: http://localhost:8000
 timeout /t 3 /nobreak >nul
 
 echo.
-echo [3/4] 构建前端...
-cd frontend
+echo [3/4] Building frontend...
+pushd frontend
 if not exist node_modules (
-    echo   安装前端依赖...
+    echo   Installing frontend dependencies...
     call npm install
 )
 call npm run build
-cd ..
+popd
 
 echo.
-echo [4/4] 启动 Electron 桌面应用...
-echo   部署模式: Local (本地后端)
+echo [4/4] Starting Electron desktop app...
+echo   Deployment mode: Local
 echo.
-set RADIOMANAGER_MODE=local
-cd frontend
+pushd frontend
 
-:: 检查是否安装了 Electron
-call npx electron --version >nul 2>&1
+where npx >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [提示] Electron 未安装，将启动 Web 模式
-    echo   请访问: http://localhost:5173
-    start npm run dev
+    echo   npx not found, starting web server instead
+    echo   Visit: http://localhost:5173
+    start cmd /c "npm run dev"
 ) else (
     call npx electron .
 )
 
-cd ..
+popd
 
 echo.
 echo ================================================
-echo   服务已停止
+echo   Services stopped
 echo ================================================
 pause
