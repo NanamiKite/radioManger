@@ -166,7 +166,7 @@ const loadData = async () => {
     locations.value = await locationsApi.list()
     const active = locations.value.find(l => l.is_active)
     activeLocationId.value = active?.id ?? null
-  } catch (err: any) { ElMessage.error(err.message || t('errors.serverError')) }
+  } catch (err: any) { ElMessage.error(err?.response?.data?.detail || err.message || t('errors.serverError')) }
   finally { loading.value = false }
 }
 
@@ -226,7 +226,7 @@ const handleDeleteStation = async (station: any) => {
     if (err?.response?.status === 400) {
       ElMessage.error(err?.response?.data?.detail || 'Cannot delete this station')
     } else if (err !== 'cancel' && err !== 'close') {
-      ElMessage.error(err?.message || t('errors.serverError'))
+      ElMessage.error(err?.response?.data?.detail || err?.message || t('errors.serverError'))
     }
   }
 }

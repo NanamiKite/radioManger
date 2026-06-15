@@ -67,7 +67,9 @@ const handleLogin = async () => {
     const redirect = route.query.redirect as string
     router.push(redirect || '/dashboard')
   } catch (error: any) {
-    ElMessage.error(error.message || t('errors.serverError'))
+    const detail = error?.response?.data?.detail
+    const msg = typeof detail === 'string' ? detail : detail?.[0]?.msg || error.message
+    ElMessage.error(msg || t('errors.serverError'))
   } finally {
     loading.value = false
   }

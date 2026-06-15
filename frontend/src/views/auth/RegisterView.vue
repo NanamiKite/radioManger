@@ -89,7 +89,9 @@ const handleRegister = async (): Promise<void> => {
 
     router.push({ name: 'Login' })
   } catch (error: any) {
-    ElMessage.error(error.message || t('errors.serverError'))
+    const detail = error?.response?.data?.detail
+    const msg = typeof detail === 'string' ? detail : detail?.[0]?.msg || error.message
+    ElMessage.error(msg || t('errors.serverError'))
   } finally {
     loading.value = false
   }

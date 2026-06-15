@@ -24,7 +24,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="RadioManager API",
     description="Amateur Radio Log Management System API",
-    version="2.0.1",
+    version="2.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -50,7 +50,7 @@ async def health_check():
 
 @app.get("/")
 async def root():
-    return {"name": "RadioManager API", "version": "1.0.0", "docs": "/docs", "database_mode": settings.DATABASE_MODE}
+    return {"name": "RadioManager API", "version": "2.1.0", "docs": "/docs", "database_mode": settings.DATABASE_MODE}
 
 if __name__ == "__main__":
     import uvicorn
