@@ -84,7 +84,8 @@ export default {
     cached: 'Cached',
     live: 'Live',
     notFoundOnQRZ: 'Callsign not found on QRZ.com',
-    opensOnQRZ: 'Open on QRZ.com →'
+    opensOnQRZ: 'Open on QRZ.com →',
+    offlineHint: 'QRZ credentials not configured. Showing approximate DXCC country.'
   },
   nav: {
     dashboard: 'Dashboard',
@@ -212,6 +213,20 @@ export default {
     title: 'Shortcuts',
     subtitle: 'Quick links to amateur radio websites',
     noShortcuts: 'No shortcuts configured'
+  },
+  callsign: {
+    fullName: 'Full Name',
+    country: 'Country',
+    gridSquare: 'Grid Square',
+    address: 'Address',
+    class: 'License Class',
+    previousCalls: 'Previous Callsigns',
+    licenseDate: 'License Date',
+    licenseExp: 'License Expiry',
+    cqZone: 'CQ Zone',
+    ituZone: 'ITU Zone',
+    email: 'Email',
+    coordinates: 'Coordinates'
   },
   validation: {
     required: 'This field is required',

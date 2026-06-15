@@ -75,9 +75,19 @@ export interface CallsignInfo {
   class_type?: string
   license_date?: string
   license_exp?: string
+  previous_call?: string
   qrz_url?: string
+  address?: string
+  zip_code?: string
+  url?: string
+  phone?: string
+  cq_zone?: string
+  itu_zone?: string
+  email?: string
+  image?: string
   cached: boolean
   cached_at?: string
+  offline?: boolean
 }
 
 export interface Statistics {

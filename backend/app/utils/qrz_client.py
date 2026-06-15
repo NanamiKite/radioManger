@@ -1,135 +1,139 @@
-"""QRZ.com API客户端"""
+"""QRZ.com XML API 客户端"""
 
 import logging
 from typing import Optional, Dict
 from datetime import date
-import xml.etree.ElementTree as ET
-
-import httpx
+import requests
 
 from app.config import settings
 
 logger = logging.getLogger("radiomanager.qrz")
 
+BASE_URL = "https://xmldata.qrz.com/xml/current/"
+
+
+def _extract_tag(xml: str, tag: str) -> Optional[str]:
+    """从XML字符串中提取标签内容（无视命名空间）"""
+    import re
+    m = re.search(rf"<{tag}[^>]*>(.*?)</{tag}>", xml, re.DOTALL)
+    return m.group(1).strip() if m else None
+
 
 class QRZClient:
     """QRZ.com XML API 客户端"""
 
-    SESSION_URL = "https://xmldata.qrz.com/xml/current/"
-    CALLSIGN_URL = "https://xmldata.qrz.com/xml/current/"
-
     def __init__(self):
         self.session_key: Optional[str] = None
-        self._client = httpx.Client(timeout=15.0)
 
     def _ensure_session(self) -> str:
-        """获取或刷新QRZ会话"""
         if self.session_key:
             return self.session_key
 
         if not settings.QRZ_USERNAME or not settings.QRZ_PASSWORD:
             raise ConnectionError("QRZ API credentials not configured")
 
-        response = self._client.get(
-            self.SESSION_URL,
+        r = requests.get(
+            BASE_URL,
             params={
                 "username": settings.QRZ_USERNAME,
                 "password": settings.QRZ_PASSWORD,
                 "agent": "radiomanager.1.0",
             },
+            timeout=15,
         )
-        root = ET.fromstring(response.text)
 
-        err = root.find(".//Error")
-        if err is not None:
-            raise ConnectionError(f"QRZ login failed: {err.text}")
+        key = _extract_tag(r.text, "Key")
+        err = _extract_tag(r.text, "Error")
 
-        key = root.find(".//Key")
-        if key is None:
+        if err:
+            raise ConnectionError(f"QRZ login failed: {err}")
+
+        if not key:
             raise ConnectionError("QRZ login failed: no session key returned")
 
-        self.session_key = key.text
-        return self.session_key
+        self.session_key = key
+        return key
 
     def lookup(self, callsign: str) -> Optional[Dict]:
-        """查询单个呼号"""
         try:
             session = self._ensure_session()
-            response = self._client.get(
-                self.CALLSIGN_URL,
+            r = requests.get(
+                BASE_URL,
                 params={"s": session, "callsign": callsign},
+                timeout=15,
             )
-            return self._parse_callsign_response(response.text, callsign)
+            return self._parse_response(r.text, callsign)
         except Exception as e:
             logger.warning(f"QRZ lookup failed for {callsign}: {e}")
             return None
 
-    def _parse_callsign_response(self, xml_text: str, callsign: str) -> Optional[Dict]:
-        """解析QRZ XML响应"""
-        root = ET.fromstring(xml_text)
-        err = root.find(".//Error")
-        if err is not None:
-            logger.debug(f"QRZ error for {callsign}: {err.text}")
+    def _parse_response(self, xml_text: str, callsign: str) -> Optional[Dict]:
+        err = _extract_tag(xml_text, "Error")
+        if err:
+            logger.debug(f"QRZ error for {callsign}: {err}")
             return None
 
-        callsign_elem = root.find(".//Callsign")
-        if callsign_elem is None:
+        # 直接用字符串提取
+        obj = xml_text.split("<Callsign>")
+        if len(obj) < 2:
+            return None
+        block = obj[1].split("</Callsign>")[0]
+
+        def t(tag: str) -> Optional[str]:
+            return _extract_tag(block, tag)
+
+        def tf(tag: str) -> Optional[float]:
+            v = t(tag)
+            if v:
+                try:
+                    return float(v)
+                except ValueError:
+                    return None
             return None
 
-        result = {
-            "call_sign": callsign.upper(),
-            "first_name": self._elem_text(callsign_elem, "fname"),
-            "last_name": self._elem_text(callsign_elem, "name"),
-            "full_name": None,
-            "country": self._elem_text(callsign_elem, "country"),
-            "grid_square": self._elem_text(callsign_elem, "grid"),
-            "latitude": self._elem_float(callsign_elem, "lat"),
-            "longitude": self._elem_float(callsign_elem, "lon"),
-            "class_type": self._elem_text(callsign_elem, "class"),
-            "license_date": self._parse_date(self._elem_text(callsign_elem, "licdate")),
-            "license_exp": self._parse_date(self._elem_text(callsign_elem, "effdate")),
-            "previous_call": self._elem_text(callsign_elem, "prev_call"),
-            "qrz_url": f"https://www.qrz.com/db/{callsign.upper()}",
-        }
-
-        # 组装全名
-        first = result["first_name"] or ""
-        last = result["last_name"] or ""
-        result["full_name"] = f"{first} {last}".strip() or None
-
-        return result
-
-    @staticmethod
-    def _elem_text(element, tag: str) -> Optional[str]:
-        """获取子元素文本"""
-        sub = element.find(tag)
-        return sub.text if sub is not None and sub.text else None
-
-    @staticmethod
-    def _elem_float(element, tag: str) -> Optional[float]:
-        """获取子元素浮点值"""
-        text = QRZClient._elem_text(element, tag)
-        if text:
+        def td(tag: str) -> Optional[date]:
+            v = t(tag)
+            if not v or len(v) != 10:
+                return None
             try:
-                return float(text)
+                return date(int(v[0:4]), int(v[5:7]), int(v[8:10]))
             except ValueError:
                 return None
-        return None
 
-    @staticmethod
-    def _parse_date(text: Optional[str]) -> Optional[date]:
-        """解析QRZ日期格式 (YYYYMMDD)"""
-        if not text or len(text) != 8:
-            return None
-        try:
-            return date(
-                year=int(text[0:4]),
-                month=int(text[4:6]),
-                day=int(text[6:8]),
-            )
-        except ValueError:
-            return None
+        first = t("fname") or ""
+        last = t("name") or ""
+        full_name = f"{first} {last}".strip() or None
+
+        addr1 = t("addr1")
+        addr2 = t("addr2")
+        state = t("state")
+        zip_code = t("zip")
+        full_addr_parts = [p for p in [addr1, addr2, state, zip_code] if p]
+        address = ", ".join(full_addr_parts) if full_addr_parts else None
+
+        return {
+            "call_sign": callsign.upper(),
+            "first_name": first or None,
+            "last_name": last or None,
+            "full_name": full_name,
+            "country": t("country"),
+            "grid_square": t("grid"),
+            "latitude": tf("lat"),
+            "longitude": tf("lon"),
+            "class_type": t("class"),
+            "license_date": td("efdate") or td("licdate"),
+            "license_exp": td("expdate") or td("effdate"),
+            "previous_call": t("aliases"),
+            "qrz_url": f"https://www.qrz.com/db/{callsign.upper()}",
+            "url": t("url"),
+            "phone": t("phone"),
+            "address": address,
+            "zip_code": zip_code,
+            "cq_zone": t("cqzone"),
+            "itu_zone": t("ituzone"),
+            "email": t("email"),
+            "image": t("image"),
+        }
 
     def close(self):
-        """关闭HTTP客户端"""
-        self._client.close()
+        pass

@@ -17,42 +17,7 @@ from app.services.callsign_service import CallsignService
 router = APIRouter()
 
 
-@router.get("/{call_sign}", response_model=CallsignInfo)
-async def lookup_callsign(
-    call_sign: str,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
-    """查询单个呼号"""
-    result = CallsignService.lookup(db, call_sign)
-    if not result:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Callsign not found",
-        )
-    return result
-
-
-@router.post("/batch-query", response_model=CallsignBatchResponse)
-async def batch_query_callsigns(
-    query: CallsignQuery,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
-    """批量查询呼号"""
-    results = []
-    for cs in query.call_signs[:50]:  # 限制50个
-        result = CallsignService.lookup(db, cs)
-        if result:
-            results.append(result)
-
-    return CallsignBatchResponse(
-        results=results,
-        found=len(results),
-        not_found=len(query.call_signs) - len(results),
-    )
-
-
+# 固定路径路由必须放在 /{call_sign} 之前
 @router.get("/search/{prefix}", response_model=CallsignSearchResult)
 async def search_callsigns(
     prefix: str,
@@ -73,3 +38,33 @@ async def clear_callsign_cache(
 ):
     """清除呼号缓存"""
     CallsignService.clear_cache(db, call_sign)
+
+
+@router.post("/batch-query", response_model=CallsignBatchResponse)
+async def batch_query_callsigns(
+    query: CallsignQuery,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """批量查询呼号"""
+    results = []
+    for cs in query.call_signs[:50]:
+        result = CallsignService.lookup(db, cs)
+        if result:
+            results.append(result)
+
+    return CallsignBatchResponse(
+        results=results,
+        found=len(results),
+        not_found=len(query.call_signs) - len(results),
+    )
+
+
+@router.get("/{call_sign}", response_model=CallsignInfo)
+async def lookup_callsign(
+    call_sign: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """查询单个呼号（离线时返回DXCC推断结果）"""
+    return CallsignService.lookup(db, call_sign)

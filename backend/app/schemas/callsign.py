@@ -23,8 +23,17 @@ class CallsignInfo(BaseModel):
     license_exp: Optional[date] = None
     previous_call: Optional[str] = None
     qrz_url: Optional[str] = None
+    address: Optional[str] = None
+    zip_code: Optional[str] = None
+    url: Optional[str] = None
+    phone: Optional[str] = None
+    cq_zone: Optional[str] = None
+    itu_zone: Optional[str] = None
+    email: Optional[str] = None
+    image: Optional[str] = None
     cached: bool = False
     cached_at: Optional[datetime] = None
+    offline: bool = False
 
     class Config:
         from_attributes = True

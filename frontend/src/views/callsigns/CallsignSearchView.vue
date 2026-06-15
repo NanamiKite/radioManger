@@ -28,33 +28,43 @@
     <el-card v-if="result" class="result-card">
       <template #header>
         <div class="result-header">
-          <span class="callsign-display">{{ result.call_sign }}</span>
-          <el-tag v-if="result.cached" type="warning" size="small">{{ $t('auth.cached') }}</el-tag>
-          <el-tag v-else type="success" size="small">{{ $t('auth.live') }}</el-tag>
+          <div class="header-left">
+            <span class="callsign-display">{{ result.call_sign }}</span>
+            <el-tag v-if="result.offline" type="info" size="small">Offline</el-tag>
+            <el-tag v-else-if="result.cached" type="warning" size="small">{{ $t('auth.cached') }}</el-tag>
+            <el-tag v-else type="success" size="small">{{ $t('auth.live') }}</el-tag>
+          </div>
+          <el-button v-if="result.qrz_url" link type="primary" size="small" @click="openQRZ(result.qrz_url!)">
+            QRZ.com →
+          </el-button>
+        </div>
+        <div v-if="result.offline" style="margin-top: 6px; font-size: 12px; color: #909399;">
+          {{ $t('auth.offlineHint') }}
         </div>
       </template>
 
       <el-descriptions :column="2" border>
-        <el-descriptions-item :label="$t('common.fullName')">{{ result.full_name || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="Country">{{ result.country || '-' }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('logs.gridSquare')">{{ result.grid_square || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="Latitude">{{ result.latitude ?? '-' }}</el-descriptions-item>
-        <el-descriptions-item label="Longitude">{{ result.longitude ?? '-' }}</el-descriptions-item>
-        <el-descriptions-item label="Class">{{ result.class_type || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="License Date">{{ result.license_date || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="License Expiry">{{ result.license_exp || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('callsign.fullName')" :span="2">{{ result.full_name || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('callsign.country')">{{ result.country || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('callsign.gridSquare')">{{ result.grid_square || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('callsign.address')" :span="2">{{ result.address || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('callsign.class')">{{ result.class_type || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('callsign.previousCalls')">{{ result.previous_call || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('callsign.licenseDate')">{{ result.license_date || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('callsign.licenseExp')">{{ result.license_exp || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('callsign.cqZone')">{{ result.cq_zone || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('callsign.ituZone')">{{ result.itu_zone || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('callsign.email')" :span="1">{{ result.email || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="Phone">{{ result.phone || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="URL" :span="2">{{ result.url || '-' }}</el-descriptions-item>
       </el-descriptions>
 
-      <div class="result-actions" v-if="result.qrz_url">
-        <el-button link type="primary" @click="openQRZ(result.qrz_url!)">
-          {{ $t('auth.opensOnQRZ') }}
-        </el-button>
+      <div v-if="result.latitude && result.longitude" class="coordinates">
+        {{ $t('callsign.coordinates') }}: {{ result.latitude }}, {{ result.longitude }}
       </div>
     </el-card>
 
-    <el-card v-else-if="searched && !result" class="result-card">
-      <el-empty :description="$t('auth.notFoundOnQRZ')" />
-    </el-card>
+    <el-empty v-else-if="searched" :description="$t('auth.notFoundOnQRZ')" />
   </div>
 </template>
 
@@ -78,14 +88,9 @@ const handleSearch = async () => {
     const data = await callsignsApi.lookup(callsign.value.trim().toUpperCase())
     result.value = data
   } catch (err: any) {
-    if (err?.response?.status === 404) {
-      searched.value = true
-    } else {
-      ElMessage.error(err?.response?.data?.detail || 'Query failed')
-    }
+    ElMessage.error(err?.response?.data?.detail || 'Query failed')
   } finally {
     searching.value = false
-    searched.value = true
   }
 }
 
@@ -100,10 +105,11 @@ const openQRZ = (url: string) => {
   .search-card { margin-bottom: 16px; }
   .result-card {
     .result-header {
-      display: flex; align-items: center; gap: 12px;
+      display: flex; justify-content: space-between; align-items: center;
+      .header-left { display: flex; align-items: center; gap: 12px; }
       .callsign-display { font-size: 24px; font-weight: bold; letter-spacing: 2px; font-family: monospace; }
     }
-    .result-actions { margin-top: 16px; }
+    .coordinates { margin-top: 12px; font-size: 13px; color: #606266; }
   }
 }
 </style>
