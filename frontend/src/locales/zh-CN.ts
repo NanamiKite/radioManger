@@ -59,8 +59,7 @@ export default {
     stationLogs: '该台站有 {count} 条日志',
     deleteWithoutExport: '直接删除而不导出？',
     deleteStationWarning: '删除台站 "{callsign}"？',
-    emptyStations: '暂无台站，请先创建一个',
-    cancel: '取消'
+    emptyStations: '暂无台站，请先创建一个'
   },
   auth: {
     login: '登录',
