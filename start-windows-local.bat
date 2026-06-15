@@ -1,6 +1,6 @@
 @echo off
-cd /d "%~dp0"
-title RadioManager - Local Deployment (SQLite)
+pushd %~dp0
+title RadioManager - Local Deployment
 
 echo ================================================
 echo   RadioManager - Local Deployment (SQLite)
@@ -25,12 +25,17 @@ if %errorlevel% neq 0 (
 )
 
 :: Create required directories
-if not exist backend\logs mkdir backend\logs
-if not exist backend\uploads mkdir backend\uploads
+if not exist "%~dp0backend\logs" mkdir "%~dp0backend\logs"
+if not exist "%~dp0backend\uploads" mkdir "%~dp0backend\uploads"
 
 echo.
 echo [1/4] Initializing database (SQLite)...
-pushd backend
+if not exist "%~dp0backend" (
+    echo [ERROR] backend directory not found at %~dp0backend
+    pause
+    exit /b 1
+)
+pushd "%~dp0backend"
 if not exist venv (
     echo   Creating Python virtual environment...
     python -m venv venv
@@ -48,15 +53,13 @@ popd
 
 echo.
 echo [2/4] Starting backend...
-pushd backend
-start "RadioManager-Backend" cmd /c "call venv\Scripts\activate.bat && uvicorn app.main:app --host 0.0.0.0 --port 8000"
-popd
+start "RadioManager-Backend" cmd /c "cd /d %~dp0backend && call venv\Scripts\activate.bat && uvicorn app.main:app --host 0.0.0.0 --port 8000"
 echo   Backend started: http://localhost:8000
 timeout /t 3 /nobreak >nul
 
 echo.
 echo [3/4] Building frontend...
-pushd frontend
+pushd "%~dp0frontend"
 if not exist node_modules (
     echo   Installing frontend dependencies...
     call npm install
@@ -68,8 +71,7 @@ echo.
 echo [4/4] Starting Electron desktop app...
 echo   Deployment mode: Local
 echo.
-pushd frontend
-
+pushd "%~dp0frontend"
 where npx >nul 2>&1
 if %errorlevel% neq 0 (
     echo   npx not found, starting web server instead
@@ -78,7 +80,6 @@ if %errorlevel% neq 0 (
 ) else (
     call npx electron .
 )
-
 popd
 
 echo.
