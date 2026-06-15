@@ -59,8 +59,7 @@ export default {
     stationLogs: 'Station has {count} log(s)',
     deleteWithoutExport: 'Delete without exporting them first?',
     deleteStationWarning: 'Delete station "{callsign}"?',
-    emptyStations: 'No stations yet. Create one to get started.',
-    cancel: 'Cancel'
+    emptyStations: 'No stations yet. Create one to get started.'
   },
   auth: {
     login: 'Login',
