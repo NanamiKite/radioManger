@@ -7,16 +7,18 @@ from datetime import datetime
 
 from app.models.callsign_cache import CallsignCache
 from app.utils.qrz_client import QRZClient
+from app.config import settings
+from app.utils.dxcc import lookup_dxcc
 
 logger = logging.getLogger("radiomanager.callsign")
 
 
 class CallsignService:
-    """呼号查询服务（支持本地缓存 + QRZ.com）"""
+    """呼号查询服务（支持本地缓存 + QRZ.com + 离线DXCC推断）"""
 
     @staticmethod
     def lookup(db: Session, call_sign: str) -> Optional[Dict]:
-        """查询呼号（先查缓存，再查QRZ）"""
+        """查询呼号（先查缓存，再查QRZ，QRZ不可用时返回离线DXCC数据）"""
         call_sign = call_sign.upper().strip()
 
         # 1. 查本地缓存
@@ -25,29 +27,60 @@ class CallsignService:
             .filter(CallsignCache.call_sign == call_sign)
             .first()
         )
+        if cached and cached.cached_at:
+            # 缓存超过30天仍尝试QRZ刷新
+            age = (datetime.utcnow() - cached.cached_at).days
+            if age < 30:
+                result = CallsignService._model_to_dict(cached)
+                result["cached"] = True
+                result["cached_at"] = cached.cached_at
+                return result
+
+        # 2. 查QRZ（如果配置了凭证）
+        qrz_configured = bool(settings.QRZ_USERNAME and settings.QRZ_PASSWORD)
+        qrz_data = None
+        if qrz_configured:
+            try:
+                client = QRZClient()
+                qrz_data = client.lookup(call_sign)
+                client.close()
+            except Exception as e:
+                logger.warning(f"QRZ lookup failed for {call_sign}: {e}")
+
+        if qrz_data:
+            cache_entry = CallsignService._save_cache(db, qrz_data)
+            qrz_data["cached"] = False
+            qrz_data["cached_at"] = cache_entry.cached_at
+            return qrz_data
+
+        # 3. 如果缓存已过期但存在，使用缓存
         if cached:
             result = CallsignService._model_to_dict(cached)
             result["cached"] = True
             result["cached_at"] = cached.cached_at
             return result
 
-        # 2. 查QRZ
-        try:
-            client = QRZClient()
-            qrz_data = client.lookup(call_sign)
-            client.close()
-        except Exception as e:
-            logger.warning(f"QRZ lookup failed: {e}")
-            qrz_data = None
-
-        if qrz_data:
-            # 写入缓存
-            cache_entry = CallsignService._save_cache(db, qrz_data)
-            qrz_data["cached"] = False
-            qrz_data["cached_at"] = cache_entry.cached_at
-            return qrz_data
-
-        return None
+        # 4. 离线DXCC推断（QRZ不可用时兜底）
+        dxcc = lookup_dxcc(call_sign)
+        result = {
+            "call_sign": call_sign,
+            "first_name": None,
+            "last_name": None,
+            "full_name": None,
+            "country": dxcc if dxcc and dxcc != "Unknown" else None,
+            "grid_square": None,
+            "latitude": None,
+            "longitude": None,
+            "class_type": None,
+            "license_date": None,
+            "license_exp": None,
+            "previous_call": None,
+            "qrz_url": f"https://www.qrz.com/db/{call_sign}",
+            "cached": False,
+            "cached_at": None,
+            "offline": True,
+        }
+        return result
 
     @staticmethod
     def _model_to_dict(cache: CallsignCache) -> Dict:
