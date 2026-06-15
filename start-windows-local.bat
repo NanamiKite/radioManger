@@ -82,7 +82,40 @@ popd
 echo.
 echo [2/4] Starting backend on port 8000...
 start "RadioManager-Backend" cmd /c "cd /d %~dp0backend && call venv\Scripts\activate.bat && uvicorn app.main:app --host 0.0.0.0 --port 8000"
-timeout /t 3 /nobreak >nul
+
+:: Wait for backend to respond (up to 20 seconds)
+echo   Waiting for backend to start...
+set WAIT_MAX=20
+set WAIT_COUNT=0
+:BACKEND_WAIT
+timeout /t 1 /nobreak >nul
+set /a WAIT_COUNT+=1
+
+:: Health check - try curl first, then powershell
+set BACKEND_OK=0
+where curl >nul 2>&1
+if %errorlevel% equ 0 (
+    curl -s http://localhost:8000/health >nul 2>&1
+    if !errorlevel! equ 0 set BACKEND_OK=1
+) else (
+    powershell -Command "try { $r = Invoke-WebRequest -Uri 'http://localhost:8000/health' -UseBasicParsing; if ($r.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
+    if !errorlevel! equ 0 set BACKEND_OK=1
+)
+
+if !BACKEND_OK! equ 1 (
+    echo   [OK] Backend is running on http://localhost:8000
+    goto :BACKEND_UP
+)
+if %WAIT_COUNT% lss %WAIT_MAX% goto :BACKEND_WAIT
+
+echo.
+echo [WARN] Backend did not start within %WAIT_MAX% seconds.
+echo   Check if the backend window shows any errors.
+echo   You can start it manually: cd %~dp0backend ^&^& venv\Scripts\activate ^&^& uvicorn app.main:app --host 0.0.0.0 --port 8000
+echo   The frontend will still be started, but login will fail without the backend.
+
+:BACKEND_UP
+echo.
 
 :: ============ Step 3: Frontend ============
 echo.
