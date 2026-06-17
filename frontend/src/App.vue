@@ -4,7 +4,7 @@
       <el-header v-if="isAuthenticated" class="app-header">
         <div class="header-content">
           <div class="logo">
-            <h1>RadioManager</h1>
+            <h1>{{ $t('common.appName') }}</h1>
           </div>
           <div class="header-right">
             <el-select v-model="currentLanguage" @change="handleLanguageChange" style="width: 100px; margin-right: 16px">
@@ -50,7 +50,7 @@
               <span>🔗 {{ $t('nav.shortcuts') }}</span>
             </el-menu-item>
             <el-menu-item index="/recycle">
-              <span>🗑️ Recycle Bin</span>
+              <span>🗑️ {{ $t('nav.recycle') }}</span>
             </el-menu-item>
             <el-menu-item index="/settings">
               <span>⚙️ {{ $t('nav.settings') }}</span>

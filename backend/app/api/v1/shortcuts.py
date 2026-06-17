@@ -12,7 +12,7 @@ DEFAULT_SHORTCUTS = [
     {"id": 1, "name": "QRZ.com", "url": "https://www.qrz.com", "description": "Amateur radio callsign database"},
     {"id": 2, "name": "ARRL DXCC", "url": "https://www.arrl.org/dxcc", "description": "DXCC entities list"},
     {"id": 3, "name": "LOTW", "url": "https://lotw.arrl.org", "description": "ARRL Logbook of the World"},
-    {"id": 4, "name": "EHAM", "url": "https://www.eham.net", "description": "Amateur radio reviews and information"},
+    {"id": 4, "name": "Clublog", "url": "https://clublog.org/", "description": "Amateur Radio League Tables"},
     {"id": 5, "name": "DXWatch", "url": "https://dxwatch.com", "description": "Real-time DX cluster spots"},
     {"id": 6, "name": "PSK Reporter", "url": "https://pskreporter.info", "description": "PSK propagation reporting"},
 ]

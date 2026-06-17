@@ -3,12 +3,12 @@
     <div class="page-header">
       <div>
         <h1>{{ $t('stations.title') }}</h1>
-        <p>Manage stations and their locations</p>
+        <p>{{ $t('stations.manageStations') }}</p>
       </div>
       <div class="header-actions">
         <el-button @click="showStationDialog = true">{{ $t('stations.newStation') }}</el-button>
         <el-button type="primary" @click="showLocationDialog = true" :disabled="stations.length === 0">
-          + New Location
+          + {{ $t('stations.newLocation') }}
         </el-button>
       </div>
     </div>
@@ -53,14 +53,14 @@
         </template>
       </el-tree>
 
-      <el-empty v-if="treeData.length === 0" description="No stations yet. Create one to get started." />
+      <el-empty v-if="treeData.length === 0" :description="t('stations.noStations')" />
     </el-card>
 
     <!-- 新建 Station 对话框 -->
     <el-dialog v-model="showStationDialog" title="New Station" width="400px">
       <el-form ref="stationFormRef" :model="stationForm" :rules="stationRules" label-width="100px">
         <el-form-item :label="$t('stations.callSign')" prop="callsign">
-          <el-input v-model="stationForm.callsign" placeholder="e.g. BA7ABC" @input="v => stationForm.callsign = v.toUpperCase()" />
+          <el-input v-model="stationForm.callsign" placeholder="e.g. BA7ABC" @input="(v: string) => stationForm.callsign = v.toUpperCase()" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -81,7 +81,7 @@
           <el-input v-model="locationForm.name" placeholder="e.g. Home, Mobile, Field" />
         </el-form-item>
         <el-form-item :label="$t('stations.gridSquare')" prop="grid_square">
-          <el-input v-model="locationForm.grid_square" placeholder="e.g. OL63" @input="v => locationForm.grid_square = v.toUpperCase()" />
+          <el-input v-model="locationForm.grid_square" placeholder="e.g. OL63" @input="(v: string) => locationForm.grid_square = v.toUpperCase()" />
         </el-form-item>
         <el-form-item :label="$t('stations.radioModel')">
           <el-input v-model="locationForm.radio_model" />

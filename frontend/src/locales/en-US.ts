@@ -67,8 +67,8 @@ export default {
     forgotPassword: 'Forgot Password',
     rememberMe: 'Remember Me',
     passwordConfirm: 'Confirm Password',
-    loginSuccess: 'Login successful',
-    registerSuccess: 'Registration successful, please login',
+    alreadyRegistered: 'Already registered? Please',
+    noAccount: 'No account? Please',
     logoutSuccess: 'Logout successful',
     invalidCredentials: 'Invalid username or password',
     userExists: 'Username already exists',
@@ -94,6 +94,7 @@ export default {
     analysis: 'Analysis',
     callsigns: 'Callsigns',
     shortcuts: 'Shortcuts',
+    recycle: 'Recycle Bin',
     settings: 'Settings',
     about: 'About'
   },
@@ -152,6 +153,8 @@ export default {
   stations: {
     title: 'Stations',
     newStation: 'Add Station',
+    newLocation: 'New Location',
+    manageStations: 'Manage Stations and Locations',
     callSign: 'Call Sign',
     gridSquare: 'Grid Square',
     radioModel: 'Radio Model',
@@ -159,7 +162,7 @@ export default {
     qth: 'QTH',
     primary: 'Primary',
     secondary: 'Secondary',
-    noStations: 'No stations yet',
+    noStations: 'No stations yet,create one to get started.',
     addStation: 'Add Station',
     editStation: 'Edit Station',
     deleteStation: 'Delete Station',
@@ -204,6 +207,7 @@ export default {
     passwordChanged: 'Password changed',
     joined: 'Joined',
     role: 'Role',
+    appName: 'RadioManager',
     version: 'Version',
     dbMode: 'Database Mode',
     apiServer: 'API Server',
@@ -213,6 +217,11 @@ export default {
     title: 'Shortcuts',
     subtitle: 'Quick links to amateur radio websites',
     noShortcuts: 'No shortcuts configured'
+  },
+  recycleBin: {
+    title: 'Recycle Bin',
+    recycleBinTip: 'Deleted logs are kept for 7 days before permanent removal',
+    recyleBinEmpty: 'Recycle bin is empty',
   },
   callsign: {
     fullName: 'Full Name',

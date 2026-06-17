@@ -1,6 +1,6 @@
 export default {
   common: {
-    appName: 'RadioManager',
+    appName: '业余无线电日志管理器',
     login: '登录',
     logout: '登出',
     register: '注册',
@@ -67,8 +67,8 @@ export default {
     forgotPassword: '忘记密码',
     rememberMe: '记住我',
     passwordConfirm: '确认密码',
-    loginSuccess: '登录成功',
-    registerSuccess: '注册成功，请登录',
+    alreadyRegistered: '已有账号？请',
+    noAccount: '还没有账号？请先',
     logoutSuccess: '登出成功',
     invalidCredentials: '用户名或密码错误',
     userExists: '用户名已存在',
@@ -93,6 +93,7 @@ export default {
     analysis: '数据分析',
     callsigns: '呼号查询',
     shortcuts: '快捷链接',
+    recycle: '回收站',
     settings: '设置',
     about: '关于'
   },
@@ -151,6 +152,8 @@ export default {
   stations: {
     title: '台站管理',
     newStation: '添加台站',
+    newLocation: '新建台站位置',
+    manageStations: '管理台站和位置',
     callSign: '呼号',
     gridSquare: '梅登网格',
     radioModel: '电台型号',
@@ -158,7 +161,7 @@ export default {
     qth: 'QTH',
     primary: '主台站',
     secondary: '副台站',
-    noStations: '暂无台站',
+    noStations: '暂无台站，请先创建一个',
     addStation: '添加台站',
     editStation: '编辑台站',
     deleteStation: '删除台站',
@@ -203,6 +206,7 @@ export default {
     passwordChanged: '密码已修改',
     joined: '注册时间',
     role: '角色',
+    appName: '业余无线电日志管理器',
     version: '版本',
     dbMode: '数据库模式',
     apiServer: 'API地址',
@@ -213,6 +217,12 @@ export default {
     subtitle: '业余无线电相关网站快速跳转',
     noShortcuts: '暂无快捷链接'
   },
+  recycleBin: {
+    title: '回收站',
+    recycleBinTip: '删除的日志会在7天后被永久删除',
+    recyleBinEmpty: '回收站为空',
+  },
+
   validation: {
     required: '此字段为必填项',
     email: '请输入有效的邮箱地址',

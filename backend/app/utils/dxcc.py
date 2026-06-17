@@ -3,7 +3,7 @@
 import re
 from typing import Optional
 
-# ARRL DXCC前缀映射（340 entities）
+# ARRL DXCC前缀映射
 # 匹配规则：先按前缀正则的精确度从高到低匹配，将斜杠后的操作地前缀作为主匹配
 DXCC_PREFIXES = [
     (r"^1A", "Sov. Mil. Order of Malta"),
@@ -21,7 +21,8 @@ DXCC_PREFIXES = [
     (r"^3V", "Tunisia"),
     (r"^3W", "Viet Nam"),
     (r"^3X", "Guinea"),
-    (r"^3Y[BP]", "Bouvet"),
+    # 修正：3Y0J, 3Y0Z, 3Y1B 等所有历史与现代布维岛远征，剩下的 3Y 归彼得一世岛
+    (r"^3Y[0-9]?[0-9]?[ZJBPZjb]", "Bouvet"),
     (r"^3Y", "Peter 1 I."),
     (r"^4J", "Azerbaijan"),
     (r"^4K", "Azerbaijan"),
@@ -87,9 +88,13 @@ DXCC_PREFIXES = [
     (r"^A7", "Qatar"),
     (r"^A9", "Bahrain"),
     (r"^AP", "Pakistan"),
-    (r"^B[VMN]9P", "Pratas I."),
-    (r"^B[VNM]", "Taiwan"),
-    (r"^BS7", "Scarborough Reef"),
+    # === 台湾及附属离岛 (Taiwan & Islands) ===
+    (r"^B[VMN]9P", "Pratas I."),                       # 东沙群岛 (优先最高)
+    (r"^BV9S", "Spratly Is. (Taiping I.)"),            # 南沙太平岛
+    (r"^BO0", "Kinmen & Matsu"),                       # 金门马祖离岛
+    (r"^B[VNMUBOPX]", "Taiwan"),                       # 台湾本岛保底匹配 (涵盖 BV, BU, BM, BN, BO, BP, BX)
+    # === 中国本岛及其他特殊前缀 ===
+    (r"^BS7", "Scarborough Reef"),                     # 黄岩岛
     (r"^B[0-9]", "China"),
     (r"^BA[0-9]", "China"),
     (r"^BD[0-9]", "China"),
@@ -97,7 +102,7 @@ DXCC_PREFIXES = [
     (r"^BH[0-9]", "China"),
     (r"^BI[0-9]", "China"),
     (r"^BJ[0-9]", "China"),
-    (r"^BY", "China"),
+    (r"^BY", "China"),  
     (r"^C2", "Nauru"),
     (r"^C3", "Andorra"),
     (r"^C5", "The Gambia"),
@@ -123,22 +128,16 @@ DXCC_PREFIXES = [
     (r"^D3", "Angola"),
     (r"^D4", "Cape Verde"),
     (r"^D6", "Comoros"),
-    (r"^DA", "Fed. Rep. of Germany"),
-    (r"^DF", "Fed. Rep. of Germany"),
-    (r"^DG", "Fed. Rep. of Germany"),
-    (r"^DH", "Fed. Rep. of Germany"),
-    (r"^DJ", "Fed. Rep. of Germany"),
-    (r"^DK", "Fed. Rep. of Germany"),
-    (r"^DL", "Fed. Rep. of Germany"),
-    (r"^DM", "Fed. Rep. of Germany"),
-    (r"^DR", "Fed. Rep. of Germany"),
+    (r"^D[A-O]", "Germany"),
+    (r"^DP", "Germany (Antarctica/Special)"),
+    (r"^DR", "Germany"),
     (r"^DU", "Philippines"),
     (r"^DV", "Philippines"),
     (r"^DW", "Philippines"),
     (r"^DX", "Philippines"),
     (r"^DY", "Philippines"),
     (r"^DZ", "Philippines"),
-    (r"^E2", "Thailand"),                # ← 重要修正: E2 = Thailand
+    (r"^E2", "Thailand"),
     (r"^E3", "Eritrea"),
     (r"^E4", "Palestine"),
     (r"^E5[NSEW]", "S. Cook Is."),
@@ -170,8 +169,8 @@ DXCC_PREFIXES = [
     (r"^EZ", "Turkmenistan"),
     (r"^F[GJKLMPSTWY]", "France (overseas)"),
     (r"^F", "France"),
-    (r"^G[DMPSUWK]?", "United Kingdom"),
     (r"^GX", "England"),
+    (r"^G[DMPSUWK]?", "United Kingdom"),
     (r"^H4[02]", "Temotu Province"),
     (r"^H4", "Solomon Is."),
     (r"^HA", "Hungary"),
@@ -207,30 +206,17 @@ DXCC_PREFIXES = [
     (r"^J6", "St. Lucia"),
     (r"^J7", "Dominica"),
     (r"^J8", "St. Vincent"),
-    (r"^JA", "Japan"),
+    # 修正：剥离离岛后，合并日本 JA-JS 规则，彻底解决 JS1AAA 等本土电台被误判为韩国争议区的问题
     (r"^JD1M", "Minami Torishima"),
     (r"^JD1O", "Ogasawara"),
-    (r"^JE", "Japan"),
-    (r"^JF", "Japan"),
-    (r"^JG", "Japan"),
-    (r"^JH", "Japan"),
-    (r"^JI", "Japan"),
-    (r"^JJ", "Japan"),
-    (r"^JK", "Japan"),
-    (r"^JL", "Japan"),
-    (r"^JM", "Japan"),
-    (r"^JN", "Japan"),
-    (r"^JO", "Japan"),
-    (r"^JP", "Japan"),
-    (r"^JQ", "Japan"),
-    (r"^JR", "Japan"),
-    (r"^JS", "South Korea (disputed)"),
+    (r"^J[A-S]", "Japan"),
     (r"^JT", "Mongolia"),
     (r"^JV", "Mongolia"),
     (r"^JW", "Svalbard"),
     (r"^JX", "Jan Mayen"),
     (r"^JY", "Jordan"),
-    (r"^K", "United States"),
+    # === 美属太平洋离岛短呼号防误判修正区（必须写在本土 K/N/W 之前） ===
+    (r"^[KNW]H[0-9]", "Hawaii/Pacific US Ter."),       # 优先捕获标准两字母前缀（如 KH6, WH6）
     (r"^KG4", "Guantanamo Bay"),
     (r"^KH0", "Mariana Is."),
     (r"^KH1", "Baker & Howland Is."),
@@ -250,6 +236,10 @@ DXCC_PREFIXES = [
     (r"^KP3", "Puerto Rico"),
     (r"^KP4", "Puerto Rico"),
     (r"^KP5", "Desecheo I."),
+    # 美国本土
+    (r"^K", "United States"),
+    (r"^N", "United States"),
+    (r"^W", "United States"),
     (r"^LA", "Norway"),
     (r"^LB", "Norway"),
     (r"^LC", "Norway"),
@@ -271,7 +261,6 @@ DXCC_PREFIXES = [
     (r"^LY", "Lithuania"),
     (r"^LZ", "Bulgaria"),
     (r"^M", "United Kingdom"),
-    (r"^N", "United States"),
     (r"^OA", "Peru"),
     (r"^OB", "Peru"),
     (r"^OC", "Peru"),
@@ -300,7 +289,8 @@ DXCC_PREFIXES = [
     (r"^OZ", "Denmark"),
     (r"^P2", "Papua New Guinea"),
     (r"^P4", "Aruba"),
-    (r"^P5", "Dem. People's Rep. of Korea"),
+    # 修正：扩充朝鲜 ITU 分配前缀至 P5-P9 完整全集
+    (r"^P[5-9]", "Dem. People's Rep. of Korea"),
     (r"^PA", "Netherlands"),
     (r"^PB", "Netherlands"),
     (r"^PC", "Netherlands"),
@@ -326,10 +316,23 @@ DXCC_PREFIXES = [
     (r"^PX", "Brazil"),
     (r"^PY", "Brazil"),
     (r"^PZ", "Suriname"),
-    (r"^R1F", "Franz Josef Land"),
-    (r"^R1", "Franz Josef Land"),
-    (r"^RA", "European Russia"),
-    (r"^R[K-Z]", "European Russia"),
+    # 1. 俄罗斯特殊极地岛屿/飞地（Special Islands/Exclaves）
+    (r"^R1FJ", "Franz Josef Land"),                    # 法兰士约瑟夫地旧前缀
+    (r"^R1F", "Franz Josef Land"),                     # 法兰士约瑟夫地
+    (r"^RA2F", "Kaliningrad"),                         # 加里宁格勒飞地 (RA2)
+    (r"^R2F", "Kaliningrad"),                          # 加里宁格勒飞地短呼号 (R2)
+    # 2. 俄罗斯亚洲部分 (Asiatic Russia)
+    (r"^R0", "Asiatic Russia"),                         # 纯 0 数字短呼号 (如 R0AAA)
+    (r"^R[A-Z]0", "Asiatic Russia"),                    # 字母+0 复合前缀 (如 RC0AAA)
+    (r"^R[89][FGXfgx]", "European Russia"),            # 特例：8/9 后面紧跟 FGX 的属于欧洲
+    (r"^R[89]", "Asiatic Russia"),                      # 剩下的 8/9 短呼号归亚洲 (如 R9HQ)
+    (r"^R[A-Z][89][FGXfgx]", "European Russia"),        # 特例：双字母前缀+8/9 且后缀首字为 FGX 的归欧洲
+    (r"^R[A-Z][89]", "Asiatic Russia"),                 # 双字母前缀+8/9 的其余全部归亚洲 (如 RA9A, RC8W)
+    # 3. 俄罗斯欧洲部分 (European Russia)
+    (r"^R[1-7]", "European Russia"),                    # 纯数字 1-7 短呼号 (如 R1AAA 完美匹配)
+    (r"^R[A-Z][1-7]", "European Russia"),               # 标准双字母前缀 1-7 开头 (如 RC3A)
+    (r"^RA", "European Russia"),                        # 保底基础前缀
+    (r"^R[A-Z]", "European Russia"),                    
     (r"^S0", "Western Sahara"),
     (r"^S2", "Bangladesh"),
     (r"^S3", "Bangladesh"),
@@ -449,7 +452,6 @@ DXCC_PREFIXES = [
     (r"^VR", "Hong Kong"),
     (r"^VU", "India"),
     (r"^VY", "Canada"),
-    (r"^W", "United States"),
     (r"^XA", "Mexico"),
     (r"^XB", "Mexico"),
     (r"^XC", "Mexico"),
@@ -530,7 +532,6 @@ DXCC_PREFIXES = [
     (r"^7M", "Japan"),
     (r"^7N", "Japan"),
 ]
-
 
 def lookup_dxcc(call_sign: str) -> Optional[str]:
     """通过呼号前缀推断DXCC实体名称"""

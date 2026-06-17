@@ -1,9 +1,16 @@
 <template>
   <div class="register-container">
-    <div class="register-box">
-      <h1>{{ $t('auth.register') }}</h1>
-      <p>{{ $t('common.appName') }}</p>
+    <div class="lang-selector-wrapper">
+      <el-select v-model="currentLanguage" @change="handleLanguageChange" style="width: 100px;">
+        <el-option label="中文" value="zh-CN" />
+        <el-option label="EN" value="en-US" />
+      </el-select>
+    </div>
 
+    <div class="register-box">
+      <h1>{{ $t('common.appName') }}</h1>
+      <p>{{ $t('auth.register') }}</p>
+      
       <el-form ref="formRef" :model="form" :rules="rules" @submit.prevent="handleRegister">
         <el-form-item :label="$t('common.username')" prop="username">
           <el-input v-model="form.username" :placeholder="$t('common.username')" />
@@ -29,7 +36,7 @@
       </el-form>
 
       <div class="register-footer">
-        <p>{{ $t('auth.loginSuccess') }} <router-link to="/login">{{ $t('auth.login') }}</router-link></p>
+        <p>{{ $t('auth.alreadyRegistered') }} <router-link to="/login">{{ $t('auth.login') }}</router-link></p>
       </div>
     </div>
   </div>
@@ -42,12 +49,14 @@ import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
+import { setLanguage, getLanguage } from '@/locales'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const formRef = ref<FormInstance>()
 const loading: Ref<boolean> = ref(false)
+const currentLanguage = ref(getLanguage())
 
 const form = reactive({
   username: '',
@@ -71,6 +80,11 @@ const rules = {
   confirm_password: [
     { required: true, message: t('validation.required'), trigger: 'blur' }
   ]
+}
+
+const handleLanguageChange = (language: string) => {
+  setLanguage(language)
+  locale.value = language as any
 }
 
 const handleRegister = async (): Promise<void> => {
@@ -100,12 +114,19 @@ const handleRegister = async (): Promise<void> => {
 
 <style scoped lang="scss">
 .register-container {
+  position: relative; 
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
   background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%);
   padding: 20px;
+  .lang-selector-wrapper {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 10;
+  }
 
   .register-box {
     background: white;

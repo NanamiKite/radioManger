@@ -64,7 +64,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="call_sign" :label="$t('logs.callSign')" width="130" sortable="custom" />
-        <el-table-column prop="dxcc" label="DXCC" width="110" sortable="custom">
+        <el-table-column prop="dxcc" label="DXCC" width="150" sortable="custom">
           <template #default="scope">
             <el-tag size="small" v-if="scope.row.dxcc" type="warning" effect="plain">{{ scope.row.dxcc }}</el-tag>
             <span v-else>-</span>
@@ -77,8 +77,8 @@
         </el-table-column>
         <el-table-column prop="rst_sent" :label="$t('logs.rstSent')" width="90" sortable="custom" />
         <el-table-column prop="rst_rcvd" :label="$t('logs.rstReceived')" width="90" sortable="custom" />
-        <el-table-column prop="qsl_sent" :label="$t('logs.qslSent')" width="80" sortable="custom" />
         <el-table-column prop="qsl_rcvd" :label="$t('logs.qslReceived')" width="80" sortable="custom" />
+        <el-table-column prop="grid_square" :label="$t('logs.gridSquare')" width="100" sortable="custom" />
         <el-table-column prop="comment" :label="$t('logs.comment')" min-width="150" show-overflow-tooltip />
         <el-table-column :label="$t('common.operations')" width="160" fixed="right">
           <template #default="scope">
@@ -171,17 +171,20 @@
           </el-tag>
         </el-form-item>
         <el-form-item :label="$t('logs.callSign')" prop="call_sign">
-          <el-input v-model="createForm.call_sign" :placeholder="$t('logs.callSign')" @input="v => createForm.call_sign = v.toUpperCase()" />
+          <el-input v-model="createForm.call_sign" :placeholder="$t('logs.callSign')" @input="(v: string) => createForm.call_sign = v.toUpperCase()" />
         </el-form-item>
         <el-form-item :label="$t('logs.qsoDate')" prop="qso_date">
           <el-date-picker v-model="createForm.qso_date" type="date" value-format="YYYY-MM-DD" style="width:100%" />
         </el-form-item>
         <el-form-item :label="$t('logs.band')" prop="band">
-          <el-select v-model="createForm.band" style="width:100%">
+          <el-select v-model="createForm.band" @change="handleBandChange" style="width:100%">
             <el-option label="160m" value="160m" /><el-option label="80m" value="80m" />
             <el-option label="40m" value="40m" /><el-option label="20m" value="20m" />
             <el-option label="15m" value="15m" /><el-option label="10m" value="10m" /><el-option label="6m" value="6m" /><el-option label="2m" value="2m" />
           </el-select>
+        </el-form-item>
+        <el-form-item :label="$t('logs.frequency')" prop="frequency">
+          <el-input v-model="createForm.freq" :placeholder="$t('logs.frequency')" />
         </el-form-item>
         <el-form-item :label="$t('logs.mode')" prop="mode">
           <el-select v-model="createForm.mode" style="width:100%">
@@ -227,13 +230,32 @@ const submitting = ref(false)
 const createFormRef = ref<FormInstance>()
 const createForm = reactive({
   station_id: 0, call_sign: '', qso_date: '',
-  band: '20m', mode: 'FT8', qsl_sent: 'N', qsl_rcvd: 'N', comment: ''
+  band: '20m', freq: '', mode: 'FT8', qsl_sent: 'N', qsl_rcvd: 'N', comment: ''
 })
 const logRules = {
   call_sign: [{ required: true, message: 'Please enter callsign', trigger: 'blur' }],
   qso_date: [{ required: true, message: 'Please select date', trigger: 'change' }],
   band: [{ required: true, message: 'Please select band', trigger: 'change' }],
   mode: [{ required: true, message: 'Please select mode', trigger: 'change' }]
+}
+
+const bandFrequencyMap: Record<string, string> = {
+  '160m': '1.800',
+  '80m': '3.500',
+  '40m': '7.000',
+  '20m': '14.000',
+  '15m': '21.000',
+  '10m': '28.000',
+  '6m': '50.000',
+  '2m': '144.000'
+}
+
+// 2. 切换波段时的联动处理函数
+const handleBandChange = (val: string) => {
+  // 根据选中的波段获取默认频率，如果找不到则清空或保持原样
+  if (bandFrequencyMap[val]) {
+    createForm.freq = bandFrequencyMap[val]
+  }
 }
 
 // 导入
