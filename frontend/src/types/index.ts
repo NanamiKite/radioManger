@@ -55,7 +55,6 @@ export interface QSOLog {
   dxcc?: string
   tx_pwr?: number
   my_gridsquare?: string
-  station_callsign?: string
   qsl_sent: string
   qsl_rcvd: string
   comment?: string

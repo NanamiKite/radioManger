@@ -1,7 +1,14 @@
 <template>
   <div class="login-container">
+    <div class="lang-selector-wrapper">
+      <el-select v-model="currentLanguage" @change="handleLanguageChange" style="width: 100px;">
+        <el-option label="中文" value="zh-CN" />
+        <el-option label="EN" value="en-US" />
+      </el-select>
+    </div>
+
     <div class="login-box">
-      <h1>RadioManager</h1>
+      <h1>{{ $t('common.appName') }}</h1>
       <p>{{ $t('auth.login') }}</p>
 
       <el-form ref="formRef" :model="form" :rules="rules" @submit.prevent="handleLogin">
@@ -21,7 +28,7 @@
       </el-form>
 
       <div class="login-footer">
-        <p>{{ $t('auth.registerSuccess') }} <router-link to="/register">{{ $t('common.register') }}</router-link></p>
+        <p>{{ $t('auth.noAccount') }} <router-link to="/register">{{ $t('common.register') }}</router-link></p>
       </div>
     </div>
   </div>
@@ -34,13 +41,17 @@ import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
+import { setLanguage, getLanguage } from '@/locales'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
+
+//绑定当前选中的语言
+const currentLanguage = ref(getLanguage())
 
 const form = reactive({
   username: '',
@@ -54,6 +65,12 @@ const rules = {
   password: [
     { required: true, message: 'Please enter password', trigger: 'blur' }
   ]
+}
+
+//切换语言
+const handleLanguageChange = (language: string) => {
+  setLanguage(language)
+  locale.value = language as any
 }
 
 const handleLogin = async () => {
@@ -78,11 +95,20 @@ const handleLogin = async () => {
 
 <style scoped lang="scss">
 .login-container {
+  position: relative; 
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100vh;
   background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%);
+
+  //语言选择器的样式（右上角悬浮）
+  .lang-selector-wrapper {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 10;
+  }
 
   .login-box {
     background: white;

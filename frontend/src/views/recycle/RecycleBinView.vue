@@ -2,8 +2,8 @@
   <div class="recycle-container">
     <div class="page-header">
       <div>
-        <h1>Recycle Bin</h1>
-        <p>Deleted logs are kept for 7 days before permanent removal</p>
+        <h1>{{ t('recycleBin.title') }}</h1>
+        <p>{{ t('recycleBin.recycleBinTip') }}</p>
       </div>
     </div>
 
@@ -34,7 +34,7 @@
       </el-table>
 
       <div v-if="items.length === 0 && !loading" style="text-align:center;padding:40px">
-        <el-empty description="Recycle bin is empty" />
+        <el-empty :description="t('recycleBin.recyleBinEmpty')" />
       </div>
 
       <div class="pagination-wrapper">
@@ -56,12 +56,14 @@ import { ref, onMounted } from 'vue'
 import { recycleApi } from '@/api/deleted_logs'
 import { ElMessage } from 'element-plus'
 import type { DeletedLogItem } from '@/api/deleted_logs'
+import { useI18n } from 'vue-i18n'
 
 const items = ref<DeletedLogItem[]>([])
 const loading = ref(false)
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+const { t } = useI18n()
 
 const fetchItems = async () => {
   loading.value = true

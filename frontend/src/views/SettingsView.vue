@@ -70,7 +70,7 @@
 
       <el-tab-pane :label="$t('settings.about')" name="about">
         <el-card>
-          <h2>RadioManager</h2>
+          <h2>{{ $t('settings.appName') }}</h2>
           <p>{{ $t('settings.version') }}: 2.1.0</p>
           <p>Amateur Radio Log Management System</p>
           <el-divider />
@@ -89,6 +89,7 @@ import { useI18n } from 'vue-i18n'
 import { setLanguage, getLanguage } from '@/locales'
 import { ElMessage } from 'element-plus'
 import api from '@/api/index'
+import axios from 'axios'
 
 const authStore = useAuthStore()
 const { locale, t } = useI18n()
@@ -112,8 +113,8 @@ onMounted(async () => {
     language.value = authStore.user.language || 'zh-CN'
   }
   try {
-    const res: any = await api.get('/health')
-    dbMode.value = res.database || 'sqlite'
+  const res: any = await axios.get('/health')   // api/v1
+  dbMode.value = res.data.database || 'sqlite'   // 直接 axios 没有 response 拦截器，要取 .data
   } catch { dbMode.value = 'unknown' }
 })
 
