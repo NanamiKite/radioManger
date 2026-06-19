@@ -91,6 +91,7 @@ export default {
     dashboard: 'Dashboard',
     logs: 'QSO Logs',
     stations: 'Stations',
+    dxspots: 'DX Spots',
     analysis: 'Analysis',
     callsigns: 'Callsigns',
     shortcuts: 'Shortcuts',
@@ -149,6 +150,27 @@ export default {
     no: 'No',
     requested: 'Requested',
     ignore: 'Ignore'
+  },
+  dxcluster: {
+    title: 'DX Cluster',
+    connect: 'Connect',
+    disconnect: 'Disconnect',
+    spotsAmount: 'Spots Amount',
+    currentNode: 'Current Node',
+    connected: 'Connected',
+    disconnected: 'Disconnected',
+    nodes: 'Choose spot node',
+    recentSpots: 'Receiving spots',
+    freq: 'Frequency',
+    band: 'Band',
+    callsign: 'Callsign',
+    dxcc: 'DXCC',
+    mode: 'Mode',
+    spotter: 'Spotter',
+    comment: 'Comment',
+    time: 'Time',
+    noData:"No spots yet"
+    
   },
   stations: {
     title: 'Stations',

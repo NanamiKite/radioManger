@@ -37,6 +37,8 @@ class QSOLogBase(BaseModel):
 class QSOLogCreate(QSOLogBase):
     station_id: Optional[int] = None
     location_id: Optional[int] = None
+    qso_date: Optional[date] = None  # 未指定时由后端自动填入当前UTC日期
+    time_on: Optional[time] = None
 
 class QSOLogUpdate(BaseModel):
     call_sign: Optional[str] = None

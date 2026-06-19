@@ -7,6 +7,7 @@ from app.api.v1.stats import router as stats_router
 from app.api.v1.callsigns import router as callsigns_router
 from app.api.v1.sync import router as sync_router
 from app.api.v1.shortcuts import router as shortcuts_router
+from app.api.v1.dxcluster import router as dxcluster_router
 
 __all__ = [
     "auth_router",
@@ -18,4 +19,5 @@ __all__ = [
     "callsigns_router",
     "sync_router",
     "shortcuts_router",
+    "dxcluster_router",
 ]

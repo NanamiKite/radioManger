@@ -176,11 +176,19 @@
         <el-form-item :label="$t('logs.qsoDate')" prop="qso_date">
           <el-date-picker v-model="createForm.qso_date" type="date" value-format="YYYY-MM-DD" style="width:100%" />
         </el-form-item>
+        <el-form-item label="Time (UTC)">
+          <el-time-picker v-model="createForm.time_on" value-format="HH:mm:ss" placeholder="UTC+0" style="width:100%" />
+        </el-form-item>
         <el-form-item :label="$t('logs.band')" prop="band">
           <el-select v-model="createForm.band" @change="handleBandChange" style="width:100%">
+            <el-option label="2190m" value="2190m" />
             <el-option label="160m" value="160m" /><el-option label="80m" value="80m" />
             <el-option label="40m" value="40m" /><el-option label="20m" value="20m" />
-            <el-option label="15m" value="15m" /><el-option label="10m" value="10m" /><el-option label="6m" value="6m" /><el-option label="2m" value="2m" />
+            <el-option label="15m" value="15m" /><el-option label="10m" value="10m" />
+            <el-option label="6m" value="6m" /><el-option label="2m" value="2m" />
+            <el-option label="70cm" value="70cm" /><el-option label="23cm" value="23cm" />
+            <el-option label="13cm" value="13cm" /><el-option label="5cm" value="5cm" />
+            <el-option label="3cm" value="3cm" /><el-option label="1.2cm" value="1.2cm"/>
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('logs.frequency')" prop="frequency">
@@ -191,6 +199,9 @@
             <el-option label="FT8" value="FT8" /><el-option label="SSB" value="SSB" />
             <el-option label="CW" value="CW" /><el-option label="FM" value="FM" /><el-option label="RTTY" value="RTTY" /><el-option label="SAT" value="SAT" />
           </el-select>
+        </el-form-item>
+        <el-form-item :label="$t('logs.gridSquare')">
+          <el-input v-model="createForm.grid_square" :placeholder="$t('logs.gridSquare')" />
         </el-form-item>
         <el-form-item :label="$t('logs.qslSent')">
           <el-select v-model="createForm.qsl_sent" style="width:100%">
@@ -219,6 +230,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 import type { FormInstance } from 'element-plus'
+import { el } from 'date-fns/locale'
 
 const router = useRouter()
 const { t: $t } = useI18n()
@@ -229,8 +241,8 @@ const showCreateDialog = ref(false)
 const submitting = ref(false)
 const createFormRef = ref<FormInstance>()
 const createForm = reactive({
-  station_id: 0, call_sign: '', qso_date: '',
-  band: '20m', freq: '', mode: 'FT8', qsl_sent: 'N', qsl_rcvd: 'N', comment: ''
+  station_id: 0, call_sign: '', qso_date: '', time_on: '',
+  band: '20m', freq: '14.0000', mode: 'FT8', qsl_sent: 'N', qsl_rcvd: 'N', comment: '', grid_square: ''
 })
 const logRules = {
   call_sign: [{ required: true, message: 'Please enter callsign', trigger: 'blur' }],
@@ -240,6 +252,7 @@ const logRules = {
 }
 
 const bandFrequencyMap: Record<string, string> = {
+  '2190m': '0.1375',
   '160m': '1.800',
   '80m': '3.500',
   '40m': '7.000',
@@ -247,7 +260,15 @@ const bandFrequencyMap: Record<string, string> = {
   '15m': '21.000',
   '10m': '28.000',
   '6m': '50.000',
-  '2m': '144.000'
+  '4m': '70.000',
+  '2m': '144.000',
+  '70cm': '430.000',
+  '23cm': '1240.000',
+  '13cm': '2300.000',
+  '5cm': '5760.000',
+  '3cm': '10000.000',
+  '1.2cm': '24000.000',
+  '6mm': '47000.000',
 }
 
 // 2. 切换波段时的联动处理函数
@@ -312,11 +333,18 @@ const applyActiveStationFilter = () => {
   }
 }
 
+const updateUtcNow = () => {
+  const now = new Date()
+  createForm.qso_date = now.toISOString().substring(0, 10)
+  createForm.time_on = now.toISOString().substring(11, 19)
+}
+
 onMounted(async () => {
   await logsStore.fetchStations()
   applyActiveStationFilter()
   await logsStore.fetchLogs()
   if (logsStore.activeStation) createForm.station_id = logsStore.activeStation.id
+  updateUtcNow()
 })
 
 watch(() => logsStore.activeStation, (s) => {
@@ -346,7 +374,6 @@ const viewLog = (id: number) => router.push({ name: 'LogDetail', params: { id } 
 
 const handleCreate = async () => {
   try {
-    // 检查是否有激活台站
     if (!logsStore.activeStation || !logsStore.activeStation.id) {
       ElMessage.warning('No active station with a configured location. Please create a station and location first.')
       showCreateDialog.value = false
@@ -356,11 +383,27 @@ const handleCreate = async () => {
     await createFormRef.value?.validate()
     submitting.value = true
     createForm.station_id = logsStore.activeStation.id
+    // 自动填入 UTC 时间（如果没有手动修改）
+    if (!createForm.time_on) {
+      const now = new Date()
+      createForm.time_on = now.toISOString().substring(11, 19)
+    }
     await logsStore.createLog(createForm)
     ElMessage.success($t('common.success')); showCreateDialog.value = false
-    Object.assign(createForm, { call_sign: '', qso_date: '', band: '20m', mode: 'FT8', qsl_sent: 'N', qsl_rcvd: 'N', comment: '' })
+    resetCreateForm()
   } catch (err: any) { ElMessage.error(err?.response?.data?.detail || err.message || $t('errors.serverError')) }
   finally { submitting.value = false }
+}
+
+const resetCreateForm = () => {
+  const now = new Date()
+  const utcDate = now.toISOString().substring(0, 10)
+  const utcTime = now.toISOString().substring(11, 19)
+  Object.assign(createForm, {
+    call_sign: '', qso_date: utcDate, time_on: utcTime,
+    band: '20m', freq: '', mode: 'FT8',
+    qsl_sent: 'N', qsl_rcvd: 'N', comment: ''
+  })
 }
 
 const handleDelete = async (log: any) => {

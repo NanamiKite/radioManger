@@ -96,6 +96,11 @@ class ImportExportService:
                 from decimal import Decimal
 
                 # 直接创建模型对象（不通过 LogService.create_log 避免逐条commit）
+                # 处理传入的 my_gridsquare/station_callsign
+                my_gridsquare = record.get("my_gridsquare") or record.get("station_callsign_grid") or ""
+                if not my_gridsquare and active_location:
+                    my_gridsquare = active_location.grid_square or ""
+
                 db_log = QSOLog(
                     user_id=user_id,
                     station_id=station_id,
@@ -111,6 +116,7 @@ class ImportExportService:
                     rst_sent=record.get("rst_sent"),
                     rst_rcvd=record.get("rst_rcvd"),
                     grid_square=record.get("grid_square"),
+                    my_gridsquare=my_gridsquare or None,
                     qsl_sent=record.get("qsl_sent", "N"),
                     qsl_rcvd=record.get("qsl_rcvd", "N"),
                     comment=record.get("comment"),
@@ -182,17 +188,10 @@ class ImportExportService:
         from app.models.location import Location
 
         export_callsign = "AllStations"
-        active_my_grid = ""
         if station_id:
             stn = db.query(Station).filter(Station.id == station_id, Station.is_deleted == False).first()
             if stn:
                 export_callsign = stn.callsign
-                # 从激活位置获取 my_gridsquare
-                loc = db.query(Location).filter(
-                    Location.station_id == station_id, Location.is_active == True, Location.is_deleted == False
-                ).first()
-                if loc:
-                    active_my_grid = loc.grid_square or ""
 
         query = db.query(QSOLog).filter(
             QSOLog.user_id == user_id, QSOLog.is_deleted == False,
@@ -208,6 +207,8 @@ class ImportExportService:
 
         logs = query.order_by(QSOLog.qso_date).all()
         stations = {s.id: s.callsign for s in db.query(Station.id, Station.callsign).filter(Station.is_deleted == False).all()}
+        # 预加载所有位置网格
+        locations = {l.id: l.grid_square for l in db.query(Location).filter(Location.is_deleted == False).all()}
 
         # RadioManager 格式导出
         content = "RadioManager ADIF Export<eoh>\n"
@@ -245,8 +246,8 @@ class ImportExportService:
             sc = stations.get(log.station_id, "")
             if sc:
                 parts.append(f"<station_callsign:{len(sc)}>{sc}")
-            # my_gridsquare
-            mg = log.my_gridsquare or active_my_grid
+            # my_gridsquare: 优先使用日志存储的，其次从关联位置获取
+            mg = log.my_gridsquare or locations.get(log.location_id) if log.location_id else None
             if mg:
                 parts.append(f"<my_gridsquare:{len(mg)}>{mg}")
             if log.tx_pwr:
