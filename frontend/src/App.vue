@@ -40,6 +40,9 @@
             <el-menu-item index="/stations">
               <span>📡 {{ $t('nav.stations') }}</span>
             </el-menu-item>
+                        <el-menu-item index="/dxclusters">
+              <span>📈 {{ $t('nav.dxspots') }}</span>
+            </el-menu-item>
             <el-menu-item index="/analysis">
               <span>📈 {{ $t('nav.analysis') }}</span>
             </el-menu-item>

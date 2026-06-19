@@ -32,10 +32,10 @@
     <el-dialog v-model="editing" :title="$t('logs.editLogTitle')" width="600px">
       <el-form :model="editForm" label-width="120px">
         <el-form-item :label="$t('logs.callSign')">
-          <el-input v-model="editForm.call_sign" @input="v => editForm.call_sign = v.toUpperCase()" />
+          <el-input v-model="editForm.call_sign" @input="(v: string) => editForm.call_sign = v.toUpperCase()" />
         </el-form-item>
         <el-form-item :label="$t('logs.band')">
-          <el-select v-model="editForm.band" style="width: 100%">
+          <el-select v-model="editForm.band" @change="handleBandChange" style="width: 100%">
             <el-option label="160m" value="160m" />
             <el-option label="80m" value="80m" />
             <el-option label="40m" value="40m" />
@@ -44,11 +44,17 @@
             <el-option label="10m" value="10m" />
           </el-select>
         </el-form-item>
+        <el-form-item :label="$t('logs.frequency')" prop="frequency">
+          <el-input v-model="editForm.freq" :placeholder="$t('logs.frequency')" />
+        </el-form-item>
         <el-form-item :label="$t('logs.mode')">
           <el-select v-model="editForm.mode" style="width: 100%">
             <el-option label="FT8" value="FT8" /><el-option label="SSB" value="SSB" />
             <el-option label="CW" value="CW" /><el-option label="FM" value="FM" /><el-option label="RTTY" value="RTTY" /><el-option label="SAT" value="SAT" />
           </el-select>
+        </el-form-item>
+        <el-form-item :label="$t('logs.gridSquare')">
+          <el-input v-model="editForm.grid_square" :placeholder="$t('logs.gridSquare')" />
         </el-form-item>
         <el-form-item :label="$t('logs.rstSent')">
           <el-input v-model="editForm.rst_sent" />
@@ -104,7 +110,7 @@ const submitting = ref(false)
 
 const editForm = reactive({
   call_sign: '', band: '', mode: '', rst_sent: '', rst_rcvd: '',
-  qsl_sent: 'N', qsl_rcvd: 'N', comment: ''
+  qsl_sent: 'N', freq: '', qsl_rcvd: 'N', comment: '', grid_square: ''
 })
 
 onMounted(async () => {
@@ -120,6 +126,25 @@ onMounted(async () => {
     }
   } catch { ElMessage.error(t('errors.serverError')) } finally { loading.value = false }
 })
+
+const bandFrequencyMap: Record<string, string> = {
+  '160m': '1.800',
+  '80m': '3.500',
+  '40m': '7.000',
+  '20m': '14.000',
+  '15m': '21.000',
+  '10m': '28.000',
+  '6m': '50.000',
+  '2m': '144.000'
+}
+
+
+const handleBandChange = (val: string) => {
+  // 根据选中的波段获取默认频率，如果找不到则清空或保持原样
+  if (bandFrequencyMap[val]) {
+    editForm.freq = bandFrequencyMap[val]
+  }
+}
 
 const goBack = () => router.push({ name: 'Logs' })
 

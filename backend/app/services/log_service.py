@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import date
+from datetime import date, datetime, time
 from app.models.qso_log import QSOLog
 from app.models.location import Location
 from app.schemas.qso_log import QSOLogCreate, QSOLogUpdate
@@ -19,7 +19,7 @@ SORTABLE_FIELDS = {
 class LogService:
     @staticmethod
     def create_log(db: Session, user_id: int, log_data: QSOLogCreate) -> QSOLog:
-        """创建日志。自动推断DXCC+location_id。未指定station_id时使用激活台站。"""
+        """创建日志。自动推断DXCC+location_id+UTC时间+my_gridsquare。"""
         data = log_data.model_dump()
 
         if not data.get("station_id"):
@@ -35,12 +35,14 @@ class LogService:
             if location:
                 data["station_id"] = location.station_id
                 data["location_id"] = location.id
+                # 从激活位置自动填入 my_gridsquare
+                if location.grid_square and not data.get("my_gridsquare"):
+                    data["my_gridsquare"] = location.grid_square
             else:
                 raise ValueError(
                     "No active location. Please create a location and activate it first."
                 )
         elif not data.get("location_id"):
-            # 有 station_id 但没有 location_id 时，尝试填充该台站的激活位置
             location = (
                 db.query(Location)
                 .filter(
@@ -53,6 +55,16 @@ class LogService:
             )
             if location:
                 data["location_id"] = location.id
+                if location.grid_square and not data.get("my_gridsquare"):
+                    data["my_gridsquare"] = location.grid_square
+
+        # 自动填入UTC+0当前时间（如果未指定time_on）
+        now = datetime.utcnow()
+        if not data.get("time_on"):
+            data["time_on"] = time(now.hour, now.minute, now.second)
+        # 自动填入当前UTC日期（如果未指定qso_date）
+        if not data.get("qso_date"):
+            data["qso_date"] = now.date()
 
         if "call_sign" in data and data["call_sign"]:
             cs = data["call_sign"].strip().upper()

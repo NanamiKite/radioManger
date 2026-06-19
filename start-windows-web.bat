@@ -1,51 +1,10 @@
 @echo off
-
-
-
-
-
 cd /d "%~dp0"
-
-
-
-
-
 title RadioManager - Web Frontend Deployment
-
-
-
-
-
-
-
-
-
-
-
 echo ================================================
-
-
-
-
-
 echo   RadioManager - Web Frontend Deployment
-
-
-
-
-
 echo   Mode: Frontend only (connect to remote backend)
-
-
-
-
-
 echo ================================================
-
-
-
-
-
 echo.
 
 

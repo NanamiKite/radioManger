@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
@@ -11,15 +12,26 @@ from app.api.v1 import (
     callsigns_router,
     sync_router,
     shortcuts_router,
+    dxcluster_router,
 )
 from app.database.base import engine, Base
 from app.middleware.logging import LoggingMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
+from app.services.dxcluster_manager import dxcluster_manager
 
 import app.models
 
 # 自动创建数据库表（首次启动时）
 Base.metadata.create_all(bind=engine)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期钩子：startup 时不做主动连接（等用户触发），
+    shutdown 时确保 DX Cluster telnet 连接被干净关闭。"""
+    yield
+    await dxcluster_manager.disconnect()
+
 
 app = FastAPI(
     title="RadioManager API",
@@ -27,6 +39,7 @@ app = FastAPI(
     version="2.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 app.add_middleware(CORSMiddleware, allow_origins=settings.CORS_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -43,6 +56,7 @@ app.include_router(stats_router, prefix=f"{settings.API_V1_STR}/stats", tags=["s
 app.include_router(callsigns_router, prefix=f"{settings.API_V1_STR}/callsigns", tags=["callsigns"])
 app.include_router(sync_router, prefix=f"{settings.API_V1_STR}/sync", tags=["sync"])
 app.include_router(shortcuts_router, prefix=f"{settings.API_V1_STR}/shortcuts", tags=["shortcuts"])
+app.include_router(dxcluster_router, prefix=f"{settings.API_V1_STR}/dxcluster", tags=["dxcluster"])
 
 @app.get("/health")
 async def health_check():

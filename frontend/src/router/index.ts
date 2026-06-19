@@ -36,6 +36,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/dxclusters',
+    name: 'DXClusters',
+    component: () => import('@/views/dxcluster/DXClusterView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/stations',
     name: 'Stations',
     component: () => import('@/views/stations/StationsView.vue'),
