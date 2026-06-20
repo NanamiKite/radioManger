@@ -283,7 +283,7 @@ Authorization: Bearer {token}
 Content-Disposition: attachment; filename="20260614_BA7ABC.adi"
 ```
 
-**说明**：导出文件名格式为 `{日期}_{台站呼号}.adi`。`station_id` 必选。
+**说明**：导出文件名格式为 `{日期}_{台站呼号}.adi`。`station_id` 可选，未指定时导出所有台站日志（文件名使用 `AllStations`）。
 
 #### 5.6 统计概览
 ```
@@ -301,6 +301,48 @@ Authorization: Bearer {token}
     }
 }
 ```
+
+#### 5.7 回收站列表
+```
+GET /api/v1/logs/recycle/list?page=1&page_size=20
+Authorization: Bearer {token}
+
+响应:
+{
+    "items": [
+        {
+            "id": 1,
+            "log_id": 123,
+            "call_sign": "JA1ABC",
+            "qso_date": "2026-06-15",
+            "band": "20m",
+            "delete_reason": "Station #5 deleted",
+            "deleted_at": "2026-06-20T10:00:00",
+            "expires_at": "2026-06-27T10:00:00",
+            "days_remaining": 7
+        }
+    ],
+    "total": 1,
+    "page": 1,
+    "page_size": 20,
+    "pages": 1
+}
+```
+
+#### 5.8 从回收站恢复日志
+```
+POST /api/v1/logs/recycle/{deleted_id}/restore
+Authorization: Bearer {token}
+
+响应 200:
+{
+    "id": 124,             // 新建的日志ID
+    "call_sign": "JA1ABC",
+    ...
+}
+```
+
+**说明**：恢复时从备份 JSON 创建新的 QSO 记录，原回收站条目标记为已恢复。过期条目（超过 7 天）不可恢复，恢复时自动清理过期条目。
 
 ---
 
@@ -329,9 +371,12 @@ Authorization: Bearer {token}
     "latitude": 35.6762,
     "longitude": 139.6503,
     "cached": true,        // 来自缓存标记
+    "offline": false,       // 是否来自离线DXCC推断
     "qrz_url": "https://www.qrz.com/db/JA1ABC"
 }
 ```
+
+**查询优先级**：本地缓存（30天内）→ QRZ.com API → 过期缓存 → 离线DXCC前缀推断
 
 #### 7.2 批量查询 / 搜索
 ```
@@ -364,6 +409,107 @@ DELETE /api/v1/callsigns/cache/{call_sign}
 GET  /api/v1/shortcuts                  # 内置+自定义快捷链接
 POST /api/v1/shortcuts                  # 添加链接
 DELETE /api/v1/shortcuts/{id}           # 删除链接
+```
+
+---
+
+### 十、DX Cluster 模块 (`/api/v1/dxcluster`)
+
+连接公共 DX Cluster 节点，实时接收并推送 DX spot。
+
+#### 10.1 获取预设节点列表
+```
+GET /api/v1/dxcluster/nodes
+Authorization: Bearer {token}
+
+响应:
+[
+    { "host": "dxc.ve7cc.net", "port": 7373, "name": "VE7CC", "country": "Canada", "remark": "北美西海岸，老牌节点" },
+    { "host": "dxc.k1ttt.net", "port": 7373, "name": "K1TTT", "country": "USA", "remark": "美国东海岸" },
+    ...
+]
+```
+
+#### 10.2 获取连接状态
+```
+GET /api/v1/dxcluster/status
+Authorization: Bearer {token}
+
+响应:
+{
+    "connected": true,
+    "connecting": false,
+    "current_node": { "host": "...", "port": 7373, "name": "VE7CC", ... },
+    "callsign": "BA7ABC",
+    "spot_count": 42,
+    "uptime_seconds": 3600.5
+}
+```
+
+#### 10.3 连接到节点
+```
+POST /api/v1/dxcluster/connect
+Authorization: Bearer {token}
+Body: { "node_host": "dxc.ve7cc.net", "node_port": 7373 }
+
+响应 200:
+{ "success": true, "message": "Connected to VE7CC", "status": { ... } }
+
+错误 502: 连接失败
+错误 409: 没有激活台站（无法登录 cluster）
+```
+
+**说明**：使用当前用户激活台站的呼号登录 cluster。同一时间只能有一个连接，切换节点时自动断开旧连接。
+
+#### 10.4 断开连接
+```
+POST /api/v1/dxcluster/disconnect
+Authorization: Bearer {token}
+
+响应: { "connected": false, ... }
+```
+
+#### 10.5 获取历史 spot
+```
+GET /api/v1/dxcluster/spots?limit=50
+Authorization: Bearer {token}
+
+响应:
+[
+    {
+        "spotter": "VE7CC",
+        "freq": "14074",
+        "dx_callsign": "JA1ABC",
+        "mode": "FT8",
+        "comment": "CQ",
+        "time_utc": "1230Z",
+        "band": "20m",
+        "received_at": "2026-06-20T12:30:00Z",
+        "dxcc_entity": "Japan"
+    },
+    ...
+]
+```
+
+#### 10.6 WebSocket 实时 spot
+```
+ws://host/api/v1/dxcluster/ws?token={jwt_token}
+
+消息格式:
+{ "type": "spot", "data": { "spotter": "VE7CC", "dx_callsign": "JA1ABC", ... } }
+{ "type": "disconnect", "message": "cluster disconnected" }
+```
+
+**说明**：浏览器原生 WebSocket 不支持自定义 header，通过 query param `?token=` 传递 JWT 认证。连接后先推送历史 spot（最多 100 条），后续实时推送新 spot。
+
+---
+
+### 十一、登出
+```
+POST /api/v1/auth/logout
+Authorization: Bearer {token}
+
+响应: { "message": "Logout successful" }
 ```
 
 ---

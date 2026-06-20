@@ -63,3 +63,11 @@ lerna-debug.log*
 *.sqlite3
 .env.local
 uploads/
+
+# venv
+venv/
+.venv/
+backend/venv/
+
+# db
+backend/radiomanager.db
