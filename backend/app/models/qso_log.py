@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Date, Time, Numeric, DateTime, Boolean, ForeignKey, Enum, Text, Index
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.database.base import Base
 
 class QSOLog(Base):
@@ -51,8 +51,8 @@ class QSOLog(Base):
     comment = Column(Text)
     is_deleted = Column(Boolean, default=False)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     
     # 关系
     user = relationship("User", back_populates="qso_logs")

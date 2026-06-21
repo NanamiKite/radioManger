@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Text, JSON, Index
 from sqlalchemy.orm import relationship
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from app.database.base import Base
 
 
@@ -17,7 +17,7 @@ class DeletedLog(Base):
 
     # 删除信息
     delete_reason = Column(String(500))
-    deleted_at = Column(DateTime, default=datetime.utcnow, index=True)
+    deleted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
     expires_at = Column(DateTime)  # 保留过期时间
     is_restored = Column(Boolean, default=False)  # 是否已恢复
 

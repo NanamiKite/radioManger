@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List
 from datetime import date, datetime
 
@@ -35,8 +35,7 @@ class CallsignInfo(BaseModel):
     cached_at: Optional[datetime] = None
     offline: bool = False
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CallsignBatchResponse(BaseModel):

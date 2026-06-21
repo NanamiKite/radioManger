@@ -77,15 +77,15 @@ class StatsService:
 
     @staticmethod
     def get_band_stats(db: Session, user_id: int) -> list:
-        """获取波段统计"""
+        """获取波段统计（统一小写避免大小写重复）"""
         rows = (
-            db.query(QSOLog.band, func.count(QSOLog.id).label("count"))
+            db.query(func.lower(QSOLog.band).label("band"), func.count(QSOLog.id).label("count"))
             .filter(
                 QSOLog.user_id == user_id,
                 QSOLog.is_deleted == False,
                 QSOLog.band.isnot(None),
             )
-            .group_by(QSOLog.band)
+            .group_by(func.lower(QSOLog.band))
             .all()
         )
         total = sum(r.count for r in rows) or 1
@@ -96,15 +96,15 @@ class StatsService:
 
     @staticmethod
     def get_mode_stats(db: Session, user_id: int) -> list:
-        """获取模式统计"""
+        """获取模式统计（统一大写显示）"""
         rows = (
-            db.query(QSOLog.mode, func.count(QSOLog.id).label("count"))
+            db.query(func.upper(QSOLog.mode).label("mode"), func.count(QSOLog.id).label("count"))
             .filter(
                 QSOLog.user_id == user_id,
                 QSOLog.is_deleted == False,
                 QSOLog.mode.isnot(None),
             )
-            .group_by(QSOLog.mode)
+            .group_by(func.upper(QSOLog.mode))
             .all()
         )
         total = sum(r.count for r in rows) or 1

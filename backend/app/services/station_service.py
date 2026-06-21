@@ -24,8 +24,8 @@ class StationService:
         )
         if existing:
             existing.is_deleted = False
-            from datetime import datetime
-            existing.updated_at = datetime.utcnow()
+            from datetime import datetime, timezone
+            existing.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
             db.commit()
             db.refresh(existing)
             return existing

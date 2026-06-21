@@ -46,6 +46,12 @@
             <el-menu-item index="/analysis">
               <span>📈 {{ $t('nav.analysis') }}</span>
             </el-menu-item>
+            <el-menu-item index="/tools">
+              <span>🔧 {{ $t('nav.tools') }}</span>
+            </el-menu-item>
+            <el-menu-item index="/map">
+              <span>🗺️ {{ $t('nav.map') }}</span>
+            </el-menu-item>
             <el-menu-item index="/callsigns">
               <span>🔍 {{ $t('nav.callsigns') }}</span>
             </el-menu-item>

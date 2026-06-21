@@ -25,7 +25,7 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
     existing_user = UserService.get_user_by_username(db, user_data.username)
     if existing_user:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Username already exists"
         )
     
@@ -33,7 +33,7 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
     existing_email = UserService.get_user_by_email(db, user_data.email)
     if existing_email:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Email already registered"
         )
     
@@ -42,7 +42,7 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
         return user
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(e)
         )
 
@@ -171,7 +171,7 @@ async def change_password(
     """修改密码"""
     if req.new_password != req.confirm_password:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Passwords do not match"
         )
 

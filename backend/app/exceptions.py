@@ -19,7 +19,7 @@ class AuthException(RadioManagerException):
 class ValidationException(RadioManagerException):
     """验证异常"""
     def __init__(self, message: str = "Validation error"):
-        super().__init__(message, status.HTTP_422_UNPROCESSABLE_ENTITY)
+        super().__init__(message, status.HTTP_422_UNPROCESSABLE_CONTENT)
 
 class NotFoundException(RadioManagerException):
     """资源不存在异常"""

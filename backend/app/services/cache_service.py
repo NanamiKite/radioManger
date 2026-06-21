@@ -2,7 +2,7 @@
 
 import logging
 from typing import Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger("radiomanager.cache")
 
@@ -21,7 +21,7 @@ class CacheService:
 
         # 检查TTL
         if key in self._ttl:
-            if datetime.utcnow() > self._ttl[key]:
+            if datetime.now(timezone.utc).replace(tzinfo=None) > self._ttl[key]:
                 self.delete(key)
                 return None
 
@@ -31,7 +31,7 @@ class CacheService:
         """设置缓存（默认5分钟TTL）"""
         self._cache[key] = value
         if ttl_seconds > 0:
-            self._ttl[key] = datetime.utcnow() + timedelta(seconds=ttl_seconds)
+            self._ttl[key] = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=ttl_seconds)
 
     def delete(self, key: str):
         """删除缓存"""
@@ -47,7 +47,7 @@ class CacheService:
         """判断缓存是否存在且未过期"""
         if key not in self._cache:
             return False
-        if key in self._ttl and datetime.utcnow() > self._ttl[key]:
+        if key in self._ttl and datetime.now(timezone.utc).replace(tzinfo=None) > self._ttl[key]:
             self.delete(key)
             return False
         return True

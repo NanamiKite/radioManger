@@ -13,6 +13,7 @@ from app.api.v1 import (
     sync_router,
     shortcuts_router,
     dxcluster_router,
+    map_router,
 )
 from app.database.base import engine, Base
 from app.middleware.logging import LoggingMiddleware
@@ -36,7 +37,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="RadioManager API",
     description="Amateur Radio Log Management System API",
-    version="2.1.0",
+    version="2.4.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
@@ -57,6 +58,7 @@ app.include_router(callsigns_router, prefix=f"{settings.API_V1_STR}/callsigns", 
 app.include_router(sync_router, prefix=f"{settings.API_V1_STR}/sync", tags=["sync"])
 app.include_router(shortcuts_router, prefix=f"{settings.API_V1_STR}/shortcuts", tags=["shortcuts"])
 app.include_router(dxcluster_router, prefix=f"{settings.API_V1_STR}/dxcluster", tags=["dxcluster"])
+app.include_router(map_router, prefix=f"{settings.API_V1_STR}/map", tags=["map"])
 
 @app.get("/health")
 async def health_check():
@@ -64,7 +66,7 @@ async def health_check():
 
 @app.get("/")
 async def root():
-    return {"name": "RadioManager API", "version": "2.1.0", "docs": "/docs", "database_mode": settings.DATABASE_MODE}
+    return {"name": "RadioManager API", "version": "2.4.0", "docs": "/docs", "database_mode": settings.DATABASE_MODE}
 
 if __name__ == "__main__":
     import uvicorn

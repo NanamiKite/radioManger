@@ -1,8 +1,10 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import func, or_
 from typing import List, Optional
-from datetime import date, datetime, time
+from datetime import timezone,  date, datetime, time
 from app.models.qso_log import QSOLog
 from app.models.location import Location
+from app.models.station import Station
 from app.schemas.qso_log import QSOLogCreate, QSOLogUpdate
 from app.services.station_service import StationService
 from app.utils.dxcc import lookup_dxcc
@@ -59,7 +61,7 @@ class LogService:
                     data["my_gridsquare"] = location.grid_square
 
         # 自动填入UTC+0当前时间（如果未指定time_on）
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         if not data.get("time_on"):
             data["time_on"] = time(now.hour, now.minute, now.second)
         # 自动填入当前UTC日期（如果未指定qso_date）
@@ -97,6 +99,7 @@ class LogService:
         band: Optional[str] = None,
         mode: Optional[str] = None,
         call_sign: Optional[str] = None,
+        grid_square: Optional[str] = None,
         station_id: Optional[int] = None,
         sort_by: str = "qso_date",
         sort_order: str = "desc",
@@ -118,6 +121,10 @@ class LogService:
             query = query.filter(QSOLog.mode == mode)
         if call_sign:
             query = query.filter(QSOLog.call_sign.ilike(f"%{call_sign}%"))
+        if grid_square:
+            query = query.filter(
+                func.upper(func.substr(QSOLog.grid_square, 1, 4)) == grid_square.strip()[:4].upper()
+            )
 
         # 安全排序
         sort_col = getattr(QSOLog, sort_by, None) if sort_by in SORTABLE_FIELDS else QSOLog.qso_date
@@ -168,17 +175,14 @@ class LogService:
     @staticmethod
     def get_stats(db: Session, user_id: int, station_id: Optional[int] = None) -> dict:
         """获取统计概览。可指定 station_id 只统计激活台站。"""
-        from sqlalchemy import func
-
-        query = db.query(QSOLog).filter(
-            QSOLog.user_id == user_id, QSOLog.is_deleted == False
-        )
+        base_filter = [QSOLog.user_id == user_id, QSOLog.is_deleted == False]
         if station_id:
-            query = query.filter(QSOLog.station_id == station_id)
+            base_filter.append(QSOLog.station_id == station_id)
 
+        query = db.query(QSOLog).filter(*base_filter)
         total_qso = query.count()
 
-        # DXCC：按 dxcc 实体字段去重
+        # DXCC：按 dxcc 实体字段去重（已通联）
         total_dxcc = (
             db.query(func.count(func.distinct(QSOLog.dxcc)))
             .filter(QSOLog.user_id == user_id, QSOLog.is_deleted == False,
@@ -187,7 +191,17 @@ class LogService:
             or 0
         )
 
-        # 最后通联日期（从查询中取，已按 station_id 过滤）
+        # 已确认 DXCC：至少有一条 QSO 的 qsl_rcvd='Y' 或 lotw_rcvd='Y' 的 DXCC 实体数
+        confirmed_dxcc = (
+            db.query(func.count(func.distinct(QSOLog.dxcc)))
+            .filter(QSOLog.user_id == user_id, QSOLog.is_deleted == False,
+                    QSOLog.dxcc.isnot(None), QSOLog.dxcc != "",
+                    or_(QSOLog.qsl_rcvd == "Y", QSOLog.lotw_rcvd == "Y"))
+            .scalar()
+            or 0
+        )
+
+        # 最后通联日期
         last_qso = query.order_by(QSOLog.qso_date.desc()).first()
 
         qsl_sent = query.filter(QSOLog.qsl_sent == "Y").count()
@@ -196,13 +210,40 @@ class LogService:
         eqsl_rcvd = query.filter(QSOLog.eqsl_rcvd == "Y").count()
         lotw_confirmed = query.filter(QSOLog.lotw_rcvd == "Y").count()
 
+        # 本月 QSO
+        today = datetime.now(timezone.utc).date()
+        month_start = today.replace(day=1)
+        monthly_qso = query.filter(QSOLog.qso_date >= month_start).count()
+
+        # 本年 QSO
+        year_start = today.replace(month=1, day=1)
+        yearly_qso = query.filter(QSOLog.qso_date >= year_start).count()
+
+        # 已确认 QSO（qsl_rcvd='Y' 或 lotw_rcvd='Y' 取并集）
+        confirmed_qso = query.filter(
+            or_(QSOLog.qsl_rcvd == "Y", QSOLog.lotw_rcvd == "Y")
+        ).count()
+
+        # 台站数量
+        station_count = (
+            db.query(func.count(Station.id))
+            .filter(Station.user_id == user_id, Station.is_deleted == False)
+            .scalar()
+            or 0
+        )
+
         return {
             "total_qso": total_qso,
             "total_dxcc": total_dxcc or 0,
+            "confirmed_dxcc": confirmed_dxcc or 0,
             "qsl_sent": qsl_sent,
             "qsl_rcvd": qsl_rcvd,
             "eqsl_sent": eqsl_sent,
             "eqsl_rcvd": eqsl_rcvd,
             "lotw_confirmed": lotw_confirmed,
             "last_qso_date": str(last_qso.qso_date) if last_qso else None,
+            "monthly_qso": monthly_qso,
+            "yearly_qso": yearly_qso,
+            "confirmed_qso": confirmed_qso,
+            "station_count": station_count,
         }

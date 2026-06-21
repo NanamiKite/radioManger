@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
@@ -43,7 +43,7 @@ class DeletedLogService:
             "comment": qso_log.comment,
         }
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         deleted_entry = DeletedLog(
             user_id=qso_log.user_id,
             log_id=qso_log.id,
@@ -81,7 +81,7 @@ class DeletedLogService:
         db: Session, user_id: int, skip: int = 0, limit: int = 20
     ) -> tuple:
         """获取回收站列表"""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         query = (
             db.query(DeletedLog)
             .filter(
@@ -109,7 +109,7 @@ class DeletedLogService:
         )
         if not entry:
             raise ValueError("Deleted log not found or already restored")
-        if entry.expires_at and entry.expires_at < datetime.utcnow():
+        if entry.expires_at and entry.expires_at < datetime.now(timezone.utc).replace(tzinfo=None):
             raise ValueError("Deleted log has expired and cannot be restored")
 
         # 从备份数据恢复
@@ -147,7 +147,7 @@ class DeletedLogService:
     @staticmethod
     def cleanup_expired(db: Session, user_id: Optional[int] = None):
         """清理过期回收站条目"""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         query = db.query(DeletedLog).filter(
             DeletedLog.expires_at <= now,
             DeletedLog.is_restored == False,

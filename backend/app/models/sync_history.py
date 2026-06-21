@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum, Text, Index
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.database.base import Base
 
 
@@ -25,7 +25,7 @@ class SyncHistory(Base):
     # 错误信息
     error_message = Column(Text)
 
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
     completed_at = Column(DateTime)
 
     # 关系

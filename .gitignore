@@ -35,7 +35,6 @@ htmlcov/
 *.swp
 *.swo
 *~
-.vscode/
 
 # Frontend
 node_modules/
@@ -61,6 +60,10 @@ lerna-debug.log*
 # Misc
 *.sqlite
 *.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
 .env.local
 uploads/
 
@@ -69,5 +72,6 @@ venv/
 .venv/
 backend/venv/
 
-# db
-backend/radiomanager.db
+# Test output (generated test files, not project tests)
+radiomanage_test/
+*.pyc
