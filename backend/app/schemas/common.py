@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Generic, TypeVar, List, Any
 
 T = TypeVar('T')
@@ -10,15 +10,14 @@ class PaginationParams(BaseModel):
     sort_by: str = "created_at"
     sort_order: str = "desc"
     
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "page": 1,
-                "page_size": 20,
-                "sort_by": "created_at",
-                "sort_order": "desc"
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "page": 1,
+            "page_size": 20,
+            "sort_by": "created_at",
+            "sort_order": "desc"
         }
+    })
 
 class PaginatedResponse(BaseModel, Generic[T]):
     """分页响应"""

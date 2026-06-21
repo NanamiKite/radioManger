@@ -2,7 +2,7 @@
 
 import logging
 from typing import List, Dict, Optional, Tuple
-from datetime import date, datetime
+from datetime import date, datetime, time
 from sqlalchemy.orm import Session
 
 from app.utils.adi_parser import ADIParser
@@ -47,13 +47,14 @@ class ImportExportService:
         imported = 0
         skipped = 0
         duplicates = 0
+        updated = 0
         errors = []
         batch = []
 
-        # 预加载现有日志去重集
+        # 预加载现有日志去重集（呼号+日期+时间 三元组唯一标识一条 QSO）
         existing_set = set()
         existing_logs = (
-            db.query(QSOLog.call_sign, QSOLog.qso_date, QSOLog.band)
+            db.query(QSOLog.call_sign, QSOLog.qso_date, QSOLog.time_on)
             .filter(
                 QSOLog.user_id == user_id,
                 QSOLog.is_deleted == False,
@@ -61,7 +62,8 @@ class ImportExportService:
             .all()
         )
         for row in existing_logs:
-            existing_set.add((row.call_sign, str(row.qso_date), row.band or ""))
+            time_str = row.time_on.strftime("%H%M%S") if row.time_on else ""
+            existing_set.add((row.call_sign, str(row.qso_date), time_str))
 
         for idx, record in enumerate(mapped_records):
             try:
@@ -85,11 +87,56 @@ class ImportExportService:
                     qso_date = datetime.strptime(str(record["qso_date"]), "%Y-%m-%d").date()
 
                 call_sign = record.get("call_sign", "").upper()
-                # 关键修复：band为None时用空字符串，避免不同记录在去重时误判为重复
-                band = record.get("band") or ""
 
-                dedup_key = (call_sign, str(qso_date), band)
+                # 解析 time_on（支持 HHmmss / HH:mm:ss / HHmm 格式）
+                time_on_str = ""
+                time_on_obj = None
+                raw_time = record.get("time_on") or ""
+                if raw_time:
+                    t = raw_time.replace(":", "").strip()
+                    if len(t) >= 6:
+                        t = t[:6]
+                    elif len(t) == 4:
+                        t = t + "00"
+                    if len(t) == 6 and t.isdigit():
+                        time_on_str = t
+                        time_on_obj = time(int(t[0:2]), int(t[2:4]), int(t[4:6]))
+
+                dedup_key = (call_sign, str(qso_date), time_on_str)
                 if dedup_key in existing_set:
+                    # 重复记录：仅从未确认→确认方向更新 QSL 状态
+                    new_qsl_rcvd = record.get("qsl_rcvd", "N")
+                    new_lotw_rcvd = record.get("lotw_rcvd", "N")
+                    new_eqsl_rcvd = record.get("eqsl_rcvd", "N")
+                    has_new_confirm = (new_qsl_rcvd == "Y" or new_lotw_rcvd == "Y" or new_eqsl_rcvd == "Y")
+                    if has_new_confirm:
+                        existing_log = (
+                            db.query(QSOLog)
+                            .filter(
+                                QSOLog.user_id == user_id,
+                                QSOLog.call_sign == call_sign,
+                                QSOLog.qso_date == qso_date,
+                                QSOLog.is_deleted == False,
+                            )
+                            .first()
+                        )
+                        if existing_log:
+                            log_updated = False
+                            # 仅升级：未确认 → 确认，不降级
+                            if new_qsl_rcvd == "Y" and existing_log.qsl_rcvd != "Y":
+                                existing_log.qsl_rcvd = "Y"
+                                existing_log.qsl_sent = "Y"
+                                log_updated = True
+                            if new_lotw_rcvd == "Y" and existing_log.lotw_rcvd != "Y":
+                                existing_log.lotw_rcvd = "Y"
+                                existing_log.lotw_sent = "Y"
+                                log_updated = True
+                            if new_eqsl_rcvd == "Y" and existing_log.eqsl_rcvd != "Y":
+                                existing_log.eqsl_rcvd = "Y"
+                                existing_log.eqsl_sent = "Y"
+                                log_updated = True
+                            if log_updated:
+                                updated += 1
                     duplicates += 1
                     continue
 
@@ -108,9 +155,9 @@ class ImportExportService:
                     call_sign=call_sign,
                     qso_date=qso_date,
                     dxcc=lookup_dxcc(call_sign),
-                    time_on=None,
+                    time_on=time_on_obj,
                     time_off=None,
-                    band=band,
+                    band=record.get("band") or "",
                     freq=Decimal(str(record["freq"])) if record.get("freq") else None,
                     mode=record.get("mode"),
                     rst_sent=record.get("rst_sent"),
@@ -171,6 +218,7 @@ class ImportExportService:
             "imported": imported,
             "skipped": skipped,
             "duplicates": duplicates,
+            "updated": updated,
             "errors": errors[:10],
         }
 

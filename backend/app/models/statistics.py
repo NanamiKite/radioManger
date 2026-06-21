@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, JSON, DateTime, ForeignKey, Index
-from datetime import datetime
+from datetime import datetime, timezone
 from app.database.base import Base
 
 class Statistics(Base):
@@ -24,7 +24,7 @@ class Statistics(Base):
     # 详细统计数据
     statistic_data = Column(JSON)
     
-    calculated_at = Column(DateTime, default=datetime.utcnow)
+    calculated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     
     # 索引
     __table_args__ = (

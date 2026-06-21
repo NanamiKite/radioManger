@@ -3,7 +3,7 @@
 import logging
 from typing import Optional, Dict
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.sync_history import SyncHistory
 from app.services.github_service import GitHubService
@@ -38,7 +38,7 @@ class SyncService:
             # result = github.push_logs("repo_url", content)
 
             sync_record.status = "success"
-            sync_record.completed_at = datetime.utcnow()
+            sync_record.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
             db.commit()
 
             return {"sync_id": sync_record.id, "status": "success"}

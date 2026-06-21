@@ -4,8 +4,7 @@ annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==3.7.1
 async-timeout==5.0.1
-bcrypt==4.0.1; sys_platform == "win32"
-bcrypt==5.0.0; sys_platform != "win32"
+bcrypt==4.0.1
 certifi==2026.5.20
 cffi==2.0.0
 charset-normalizer==3.4.7
@@ -42,7 +41,7 @@ pytest==7.4.3
 pytest-asyncio==0.21.1
 pytest-cov==4.1.0
 python-dotenv==1.0.0
-python-jose==3.3.0
+python-multipart==0.0.32
 PyYAML==6.0.3
 redis==5.0.1
 requests==2.31.0

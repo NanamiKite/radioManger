@@ -15,7 +15,7 @@ export const useLogsStore = defineStore('logs', () => {
   const sortBy = ref('qso_date')
   const sortOrder = ref('desc')
   const filters = reactive({
-    start_date: '', end_date: '', band: '', mode: '', call_sign: '',
+    start_date: '', end_date: '', band: '', mode: '', call_sign: '', grid_square: '',
     station_id: null as number | null,
   })
   const isLoading = ref(false)
@@ -116,7 +116,7 @@ export const useLogsStore = defineStore('logs', () => {
 
   const clearFilters = () => {
     filters.start_date = ''; filters.end_date = ''
-    filters.band = ''; filters.mode = ''; filters.call_sign = ''
+    filters.band = ''; filters.mode = ''; filters.call_sign = ''; filters.grid_square = ''
     filters.station_id = null
     pagination.page = 1
   }

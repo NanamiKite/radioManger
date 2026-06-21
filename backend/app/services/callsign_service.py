@@ -3,7 +3,7 @@
 import logging
 from typing import Optional, Dict
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.callsign_cache import CallsignCache
 from app.utils.qrz_client import QRZClient
@@ -29,7 +29,7 @@ class CallsignService:
         )
         if cached and cached.cached_at:
             # 缓存超过30天仍尝试QRZ刷新
-            age = (datetime.utcnow() - cached.cached_at).days
+            age = (datetime.now(timezone.utc).replace(tzinfo=None) - cached.cached_at).days
             if age < 30:
                 result = CallsignService._model_to_dict(cached)
                 result["cached"] = True
@@ -118,7 +118,7 @@ class CallsignService:
             license_exp=data.get("license_exp"),
             previous_call=data.get("previous_call"),
             qrz_url=data.get("qrz_url"),
-            cached_at=datetime.utcnow(),
+            cached_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(cache)
         db.commit()

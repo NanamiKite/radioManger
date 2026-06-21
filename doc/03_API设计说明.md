@@ -504,7 +504,36 @@ ws://host/api/v1/dxcluster/ws?token={jwt_token}
 
 ---
 
-### 十一、登出
+### 十一、梅登网格地图模块 (`/api/v1/map`)
+
+#### 11.1 获取网格聚合数据
+```
+GET /api/v1/map/grids?my_grid=OL63
+Authorization: Bearer {token}
+
+参数:
+  my_grid: 可选，按 my_gridsquare 前4位过滤（匹配激活台站网格）
+
+响应:
+{
+    "my_grid": "OL63",
+    "my_lat": 39.5,
+    "my_lon": 116.5,
+    "grids": [
+        { "grid": "PM95", "count": 12, "confirmed": 5, "lat": 35.5, "lon": 139.5 },
+        { "grid": "FN31", "count": 3, "confirmed": 1, "lat": 41.5, "lon": -73.5 }
+    ]
+}
+```
+
+**说明**：
+- `my_grid` / `my_lat` / `my_lon`：从用户激活位置获取
+- `grids`：按 `grid_square` 前 4 位分组聚合，包含 QSO 数、已确认数（`qsl_rcvd='Y' OR lotw_rcvd='Y'`）、网格中心经纬度
+- 传入 `my_grid` 时仅返回 `my_gridsquare` 匹配的 QSO 聚合
+
+---
+
+### 十二、登出
 ```
 POST /api/v1/auth/logout
 Authorization: Bearer {token}

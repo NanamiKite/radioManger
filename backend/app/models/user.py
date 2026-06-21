@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum, Index
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.database.base import Base
 
 class User(Base):
@@ -18,11 +18,11 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     is_deleted = Column(Boolean, default=False)
     
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
     updated_at = Column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )
     
     # 关系

@@ -92,6 +92,7 @@ export interface CallsignInfo {
 export interface Statistics {
   total_qso: number
   total_dxcc: number
+  confirmed_dxcc?: number
   total_waz: number
   qsl_sent: number
   qsl_rcvd: number
@@ -101,4 +102,20 @@ export interface Statistics {
   total_distance: number
   average_distance?: number
   last_qso_date?: string
+  monthly_qso?: number
+  yearly_qso?: number
+  confirmed_qso?: number
+  station_count?: number
+}
+
+export interface BandStatEntry {
+  band: string
+  qso_count: number
+  percentage: number
+}
+
+export interface ModeStatEntry {
+  mode: string
+  qso_count: number
+  percentage: number
 }

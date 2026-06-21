@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Date, DateTime, Numeric, Index
-from datetime import datetime
+from datetime import datetime, timezone
 from app.database.base import Base
 
 class CallsignCache(Base):
@@ -24,7 +24,7 @@ class CallsignCache(Base):
     previous_call = Column(String(20))
     
     # 缓存控制
-    cached_at = Column(DateTime, default=datetime.utcnow, index=True)
+    cached_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
     qrz_url = Column(String(500))
     
     def __repr__(self):

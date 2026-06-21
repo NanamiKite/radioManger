@@ -23,7 +23,11 @@
         <el-form-item :label="$t('logs.callSign')">
           <el-input v-model="logsStore.filters.call_sign" :placeholder="$t('logs.callSign')" clearable />
         </el-form-item>
-        <el-form-item :label="$t('logs.band')">
+        <el-form-item label="Grid">
+          <el-input v-model="logsStore.filters.grid_square" placeholder="OL63" clearable
+            @input="(v: string) => logsStore.filters.grid_square = v.toUpperCase()" style="width:80px" />
+        </el-form-item>
+        <el-form-item :label="$t('logs.band')" style="width:120px">
           <el-select v-model="logsStore.filters.band" clearable :placeholder="$t('logs.allBands')">
             <el-option label="160m" value="160m" /><el-option label="80m" value="80m" />
             <el-option label="40m" value="40m" /><el-option label="20m" value="20m" />
@@ -31,7 +35,7 @@
             <el-option label="6m" value="6m" /><el-option label="2m" value="2m" /><el-option label="70cm" value="70cm" />
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('logs.mode')">
+        <el-form-item :label="$t('logs.mode')" style="width:120px">
           <el-select v-model="logsStore.filters.mode" clearable :placeholder="$t('logs.allModes')">
             <el-option label="FT8" value="FT8" /><el-option label="SSB" value="SSB" />
             <el-option label="CW" value="CW" /><el-option label="FM" value="FM" /><el-option label="AM" value="AM" />
@@ -58,6 +62,9 @@
         @sort-change="handleSortChange"
         :default-sort="{ prop: logsStore.sortBy, order: logsStore.sortOrder === 'asc' ? 'ascending' : 'descending' }">
         <el-table-column prop="qso_date" :label="$t('logs.qsoDate')" width="120" sortable="custom" />
+        <el-table-column prop="time_on" label="UTC" width="80">
+          <template #default="scope">{{ scope.row.time_on ? scope.row.time_on.substring(0, 5) : '-' }}</template>
+        </el-table-column>
         <el-table-column prop="station_callsign" label="De Call" width="120">
           <template #default="scope">
             <el-tag size="small" type="info">{{ scope.row.station_callsign || '-' }}</el-tag>
@@ -109,7 +116,7 @@
       </el-upload>
       <div v-if="importResult" style="margin-top:12px">
         <el-alert
-          :title="`Imported: ${importResult.imported} | Duplicates skipped: ${importResult.duplicates || 0} | Errors: ${importResult.skipped}`"
+          :title="`Imported: ${importResult.imported} | Duplicates: ${importResult.duplicates || 0} | QSL Updated: ${importResult.updated || 0} | Errors: ${importResult.skipped}`"
           :type="importResult.errors?.length ? 'warning' : 'success'" show-icon />
         <el-table v-if="importResult.errors?.length" :data="importResult.errors" size="small" style="margin-top:8px" max-height="200">
           <el-table-column prop="line" label="Line" width="60" />
@@ -189,6 +196,7 @@
             <el-option label="70cm" value="70cm" /><el-option label="23cm" value="23cm" />
             <el-option label="13cm" value="13cm" /><el-option label="5cm" value="5cm" />
             <el-option label="3cm" value="3cm" /><el-option label="1.2cm" value="1.2cm"/>
+            <el-option label="6mm" value="6mm" />
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('logs.frequency')" prop="frequency">
@@ -201,7 +209,7 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('logs.gridSquare')">
-          <el-input v-model="createForm.grid_square" :placeholder="$t('logs.gridSquare')" />
+          <el-input v-model="createForm.grid_square" :placeholder="$t('logs.gridSquare')" @input="(v: string) => createForm.grid_square = v.toUpperCase()" />
         </el-form-item>
         <el-form-item :label="$t('logs.qslSent')">
           <el-select v-model="createForm.qsl_sent" style="width:100%">
@@ -223,7 +231,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useLogsStore } from '@/stores/logs'
 import { logsApi } from '@/api/logs'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -233,6 +241,7 @@ import type { FormInstance } from 'element-plus'
 import { el } from 'date-fns/locale'
 
 const router = useRouter()
+const route = useRoute()
 const { t: $t } = useI18n()
 const logsStore = useLogsStore()
 
@@ -342,6 +351,11 @@ const updateUtcNow = () => {
 onMounted(async () => {
   await logsStore.fetchStations()
   applyActiveStationFilter()
+  // 从地图跳转时读取网格筛选参数
+  const gridQuery = route.query.grid as string
+  if (gridQuery) {
+    logsStore.filters.grid_square = gridQuery.toUpperCase()
+  }
   await logsStore.fetchLogs()
   if (logsStore.activeStation) createForm.station_id = logsStore.activeStation.id
   updateUtcNow()

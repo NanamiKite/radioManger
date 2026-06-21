@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional, List
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from app.database.session import get_db
 from app.schemas.qso_log import QSOLogResponse, QSOLogCreate, QSOLogUpdate
 from app.schemas.common import PaginatedResponse
@@ -78,6 +78,7 @@ async def get_logs(
     band: Optional[str] = None,
     mode: Optional[str] = None,
     call_sign: Optional[str] = None,
+    grid_square: Optional[str] = None,
     station_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -89,6 +90,7 @@ async def get_logs(
         skip=skip, limit=page_size,
         start_date=start_date, end_date=end_date,
         band=band, mode=mode, call_sign=call_sign,
+        grid_square=grid_square,
         station_id=station_id,
         sort_by=sort_by, sort_order=sort_order,
     )
@@ -126,8 +128,7 @@ async def export_logs(
     content, callsign = ImportExportService.export_adi(
         db, current_user.id, start_date, end_date, band, station_id
     )
-    from datetime import datetime
-    date_str = datetime.utcnow().strftime("%Y%m%d")
+    date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
     callsign_part = callsign if callsign else "AllStations"
     filename = f"{date_str}_{callsign_part}.adi"
     from fastapi.responses import Response
@@ -222,7 +223,7 @@ async def list_deleted_logs(
     skip = (page - 1) * page_size
     items, total = DeletedLogService.get_deleted_logs(db, current_user.id, skip, page_size)
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     result = []
     for item in items:
         days_remaining = None

@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Text, Enum, Index
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.database.base import Base
 
 
@@ -28,8 +28,8 @@ class LogFile(Base):
     last_sync_at = Column(DateTime)
 
     is_deleted = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     # 关系
     user = relationship("User", backref="log_files")
