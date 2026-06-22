@@ -121,12 +121,13 @@ async def export_logs(
     end_date: Optional[date] = None,
     band: Optional[str] = None,
     station_id: Optional[int] = Query(None),
+    location_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    """导出日志为ADI格式。未指定 station_id 时导出所有台站。"""
+    """导出日志为ADI格式。location_id 时仅导出 my_gridsquare 匹配该位置的日志。"""
     content, callsign = ImportExportService.export_adi(
-        db, current_user.id, start_date, end_date, band, station_id
+        db, current_user.id, start_date, end_date, band, station_id, location_id
     )
     date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
     callsign_part = callsign if callsign else "AllStations"

@@ -59,6 +59,7 @@ export const logsApi = {
     end_date?: string
     band?: string
     station_id?: number | null
+    location_id?: number | null
   }): void {
     const authStore = useAuthStore()
     const token = authStore.token
@@ -68,6 +69,7 @@ export const logsApi = {
     if (params.end_date) query.set('end_date', params.end_date)
     if (params.band) query.set('band', params.band)
     if (params.station_id) query.set('station_id', String(params.station_id))
+    if (params.location_id) query.set('location_id', String(params.location_id))
 
     fetch(`/api/v1/logs/export?${query.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },

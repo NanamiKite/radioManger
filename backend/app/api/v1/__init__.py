@@ -9,6 +9,7 @@ from app.api.v1.sync import router as sync_router
 from app.api.v1.shortcuts import router as shortcuts_router
 from app.api.v1.dxcluster import router as dxcluster_router
 from app.api.v1.map import router as map_router
+from app.api.v1.udp import router as udp_router
 
 __all__ = [
     "auth_router",
@@ -22,4 +23,5 @@ __all__ = [
     "shortcuts_router",
     "dxcluster_router",
     "map_router",
+    "udp_router",
 ]
