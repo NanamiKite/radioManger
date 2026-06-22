@@ -136,6 +136,15 @@ export default {
     contestCalendar: 'Contest Calendar',
     today: 'Today'
   },
+  udp: {
+    listening: 'Listening',
+    stopped: 'Stopped',
+    wsjtxPort: 'WSJT-X/JTDX Port',
+    n1mmPort: 'N1MM Port',
+    defaultPort: 'default',
+    toggleFailed: 'UDP toggle failed',
+    settingsHint: 'In WSJT-X Settings → Reporting, set UDP Server address to this machine IP with matching port. For N1MM, configure in Config → Config Ports → Broadcast Data.'
+  },
   map: {
     title: 'Maidenhead Grid Map',
     displayMode: 'Display Mode',
@@ -146,6 +155,7 @@ export default {
     qsoCount: 'QSO Count',
     confirmed: 'Confirmed',
     viewLogs: 'View Logs',
+    loadFailed: 'Failed to load map data',
     legend: 'Legend',
     greyline: 'Greyline',
     noQso: 'No QSO'
@@ -245,6 +255,13 @@ export default {
     freqMhz: 'Freq (MHz)',
     allBands: 'All Bands',
     allModes: 'All Modes',
+    allStations: 'All Stations',
+    location: 'Location',
+    allLocations: 'All Locations',
+    exportStation: 'Export Station Logs',
+    exportNoStation: 'Please select a station',
+    exportLocation: 'Export Location Logs',
+    exportGridFilter: 'Export only logs matching this location grid (my_gridsquare)',
     editLogTitle: 'Edit QSO Log',
     createLogTitle: 'New QSO Log',
     confirmDeleteMsg: 'Are you sure you want to delete this log?',
@@ -319,6 +336,7 @@ export default {
     preferences: 'Preferences',
     security: 'Security',
     about: 'About',
+    udpSettings: 'UDP Settings',
     language: 'Language',
     timezone: 'Timezone',
     theme: 'Theme',

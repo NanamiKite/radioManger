@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     # GitHub设置
     GITHUB_TOKEN: str = ""
 
+    # UDP 监听设置
+    UDP_WSJTX_PORT: int = 2237
+    UDP_N1MM_PORT: int = 12060
+    UDP_ENABLED: bool = False
+
     # 邮件设置
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587

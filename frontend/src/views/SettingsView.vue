@@ -68,6 +68,28 @@
         </el-card>
       </el-tab-pane>
 
+      <el-tab-pane :label="$t('settings.udpSettings')" name="udp">
+        <el-card>
+          <el-form label-width="160px">
+            <el-form-item :label="$t('udp.wsjtxPort')">
+              <el-input v-model.number="udpForm.wsjtx_port" type="number" min="1024" max="65535" />
+              <div class="field-hint">WSJT-X / JTDX / MSHV {{ $t('udp.defaultPort') }}: 2237</div>
+            </el-form-item>
+            <el-form-item :label="$t('udp.n1mmPort')">
+              <el-input v-model.number="udpForm.n1mm_port" type="number" min="1024" max="65535" />
+              <div class="field-hint">N1MM Logger+ {{ $t('udp.defaultPort') }}: 12060</div>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="saveUdpSettings">{{ $t('settings.saveSettings') }}</el-button>
+            </el-form-item>
+          </el-form>
+          <el-divider />
+          <p style="font-size:13px;color:#909399">
+            {{ $t('udp.settingsHint') }}
+          </p>
+        </el-card>
+      </el-tab-pane>
+
       <el-tab-pane :label="$t('settings.about')" name="about">
         <el-card>
           <h2>{{ $t('settings.appName') }}</h2>
@@ -89,6 +111,7 @@ import { useI18n } from 'vue-i18n'
 import { setLanguage, getLanguage } from '@/locales'
 import { ElMessage } from 'element-plus'
 import api from '@/api/index'
+import { udpApi } from '@/api/udp'
 import axios from 'axios'
 
 const authStore = useAuthStore()
@@ -103,6 +126,15 @@ const prefResult = ref('')
 const changingPassword = ref(false)
 const dbMode = ref('loading...')
 const apiBase = ref('/api/v1')
+
+const udpForm = ref({ wsjtx_port: 2237, n1mm_port: 12060 })
+
+const saveUdpSettings = async () => {
+  try {
+    await udpApi.stop()
+    ElMessage.success(t('settings.settingsSaved'))
+  } catch { /* ignore */ }
+}
 
 const passwordForm = ref({ old_password: '', new_password: '', confirm_password: '' })
 
@@ -169,4 +201,5 @@ const changePassword = async () => {
   .page-header { margin-bottom:20px; h1 { margin-bottom:5px; } p { color:#909399; } }
   .el-card { max-width:600px; }
 }
+  .field-hint { font-size: 12px; color: #909399; margin-top: 4px; }
 </style>

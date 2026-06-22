@@ -53,6 +53,11 @@
           <el-button type="primary" @click="handleSearch">{{ $t('common.search') }}</el-button>
           <el-button @click="handleReset">{{ $t('common.refresh') }}</el-button>
         </el-form-item>
+        <el-form-item>
+          <el-button :type="udpRunning ? 'success' : 'info'" @click="toggleUdp" size="small">
+            {{ udpRunning ? '🟢 UDP ' + $t('udp.listening') + ' (' + udpCount + ')' : '⚪ UDP ' + $t('udp.stopped') }}
+          </el-button>
+        </el-form-item>
       </el-form>
     </el-card>
 
@@ -133,10 +138,21 @@
     <el-dialog v-model="showExportDialog" :title="$t('logs.exportLogs')" width="500px">
       <el-form label-width="120px">
         <el-form-item :label="$t('stations.title')">
-          <el-select v-model="exportStationId" clearable placeholder="All Stations" style="width:100%">
-            <el-option label="All Stations" :value="null" />
+          <el-select v-model="exportStationId" clearable :placeholder="$t('logs.allStations')" style="width:100%"
+            @change="onExportStationChange">
+            <el-option :label="$t('logs.allStations')" :value="null" />
             <el-option v-for="s in logsStore.stations" :key="s.id" :label="s.callsign" :value="s.id" />
           </el-select>
+        </el-form-item>
+        <el-form-item :label="$t('logs.location')" v-if="exportStationId">
+          <el-select v-model="exportLocationId" clearable :placeholder="$t('logs.allLocations')" style="width:100%">
+            <el-option :label="$t('logs.allLocations')" :value="null" />
+            <el-option v-for="l in exportLocations" :key="l.id"
+              :label="l.name + ' (' + (l.grid_square || '-') + ')'" :value="l.id" />
+          </el-select>
+          <div v-if="exportLocationId" style="font-size:12px;color:#909399;margin-top:4px">
+            {{ $t('logs.exportGridFilter') }}
+          </div>
         </el-form-item>
         <el-form-item :label="$t('logs.qsoDate')">
           <el-date-picker v-model="exportRange" type="daterange" range-separator="~"
@@ -157,10 +173,14 @@
           </el-radio-group>
         </el-form-item>
         <p v-if="logsStore.activeStation && !exportStationId" style="font-size:12px;color:#909399;text-align:center;">
-          No station selected — will export <strong>all stations</strong>
+          {{ $t('logs.exportNoStation') }}
         </p>
-        <p v-else-if="exportStationId" style="font-size:12px;color:#409eff;text-align:center;">
-          Exporting station: <strong>{{ logsStore.stations.find(s=>s.id===exportStationId)?.callsign }}</strong>
+        <p v-else-if="exportStationId && !exportLocationId" style="font-size:12px;color:#409eff;text-align:center;">
+          {{ $t('logs.exportStation') }}: <strong>{{ logsStore.stations.find(s=>s.id===exportStationId)?.callsign }}</strong>
+        </p>
+        <p v-else-if="exportLocationId" style="font-size:12px;color:#67c23a;text-align:center;">
+          {{ $t('logs.exportLocation') }}: <strong>{{ exportLocations.find(l=>l.id===exportLocationId)?.name }}</strong>
+          ({{ exportLocations.find(l=>l.id===exportLocationId)?.grid_square }})
         </p>
       </el-form>
       <template #footer>
@@ -234,6 +254,9 @@ import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useLogsStore } from '@/stores/logs'
 import { logsApi } from '@/api/logs'
+import { udpApi } from '@/api/udp'
+import { locationsApi } from '@/api/locations'
+import { useAuthStore } from '@/stores/auth'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
@@ -242,8 +265,14 @@ import { el } from 'date-fns/locale'
 
 const router = useRouter()
 const route = useRoute()
+const authStore = useAuthStore()
 const { t: $t } = useI18n()
 const logsStore = useLogsStore()
+
+// UDP 监听状态
+const udpRunning = ref(false)
+const udpCount = ref(0)
+let udpWs: WebSocket | null = null
 
 // 新建
 const showCreateDialog = ref(false)
@@ -317,9 +346,22 @@ const handleImport = async () => {
 const showExportDialog = ref(false)
 const exporting = ref(false)
 const exportStationId = ref<number | null>(null)
+const exportLocationId = ref<number | null>(null)
+const exportLocations = ref<any[]>([])
 const exportRange = ref<any>(null)
 const exportBand = ref('')
 const exportFormat = ref('adi')
+
+const onExportStationChange = async (sid: number | null) => {
+  exportLocationId.value = null
+  exportLocations.value = []
+  if (sid) {
+    try {
+      const res: any = await locationsApi.list(sid)
+      exportLocations.value = Array.isArray(res) ? res : []
+    } catch { exportLocations.value = [] }
+  }
+}
 const handleExport = () => {
   exporting.value = true
   try {
@@ -329,6 +371,7 @@ const handleExport = () => {
       end_date: exportRange.value?.[1] || undefined,
       band: exportBand.value || undefined,
       station_id: exportStationId.value,
+      location_id: exportLocationId.value,
     })
     showExportDialog.value = false
   } catch { ElMessage.error($t('common.exportFailed')) }
@@ -348,6 +391,48 @@ const updateUtcNow = () => {
   createForm.time_on = now.toISOString().substring(11, 19)
 }
 
+// ── UDP 监听控制 ──
+function toggleUdp() {
+  if (udpRunning.value) {
+    udpApi.stop().then(() => {
+      udpRunning.value = false
+      if (udpWs) { udpWs.close(); udpWs = null }
+    })
+  } else {
+    udpApi.start().then(() => {
+      udpRunning.value = true
+      connectUdpWs()
+    })
+  }
+}
+
+function connectUdpWs() {
+  const token = authStore.token
+  if (!token) return
+  udpWs = udpApi.createWebSocket(token)
+  udpWs.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data)
+      if (msg.type === 'qso_received') {
+        udpCount.value = msg.count || udpCount.value + 1
+        logsStore.fetchLogs()
+        ElMessage.success(`UDP QSO: ${msg.data.call_sign} ${msg.data.band || ''} ${msg.data.mode || ''}`)
+      }
+    } catch {}
+  }
+  udpWs.onclose = () => { udpRunning.value = false }
+  udpWs.onerror = () => { udpRunning.value = false }
+}
+
+async function checkUdpStatus() {
+  try {
+    const res = await udpApi.getStatus()
+    udpRunning.value = res.data.running
+    udpCount.value = res.data.qso_count || 0
+    if (udpRunning.value) connectUdpWs()
+  } catch {}
+}
+
 onMounted(async () => {
   await logsStore.fetchStations()
   applyActiveStationFilter()
@@ -359,6 +444,7 @@ onMounted(async () => {
   await logsStore.fetchLogs()
   if (logsStore.activeStation) createForm.station_id = logsStore.activeStation.id
   updateUtcNow()
+  checkUdpStatus()
 })
 
 watch(() => logsStore.activeStation, (s) => {

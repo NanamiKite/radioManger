@@ -4,6 +4,7 @@ import logging
 from typing import List, Dict, Optional, Tuple
 from datetime import date, datetime, time
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.utils.adi_parser import ADIParser
 from app.models.qso_log import QSOLog
@@ -230,6 +231,7 @@ class ImportExportService:
         end_date: Optional[date] = None,
         band: Optional[str] = None,
         station_id: Optional[int] = None,
+        location_id: Optional[int] = None,
     ) -> Tuple[str, str]:
         """导出为ADI格式（WSJT-X兼容）。返回 (ADI内容, 台站呼号/AllStations)"""
         from app.models.station import Station
@@ -241,11 +243,23 @@ class ImportExportService:
             if stn:
                 export_callsign = stn.callsign
 
+        # 查询位置网格（用于 my_gridsquare 过滤）
+        location_grid = None
+        if location_id:
+            loc = db.query(Location).filter(Location.id == location_id, Location.is_deleted == False).first()
+            if loc and loc.grid_square:
+                location_grid = loc.grid_square.strip()[:4].upper()
+                export_callsign = f"{export_callsign}_{location_grid}"
+
         query = db.query(QSOLog).filter(
             QSOLog.user_id == user_id, QSOLog.is_deleted == False,
         )
         if station_id:
             query = query.filter(QSOLog.station_id == station_id)
+        if location_id and location_grid:
+            query = query.filter(
+                func.upper(func.substr(QSOLog.my_gridsquare, 1, 4)) == location_grid
+            )
         if start_date:
             query = query.filter(QSOLog.qso_date >= start_date)
         if end_date:

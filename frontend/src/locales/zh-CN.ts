@@ -135,6 +135,15 @@ export default {
     contestCalendar: '比赛日历',
     today: '今天'
   },
+  udp: {
+    listening: '监听中',
+    stopped: '已停止',
+    wsjtxPort: 'WSJT-X/JTDX 端口',
+    n1mmPort: 'N1MM 端口',
+    defaultPort: '默认端口',
+    toggleFailed: 'UDP 操作失败',
+    settingsHint: '在 WSJT-X 设置 → Reporting 中配置 UDP Server 地址为本机 IP，端口与上方一致。N1MM 在 Config → Config Ports → Broadcast Data 中设置。'
+  },
   map: {
     title: '梅登网格地图',
     displayMode: '显示模式',
@@ -145,6 +154,7 @@ export default {
     qsoCount: 'QSO 数量',
     confirmed: '已确认',
     viewLogs: '查看日志',
+    loadFailed: '地图数据加载失败',
     legend: '图例',
     greyline: '灰线（昼夜分界）',
     noQso: '无QSO'
@@ -248,6 +258,13 @@ export default {
     createLogTitle: '新建通联日志',
     confirmDeleteMsg: '确定要删除该日志吗？',
     stationId: '使用台站',
+    allStations: '全部台站',
+    location: '位置',
+    allLocations: '全部位置',
+    exportStation: '导出台站日志',
+    exportNoStation:'请选择台站',
+    exportLocation: '导出位置日志',
+    exportGridFilter: '仅导出该位置网格的日志（my_gridsquare 匹配）',
     yes: '是',
     no: '否',
     requested: '已索取',
@@ -330,6 +347,7 @@ export default {
     passwordChanged: '密码已修改',
     joined: '注册时间',
     role: '角色',
+    udpSettings: 'UDP设置',
     appName: '业余无线电日志管理器',
     version: '版本',
     dbMode: '数据库模式',

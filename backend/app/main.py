@@ -14,6 +14,7 @@ from app.api.v1 import (
     shortcuts_router,
     dxcluster_router,
     map_router,
+    udp_router,
 )
 from app.database.base import engine, Base
 from app.middleware.logging import LoggingMiddleware
@@ -37,7 +38,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="RadioManager API",
     description="Amateur Radio Log Management System API",
-    version="2.4.0",
+    version="2.4.1",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
@@ -59,6 +60,7 @@ app.include_router(sync_router, prefix=f"{settings.API_V1_STR}/sync", tags=["syn
 app.include_router(shortcuts_router, prefix=f"{settings.API_V1_STR}/shortcuts", tags=["shortcuts"])
 app.include_router(dxcluster_router, prefix=f"{settings.API_V1_STR}/dxcluster", tags=["dxcluster"])
 app.include_router(map_router, prefix=f"{settings.API_V1_STR}/map", tags=["map"])
+app.include_router(udp_router, prefix=f"{settings.API_V1_STR}/udp", tags=["udp"])
 
 @app.get("/health")
 async def health_check():
