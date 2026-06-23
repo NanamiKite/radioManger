@@ -289,7 +289,8 @@ export default {
     spotter: 'Spotter',
     comment: 'Comment',
     time: 'Time',
-    noData:"No spots yet"
+    noData:"No spots yet",
+    noSpots: 'No spots yet'
     
   },
   stations: {
@@ -354,7 +355,13 @@ export default {
     version: 'Version',
     dbMode: 'Database Mode',
     apiServer: 'API Server',
-    manageAccount: 'Manage your account and preferences'
+    manageAccount: 'Manage your account and preferences',
+    description: 'Amateur Radio Log Management System',
+    designedBy: 'Designed By',
+    sourceCode: 'Source Code',
+    contact: 'Contact',
+    copyright: 'Copyright',
+    allRightsReserved: 'All rights reserved'
   },
   shortcuts: {
     title: 'Shortcuts',

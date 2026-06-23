@@ -288,7 +288,8 @@ export default {
     spotter: '报告者',
     comment: '备注',
     time: '时间',
-    noData:"暂无spot信息"
+    noData:"暂无spot信息",
+    noSpots: '暂无spot信息',
   },
   stations: {
     title: '台站管理',
@@ -352,7 +353,13 @@ export default {
     version: '版本',
     dbMode: '数据库模式',
     apiServer: 'API地址',
-    manageAccount: '管理您的账户和偏好'
+    manageAccount: '管理您的账户和偏好',
+    description: '业余无线电日志管理系统',
+    designedBy: '界面设计',
+    sourceCode: '源代码',
+    contact: '联系方式',
+    copyright: '版权所有',
+    allRightsReserved: '保留所有权利'
   },
   shortcuts: {
     title: '快捷链接',

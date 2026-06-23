@@ -20,43 +20,37 @@
 
     <!-- 区块 2: 统计卡片 -->
     <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon">📊</div>
+      <div class="stat-card stat-blue">
         <div class="stat-content">
           <div class="stat-label">{{ $t('dashboard.totalQSO') }}</div>
           <div class="stat-value">{{ statistics?.total_qso || 0 }}</div>
         </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon">📅</div>
+      <div class="stat-card stat-green">
         <div class="stat-content">
           <div class="stat-label">{{ $t('dashboard.monthlyQSO') }}</div>
           <div class="stat-value">{{ statistics?.monthly_qso || 0 }}</div>
         </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon">📆</div>
+      <div class="stat-card stat-orange">
         <div class="stat-content">
           <div class="stat-label">{{ $t('dashboard.yearlyQSO') }}</div>
           <div class="stat-value">{{ statistics?.yearly_qso || 0 }}</div>
         </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon">✅</div>
+      <div class="stat-card stat-purple">
         <div class="stat-content">
           <div class="stat-label">{{ $t('dashboard.confirmedQSO') }}</div>
           <div class="stat-value">{{ statistics?.confirmed_qso || 0 }}</div>
         </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon">🌍</div>
+      <div class="stat-card stat-cyan">
         <div class="stat-content">
           <div class="stat-label">{{ $t('dashboard.dxcc') }}</div>
           <div class="stat-value">{{ statistics?.total_dxcc || 0 }}</div>
         </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon">📻</div>
+      <div class="stat-card stat-red">
         <div class="stat-content">
           <div class="stat-label">{{ $t('dashboard.stationCount') }}</div>
           <div class="stat-value">{{ statistics?.station_count || 0 }}</div>
@@ -74,7 +68,11 @@
             @row-click="(row: any) => router.push({ name: 'LogDetail', params: { id: row.id } })"
             style="cursor:pointer; font-size:15px" empty-text="-">
             <el-table-column prop="call_sign" :label="$t('logs.callSign')" width="130">
-              <template #default="scope"><span style="font-size:15px;font-weight:600">{{ scope.row.call_sign }}</span></template>
+              <template #default="scope">
+                <span class="callsign-link" @click.stop="lookupCall(scope.row.call_sign)">
+                  {{ scope.row.call_sign }}
+                </span>
+              </template>
             </el-table-column>
             <el-table-column prop="mode" label="Mode" width="90">
               <template #default="scope"><span style="font-size:14px">{{ scope.row.mode }}</span></template>
@@ -92,13 +90,13 @@
         </div>
         <!-- 比赛日历 -->
         <div class="panel">
-          <div class="panel-title">📅 {{ $t('dashboard.contestCalendar') }}</div>
+          <div class="panel-title">{{ $t('dashboard.contestCalendar') }}</div>
           <div class="contest-list">
             <div v-for="c in upcomingContests" :key="c.name" class="contest-item"
               :class="{ 'contest-soon': c.daysUntil <= 14 }">
               <div class="contest-date">{{ c.dateStr }}</div>
               <div class="contest-info">
-                <div class="contest-name">{{ c.name }}</div>
+                <a class="contest-name" :href="c.url" target="_blank" rel="noopener">{{ c.name }}</a>
                 <div class="contest-band">{{ c.bands }}</div>
               </div>
               <div class="contest-countdown" v-if="c.daysUntil >= 0">
@@ -159,13 +157,13 @@
     <div class="actions">
       <el-button type="primary" @click="goToLogs">{{ $t('dashboard.viewLogs') }}</el-button>
       <el-button @click="goToStations">{{ $t('dashboard.manageStations') }}</el-button>
-      <el-button @click="goToCallsigns">🔍 {{ $t('dashboard.queryCallsign') }}</el-button>
+      <el-button @click="goToCallsigns">{{ $t('dashboard.queryCallsign') }}</el-button>
       <el-button @click="goToAnalysis">{{ $t('dashboard.viewAnalysis') }}</el-button>
-      <el-button @click="goToTools">🔧 {{ $t('nav.tools') }}</el-button>
-      <el-button @click="goToDxcluster">📡 {{ $t('dashboard.viewDxcluster') }}</el-button>
-      <el-button @click="goToShortcuts">🔗 {{ $t('dashboard.viewShortcuts') }}</el-button>
-      <el-button @click="goToRecycleBin">🗑️ {{ $t('dashboard.viewRecycleBin') }}</el-button>
-      <el-button @click="goToSettings">⚙️ {{ $t('dashboard.viewSettings') }}</el-button>
+      <el-button @click="goToTools">{{ $t('nav.tools') }}</el-button>
+      <el-button @click="goToDxcluster">{{ $t('dashboard.viewDxcluster') }}</el-button>
+      <el-button @click="goToShortcuts">{{ $t('dashboard.viewShortcuts') }}</el-button>
+      <el-button @click="goToRecycleBin">{{ $t('dashboard.viewRecycleBin') }}</el-button>
+      <el-button @click="goToSettings">{{ $t('dashboard.viewSettings') }}</el-button>
     </div>
   </div>
 </template>
@@ -229,23 +227,23 @@ function updateClock() {
 }
 
 // 业余无线电比赛日历（主要国际比赛，按月循环）
-interface Contest { name: string; dateStr: string; bands: string; daysUntil: number }
+interface Contest { name: string; dateStr: string; bands: string; daysUntil: number; url: string }
 
 const contests = [
-  { name: 'ARRL RTTY Roundup', month: 1, day: 11, bands: '80-10m' },
-  { name: 'CQ WW 160m CW', month: 1, day: 24, bands: '160m' },
-  { name: 'ARRL DX CW', month: 2, day: 15, bands: '160-10m' },
-  { name: 'ARRL DX SSB', month: 3, day: 1, bands: '160-10m' },
-  { name: 'CQ WPX SSB', month: 3, day: 22, bands: '160-10m' },
-  { name: 'CQ WPX CW', month: 5, day: 24, bands: '160-10m' },
-  { name: 'ARRL Field Day', month: 6, day: 28, bands: 'All' },
-  { name: 'IARU HF Championship', month: 7, day: 12, bands: '160-10m' },
-  { name: 'WW Digi DX Contest', month: 8, day: 30, bands: '80-10m' },
-  { name: 'ARRL September VHF', month: 9, day: 13, bands: '6m+' },
-  { name: 'CQ WW SSB', month: 10, day: 25, bands: '160-10m' },
-  { name: 'CQ WW CW', month: 11, day: 22, bands: '160-10m' },
-  { name: 'ARRL 10m Contest', month: 12, day: 13, bands: '10m' },
-  { name: 'RAC Winter Contest', month: 12, day: 20, bands: '160-10m' },
+  { name: 'ARRL RTTY Roundup', month: 1, day: 11, bands: '80-10m', url: 'https://www.contestcalendar.com/weeklydetail.php?contest=arrl-rtty' },
+  { name: 'CQ WW 160m CW', month: 1, day: 24, bands: '160m', url: 'https://www.contestcalendar.com/weeklydetail.php?contest=cq-ww-160' },
+  { name: 'ARRL DX CW', month: 2, day: 15, bands: '160-10m', url: 'https://www.contestcalendar.com/weeklydetail.php?contest=arrl-dx-cw' },
+  { name: 'ARRL DX SSB', month: 3, day: 1, bands: '160-10m', url: 'https://www.contestcalendar.com/weeklydetail.php?contest=arrl-dx-ssb' },
+  { name: 'CQ WPX SSB', month: 3, day: 22, bands: '160-10m', url: 'https://www.contestcalendar.com/weeklydetail.php?contest=cq-wpx-ssb' },
+  { name: 'CQ WPX CW', month: 5, day: 24, bands: '160-10m', url: 'https://www.contestcalendar.com/weeklydetail.php?contest=cq-wpx-cw' },
+  { name: 'ARRL Field Day', month: 6, day: 28, bands: 'All', url: 'https://www.arrl.org/field-day' },
+  { name: 'IARU HF Championship', month: 7, day: 12, bands: '160-10m', url: 'https://www.contestcalendar.com/weeklydetail.php?contest=iaru-hf' },
+  { name: 'WW Digi DX Contest', month: 8, day: 30, bands: '80-10m', url: 'https://www.contestcalendar.com/weeklydetail.php?contest=ww-digi' },
+  { name: 'ARRL September VHF', month: 9, day: 13, bands: '6m+', url: 'https://www.contestcalendar.com/weeklydetail.php?contest=arrl-sept-vhf' },
+  { name: 'CQ WW SSB', month: 10, day: 25, bands: '160-10m', url: 'https://www.contestcalendar.com/weeklydetail.php?contest=cq-ww-ssb' },
+  { name: 'CQ WW CW', month: 11, day: 22, bands: '160-10m', url: 'https://www.contestcalendar.com/weeklydetail.php?contest=cq-ww-cw' },
+  { name: 'ARRL 10m Contest', month: 12, day: 13, bands: '10m', url: 'https://www.contestcalendar.com/weeklydetail.php?contest=arrl-10m' },
+  { name: 'RAC Winter Contest', month: 12, day: 20, bands: '160-10m', url: 'https://www.contestcalendar.com/weeklydetail.php?contest=rac-winter' },
 ]
 
 const upcomingContests = computed<Contest[]>(() => {
@@ -262,7 +260,7 @@ const upcomingContests = computed<Contest[]>(() => {
       daysUntil = Math.ceil((d.getTime() - now.getTime()) / 86400000)
     }
     const dateStr = `${c.month}/${c.day}`
-    result.push({ name: c.name, dateStr, bands: c.bands, daysUntil })
+    result.push({ name: c.name, dateStr, bands: c.bands, daysUntil, url: c.url })
   }
   // 按距离天数排序，取最近 6 个
   return result.sort((a, b) => a.daysUntil - b.daysUntil).slice(0, 6)
@@ -299,86 +297,381 @@ const goToDxcluster = () => router.push({ name: 'DXClusters' })
 const goToShortcuts = () => router.push({ name: 'Shortcuts' })
 const goToRecycleBin = () => router.push({ name: 'RecycleBin' })
 const goToSettings = () => router.push({ name: 'Settings' })
+const lookupCall = (call: string) => {
+  if (call) window.open(`https://www.qrz.com/db/${call}`, '_blank')
+}
 const goToTools = () => router.push({ name: 'Tools' })
 </script>
 
 <style scoped lang="scss">
 .dashboard-container {
-  max-width: 1200px; margin: 0 auto;
+  max-width: 1400px;
+  margin: 0 auto;
+  animation: fadeIn 0.2s ease-out;
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .callsign-link {
+    font-weight: 600;
+    color: var(--color-accent);
+    font-family: monospace;
+    cursor: pointer;
+    &:hover { text-decoration: underline; }
+  }
 
   .dashboard-header {
-    display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-xl);
+    padding-bottom: var(--spacing-lg);
+    border-bottom: 1px solid var(--border-color);
+
     .welcome-section {
-      h1 { margin: 0 0 6px; color: #303133; }
-      p { margin: 0; color: #909399; }
+      h1 {
+        margin: 0 0 var(--spacing-xs);
+        color: var(--text-color-primary);
+        font-size: var(--font-size-xxl);
+        font-weight: var(--font-weight-semibold);
+        letter-spacing: -0.02em;
+      }
+      p {
+        margin: 0;
+        color: var(--text-color-secondary);
+        font-size: var(--font-size-base);
+      }
     }
+
     .clock-section {
-      display: flex; gap: 16px;
+      display: flex;
+      gap: var(--spacing-sm);
       .clock-box {
-        background: white; border-radius: 8px; padding: 12px 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        .clock-label { font-size: 11px; color: #909399; margin-bottom: 4px; }
-        .clock-time { font-size: 22px; font-weight: bold; color: #409eff; font-family: monospace; }
+        background: var(--bg-color-card);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-base);
+        padding: var(--spacing-sm) var(--spacing-base);
+        text-align: center;
+        .clock-label {
+          font-size: var(--font-size-extra-small);
+          color: var(--text-color-secondary);
+          margin-bottom: 2px;
+          font-weight: var(--font-weight-medium);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .clock-time {
+          font-size: var(--font-size-xxl);
+          font-weight: var(--font-weight-semibold);
+          color: var(--text-color-primary);
+          font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        }
       }
     }
   }
 
   .stats-grid {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--spacing-base);
+    margin-bottom: var(--spacing-xl);
+
     .stat-card {
-      background: white; border-radius: 8px; padding: 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-      .stat-icon { font-size: 26px; }
+      background: var(--bg-color-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius-base);
+      padding: var(--spacing-lg);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+      cursor: default;
+      border-left: 3px solid transparent;
+
+      &.stat-blue   { border-left-color: var(--color-blue);   .stat-icon { background: var(--color-blue-bg);   } }
+      &.stat-green  { border-left-color: var(--color-green);  .stat-icon { background: var(--color-green-bg);  } }
+      &.stat-orange { border-left-color: var(--color-orange); .stat-icon { background: var(--color-orange-bg); } }
+      &.stat-purple { border-left-color: var(--color-purple); .stat-icon { background: var(--color-purple-bg); } }
+      &.stat-cyan   { border-left-color: var(--color-cyan);   .stat-icon { background: var(--color-cyan-bg);   } }
+      &.stat-red    { border-left-color: var(--color-red);    .stat-icon { background: var(--color-red-bg);    } }
+
+      .stat-icon {
+        font-size: 22px;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg-color-hover);
+        border-radius: var(--border-radius-base);
+        flex-shrink: 0;
+      }
+
       .stat-content {
         flex: 1;
-        .stat-label { color: #909399; font-size: 12px; margin-bottom: 2px; }
-        .stat-value { color: #303133; font-size: 22px; font-weight: bold; }
+        min-width: 0;
+        .stat-label {
+          color: var(--text-color-secondary);
+          font-size: var(--font-size-small);
+          margin-bottom: 2px;
+          font-weight: var(--font-weight-medium);
+        }
+        .stat-value {
+          color: var(--text-color-primary);
+          font-size: var(--font-size-xxl);
+          font-weight: var(--font-weight-semibold);
+          line-height: 1.2;
+        }
       }
     }
   }
 
-  .two-col { display: flex; gap: 16px; margin-bottom: 20px; }
-  .col-left { flex: 3; display: flex; flex-direction: column; }
-  .col-right { flex: 2; display: flex; flex-direction: column; }
-  .panel-grow { flex: 1; display: flex; flex-direction: column; }
-  .panel-grow :deep(.el-table) { flex: 1; }
+  .two-col {
+    display: flex;
+    gap: var(--spacing-base);
+    margin-bottom: var(--spacing-xl);
+  }
 
+  .col-left {
+    flex: 3;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-base);
+  }
+
+  .col-right {
+    flex: 2;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-base);
+  }
+
+  .panel-grow {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-grow :deep(.el-table) {
+    flex: 1;
+  }
+
+  // ── 面板 — 边框卡片 ──
   .panel {
-    background: white; border-radius: 8px; padding: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-    .panel-title { font-size: 14px; font-weight: 600; color: #303133; margin-bottom: 12px; }
-    .empty-text { color: #c0c4cc; text-align: center; padding: 20px; }
+    background: var(--bg-color-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-base);
+    padding: var(--spacing-lg);
+
+    .panel-title {
+      font-size: var(--font-size-base);
+      font-weight: var(--font-weight-semibold);
+      color: var(--text-color-primary);
+      margin-bottom: var(--spacing-base);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      padding-bottom: var(--spacing-sm);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .empty-text {
+      color: var(--text-color-placeholder);
+      text-align: center;
+      padding: var(--spacing-xl);
+      font-size: var(--font-size-base);
+    }
   }
 
+  // ── DXCC 进度 ──
   .dxcc-progress {
-    text-align: center; padding: 20px 0;
-    .dxcc-big { font-size: 32px; font-weight: bold; color: #409eff; margin-bottom: 12px; }
-    .progress-bar-bg { height: 20px; background: #ebeef5; border-radius: 10px; overflow: hidden; margin-bottom: 8px; }
-    .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #409eff, #67c23a); border-radius: 10px; transition: width 0.6s ease; }
-    .dxcc-label { font-size: 14px; color: #909399; margin-bottom: 12px; }
-    .dxcc-detail { display: flex; justify-content: center; gap: 24px; font-size: 13px; color: #606266; }
+    text-align: center;
+    padding: var(--spacing-base) 0;
+
+    .dxcc-big {
+      font-size: 36px;
+      font-weight: var(--font-weight-bold);
+      color: var(--text-color-primary);
+      margin-bottom: var(--spacing-md);
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    .progress-bar-bg {
+      height: 8px;
+      background: var(--bg-color-hover);
+      border-radius: var(--border-radius-round);
+      overflow: hidden;
+      margin-bottom: var(--spacing-sm);
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--color-accent);
+      border-radius: var(--border-radius-round);
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .dxcc-label {
+      font-size: var(--font-size-small);
+      color: var(--text-color-secondary);
+      margin-bottom: var(--spacing-md);
+      font-weight: var(--font-weight-medium);
+    }
+
+    .dxcc-detail {
+      display: flex;
+      justify-content: center;
+      gap: var(--spacing-xl);
+      font-size: var(--font-size-small);
+      color: var(--text-color-secondary);
+      strong {
+        color: var(--text-color-primary);
+        font-weight: var(--font-weight-medium);
+      }
+    }
   }
 
+  // ── 比赛日历 ──
   .contest-list {
     .contest-item {
-      display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f0f0f0;
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+      padding: var(--spacing-sm) 0;
+      border-bottom: 1px solid var(--border-color-lighter);
       &:last-child { border-bottom: none; }
-      &.contest-soon { .contest-countdown { color: #e6a23c; font-weight: bold; } }
-      .contest-date { width: 44px; font-size: 12px; color: #909399; flex-shrink: 0; }
-      .contest-info { flex: 1; min-width: 0;
-        .contest-name { font-size: 13px; color: #303133; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .contest-band { font-size: 11px; color: #909399; }
+      &:hover { background: var(--bg-color-hover); border-radius: var(--border-radius-base); }
+
+      &.contest-soon .contest-countdown {
+        color: var(--color-warning);
+        font-weight: var(--font-weight-semibold);
       }
-      .contest-countdown { width: 32px; text-align: right; font-size: 13px; color: #409eff; flex-shrink: 0; }
+
+      .contest-date {
+        width: 50px;
+        font-size: var(--font-size-small);
+        color: var(--text-color-secondary);
+        flex-shrink: 0;
+        font-weight: var(--font-weight-medium);
+      }
+
+      .contest-info {
+        flex: 1;
+        min-width: 0;
+        .contest-name {
+          font-size: var(--font-size-small);
+          color: var(--color-accent);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          font-weight: var(--font-weight-semibold);
+          text-decoration: none;
+          cursor: pointer;
+          display: block;
+          &:hover {
+            text-decoration: underline;
+          }
+        }
+        .contest-band {
+          font-size: var(--font-size-extra-small);
+          color: var(--text-color-secondary);
+          margin-top: 2px;
+        }
+      }
+
+      .contest-countdown {
+        width: 40px;
+        text-align: right;
+        font-size: var(--font-size-small);
+        color: var(--text-color-secondary);
+        flex-shrink: 0;
+        font-weight: var(--font-weight-medium);
+      }
     }
   }
 
+  // ── 柱状图 ──
   .bar-chart {
-    .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-    .bar-label { width: 50px; font-size: 12px; color: #606266; text-align: right; flex-shrink: 0; }
-    .bar-track { flex: 1; height: 18px; background: #ebeef5; border-radius: 4px; overflow: hidden; }
-    .bar-fill { height: 100%; background: #409eff; border-radius: 4px; transition: width 0.6s ease; min-width: 2px; }
-    .bar-fill.mode-fill { background: #67c23a; }
-    .bar-value { width: 80px; font-size: 12px; color: #909399; flex-shrink: 0; }
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      margin-bottom: var(--spacing-sm);
+    }
+
+    .bar-label {
+      width: 50px;
+      font-size: var(--font-size-small);
+      color: var(--text-color-secondary);
+      text-align: right;
+      flex-shrink: 0;
+      font-weight: var(--font-weight-medium);
+    }
+
+    .bar-track {
+      flex: 1;
+      height: 8px;
+      background: var(--bg-color-hover);
+      border-radius: var(--border-radius-round);
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      background: var(--color-accent);
+      border-radius: var(--border-radius-round);
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      min-width: 4px;
+    }
+
+    .bar-fill.mode-fill {
+      background: var(--color-success);
+    }
+
+    .bar-value {
+      width: 80px;
+      font-size: var(--font-size-small);
+      color: var(--text-color-secondary);
+      flex-shrink: 0;
+      font-weight: var(--font-weight-medium);
+    }
   }
 
-  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+  // ── 操作按钮 ──
+  .actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--border-color);
+  }
+}
+
+@media (max-width: 1200px) {
+  .dashboard-container {
+    .two-col { flex-direction: column; }
+    .col-left, .col-right { flex: 1; }
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-container {
+    .dashboard-header {
+      flex-direction: column;
+      gap: var(--spacing-base);
+    }
+    .clock-section { width: 100%; }
+    .clock-box { flex: 1; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .actions { justify-content: center; }
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-container {
+    .stats-grid { grid-template-columns: 1fr; }
+  }
 }
 </style>

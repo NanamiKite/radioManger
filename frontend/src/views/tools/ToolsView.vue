@@ -559,12 +559,12 @@ const mlFromSWR = computed(() => { if (swrVal.value < 1) return '0'; const g = (
 const swrClass = (v: number) => v <= 1.5 ? 'swr-good' : v <= 3 ? 'swr-ok' : 'swr-bad'
 
 const swrRefTable = [
-  { swr: '1.0', refl: '0.00', rl: '∞', status: '✅ Ideal' },
-  { swr: '1.5', refl: '4.00', rl: '14.0', status: '✅ Good' },
-  { swr: '2.0', refl: '11.1', rl: '9.5', status: '✅ OK' },
-  { swr: '3.0', refl: '25.0', rl: '6.0', status: '⚠️ Fair' },
-  { swr: '5.0', refl: '44.4', rl: '3.5', status: '⚠️ Poor' },
-  { swr: '10.0', refl: '66.9', rl: '1.7', status: '❌ Bad' },
+  { swr: '1.0', refl: '0.00', rl: '∞', status: 'Ideal' },
+  { swr: '1.5', refl: '4.00', rl: '14.0', status: 'Good' },
+  { swr: '2.0', refl: '11.1', rl: '9.5', status: 'OK' },
+  { swr: '3.0', refl: '25.0', rl: '6.0', status: 'Fair' },
+  { swr: '5.0', refl: '44.4', rl: '3.5', status: 'Poor' },
+  { swr: '10.0', refl: '66.9', rl: '1.7', status: 'Bad' },
 ]
 
 // ═══ LC 滤波器 ═══
