@@ -81,7 +81,7 @@
     <!-- ================= TABLE ================= -->
     <el-card class="table-card" shadow="never">
       <template #header>
-        <span>📡 {{ $t('dxcluster.recentSpots') }}</span>
+        <span>{{ $t('dxcluster.recentSpots') }}</span>
       </template>
 
       <el-table

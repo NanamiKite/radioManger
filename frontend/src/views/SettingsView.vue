@@ -84,20 +84,39 @@
             </el-form-item>
           </el-form>
           <el-divider />
-          <p style="font-size:13px;color:#909399">
+          <p style="font-size:13px;color:var(--text-color-secondary)">
             {{ $t('udp.settingsHint') }}
           </p>
         </el-card>
       </el-tab-pane>
 
       <el-tab-pane :label="$t('settings.about')" name="about">
-        <el-card>
-          <h2>{{ $t('settings.appName') }}</h2>
-          <p>{{ $t('settings.version') }}: 2.1.0</p>
-          <p>Amateur Radio Log Management System</p>
+        <el-card class="about-card">
+          <div class="about-header">
+            <h2>{{ $t('settings.appName') }}</h2>
+            <p class="about-desc">{{ $t('settings.description') }}</p>
+            <span class="version-badge">{{ $t('settings.version') }} 2.4.1</span>
+          </div>
+
           <el-divider />
-          <p>{{ $t('settings.dbMode') }}: {{ dbMode }}</p>
-          <p>{{ $t('settings.apiServer') }}: {{ apiBase }}</p>
+
+          <el-divider />
+
+          <div class="about-info">
+            <p>{{ $t('settings.dbMode') }}: <strong>{{ dbMode }}</strong></p>
+            <p>{{ $t('settings.apiServer') }}: <strong>{{ apiBase }}</strong></p>
+          </div>
+
+          <el-divider />
+
+          <div class="about-footer">
+            <p class="credit-line">
+              DesignedBy: <strong>NanamiKite</strong>
+            </p>
+            <p class="copyright-line">
+              &copy; 2026 {{ $t('settings.appName') }} &mdash; MIT License
+            </p>
+          </div>
         </el-card>
       </el-tab-pane>
     </el-tabs>
@@ -198,8 +217,129 @@ const changePassword = async () => {
 
 <style scoped lang="scss">
 .settings-container {
-  .page-header { margin-bottom:20px; h1 { margin-bottom:5px; } p { color:#909399; } }
-  .el-card { max-width:600px; }
+  .page-header {
+    margin-bottom: 20px;
+    h1 {
+      margin-bottom: 5px;
+      color: var(--text-color-primary);
+      font-size: var(--font-size-xxl);
+      font-weight: var(--font-weight-semibold);
+    }
+    p { color: var(--text-color-secondary); }
+  }
+
+  .el-card { max-width: 600px; }
+
+  .field-hint {
+    font-size: var(--font-size-small);
+    color: var(--text-color-secondary);
+    margin-top: 4px;
+  }
+
+  // ── 关于页面样式 ──
+  .about-card {
+    .about-header {
+      text-align: center;
+
+      h2 {
+        margin: 0 0 4px;
+        font-size: var(--font-size-extra-large);
+        font-weight: var(--font-weight-semibold);
+        color: var(--text-color-primary);
+      }
+
+      .about-desc {
+        margin: 0 0 12px;
+        color: var(--text-color-secondary);
+        font-size: var(--font-size-base);
+      }
+
+      .version-badge {
+        display: inline-block;
+        padding: 2px 10px;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-round);
+        font-size: var(--font-size-small);
+        color: var(--text-color-secondary);
+        font-weight: var(--font-weight-medium);
+      }
+    }
+
+    .about-links {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+
+      .about-link-item {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-md);
+        padding: var(--spacing-sm) var(--spacing-md);
+        border-radius: var(--border-radius-base);
+        text-decoration: none;
+        color: var(--text-color-regular);
+        transition: background var(--transition-duration) var(--transition-function);
+
+        &:hover {
+          background: var(--bg-color-hover);
+          color: var(--text-color-primary);
+        }
+
+        .link-icon {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          height: 32px;
+          border: 1px solid var(--border-color);
+          border-radius: var(--border-radius-base);
+          font-size: var(--font-size-small);
+          font-weight: var(--font-weight-semibold);
+          color: var(--text-color-primary);
+          flex-shrink: 0;
+        }
+
+        .link-label {
+          font-size: var(--font-size-base);
+          font-weight: var(--font-weight-medium);
+        }
+      }
+    }
+
+    .about-info {
+      p {
+        font-size: var(--font-size-base);
+        color: var(--text-color-secondary);
+        margin: 0 0 4px;
+
+        strong {
+          color: var(--text-color-primary);
+          font-weight: var(--font-weight-regular);
+        }
+      }
+    }
+
+    .about-footer {
+      text-align: center;
+
+      .credit-line {
+        font-size: var(--font-size-base);
+        color: var(--text-color-secondary);
+        margin: 0 0 4px;
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+
+        strong {
+          color: var(--text-color-primary);
+          font-weight: var(--font-weight-semibold);
+        }
+      }
+
+      .copyright-line {
+        font-size: var(--font-size-small);
+        color: var(--text-color-placeholder);
+        margin: 0;
+      }
+    }
+  }
 }
-  .field-hint { font-size: 12px; color: #909399; margin-top: 4px; }
 </style>

@@ -90,7 +90,7 @@ onMounted(fetchItems)
 
 <style scoped lang="scss">
 .recycle-container {
-  .page-header { margin-bottom:20px; h1 { margin-bottom:5px; } p { color:#909399; } }
+  .page-header { margin-bottom:20px; h1 { margin-bottom:5px; } p { color:var(--text-color-secondary); } }
   .pagination-wrapper { margin-top:16px; display:flex; justify-content:flex-end; }
 }
 </style>

@@ -5,7 +5,7 @@
         <h1>{{ $t('logs.title') }}</h1>
         <p>
           {{ $t('nav.logs') }}
-          <span v-if="logsStore.activeStation" style="margin-left:12px;color:#409eff;">
+          <span v-if="logsStore.activeStation" style="margin-left:12px;color:var(--color-accent);">
              | Active: <strong>{{ logsStore.activeStation.callsign }}</strong>
           </span>
         </p>
@@ -75,7 +75,13 @@
             <el-tag size="small" type="info">{{ scope.row.station_callsign || '-' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="call_sign" :label="$t('logs.callSign')" width="130" sortable="custom" />
+        <el-table-column prop="call_sign" :label="$t('logs.callSign')" width="130" sortable="custom">
+          <template #default="scope">
+            <span class="callsign-link" @click="lookupCall(scope.row.call_sign)">
+              {{ scope.row.call_sign }}
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column prop="dxcc" label="DXCC" width="150" sortable="custom">
           <template #default="scope">
             <el-tag size="small" v-if="scope.row.dxcc" type="warning" effect="plain">{{ scope.row.dxcc }}</el-tag>
@@ -116,7 +122,7 @@
       <el-upload drag accept=".adi,.adif" :auto-upload="false" :limit="1"
         :on-change="handleFileChange" :file-list="importFileList"
         :on-remove="() => { importFile = null; importFileList = [] }">
-        <el-icon style="font-size:48px;color:#c0c4cc"><UploadFilled /></el-icon>
+        <el-icon style="font-size:48px;color:var(--text-color-placeholder)"><UploadFilled /></el-icon>
         <div class="el-upload__text">Drop .adi/.adif file here or <em>click to browse</em></div>
       </el-upload>
       <div v-if="importResult" style="margin-top:12px">
@@ -150,7 +156,7 @@
             <el-option v-for="l in exportLocations" :key="l.id"
               :label="l.name + ' (' + (l.grid_square || '-') + ')'" :value="l.id" />
           </el-select>
-          <div v-if="exportLocationId" style="font-size:12px;color:#909399;margin-top:4px">
+          <div v-if="exportLocationId" style="font-size:12px;color:var(--text-color-secondary);margin-top:4px">
             {{ $t('logs.exportGridFilter') }}
           </div>
         </el-form-item>
@@ -172,13 +178,13 @@
             <el-radio value="adif">ADIF</el-radio>
           </el-radio-group>
         </el-form-item>
-        <p v-if="logsStore.activeStation && !exportStationId" style="font-size:12px;color:#909399;text-align:center;">
+        <p v-if="logsStore.activeStation && !exportStationId" style="font-size:12px;color:var(--text-color-secondary);text-align:center;">
           {{ $t('logs.exportNoStation') }}
         </p>
-        <p v-else-if="exportStationId && !exportLocationId" style="font-size:12px;color:#409eff;text-align:center;">
+        <p v-else-if="exportStationId && !exportLocationId" style="font-size:12px;color:var(--color-accent);text-align:center;">
           {{ $t('logs.exportStation') }}: <strong>{{ logsStore.stations.find(s=>s.id===exportStationId)?.callsign }}</strong>
         </p>
-        <p v-else-if="exportLocationId" style="font-size:12px;color:#67c23a;text-align:center;">
+        <p v-else-if="exportLocationId" style="font-size:12px;color:var(--color-success);text-align:center;">
           {{ $t('logs.exportLocation') }}: <strong>{{ exportLocations.find(l=>l.id===exportLocationId)?.name }}</strong>
           ({{ exportLocations.find(l=>l.id===exportLocationId)?.grid_square }})
         </p>
@@ -471,6 +477,9 @@ const handleSearch = () => { logsStore.pagination.page = 1; logsStore.fetchLogs(
 const handleReset = () => { logsStore.clearFilters(); logsStore.fetchLogs() }
 const handlePageChange = () => { logsStore.fetchLogs() }
 const viewLog = (id: number) => router.push({ name: 'LogDetail', params: { id } })
+const lookupCall = (call: string) => {
+  if (call) window.open(`https://www.qrz.com/db/${call}`, '_blank')
+}
 
 const handleCreate = async () => {
   try {
@@ -517,9 +526,10 @@ const handleDelete = async (log: any) => {
 <style scoped lang="scss">
 .logs-container {
   .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;
-    h1 { margin-bottom:5px; } p { color:#909399; } .header-actions { display:flex; gap:8px; } }
+    h1 { margin-bottom:5px; } p { color:var(--text-color-secondary); } .header-actions { display:flex; gap:8px; } }
   .filter-card { margin-bottom:16px; }
   .table-card { margin-bottom:16px; }
+  .callsign-link { font-weight: 600; color: var(--color-accent); font-family: monospace; cursor: pointer; &:hover { text-decoration: underline; } }
   .pagination-wrapper { margin-top:16px; display:flex; justify-content:flex-end; }
 }
 </style>

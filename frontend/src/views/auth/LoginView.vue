@@ -50,7 +50,6 @@ const { t, locale } = useI18n()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 
-//绑定当前选中的语言
 const currentLanguage = ref(getLanguage())
 
 const form = reactive({
@@ -67,7 +66,6 @@ const rules = {
   ]
 }
 
-//切换语言
 const handleLanguageChange = (language: string) => {
   setLanguage(language)
   locale.value = language as any
@@ -95,58 +93,95 @@ const handleLogin = async () => {
 
 <style scoped lang="scss">
 .login-container {
-  position: relative; 
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%);
+  background-color: var(--bg-color-page, #fafafa);
 
-  //语言选择器的样式（右上角悬浮）
   .lang-selector-wrapper {
     position: absolute;
-    top: 20px;
-    right: 20px;
+    top: var(--spacing-lg, 20px);
+    right: var(--spacing-lg, 20px);
     z-index: 10;
   }
 
   .login-box {
-    background: white;
-    border-radius: 8px;
-    padding: 40px;
+    background: var(--bg-color-card, #ffffff);
+    border: 1px solid var(--border-color, #e4e4e7);
+    border-radius: var(--border-radius-large, 8px);
+    padding: var(--spacing-xxl, 32px);
     width: 100%;
-    max-width: 400px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    max-width: 380px;
+    animation: fadeIn 0.2s ease-out;
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
 
     h1 {
       text-align: center;
-      margin-bottom: 10px;
-      color: #409eff;
+      margin-bottom: var(--spacing-xs, 4px);
+      color: var(--text-color-primary, #09090b);
+      font-size: var(--font-size-xxl, 20px);
+      font-weight: var(--font-weight-semibold, 600);
     }
 
     p {
       text-align: center;
-      color: #909399;
-      margin-bottom: 30px;
+      color: var(--text-color-secondary, #71717a);
+      margin-bottom: var(--spacing-xl, 24px);
+      font-size: var(--font-size-base, 14px);
+    }
+
+    :deep(.el-form-item) {
+      margin-bottom: var(--spacing-lg, 20px);
+
+      .el-form-item__label {
+        color: var(--text-color-regular, #3f3f46);
+        font-weight: var(--font-weight-medium, 500);
+        font-size: var(--font-size-base, 14px);
+      }
+
+      .el-input__wrapper {
+        border-radius: var(--border-radius-base, 6px);
+      }
     }
 
     .login-btn {
       width: 100%;
+      height: 40px;
+      font-size: var(--font-size-base, 14px);
+      font-weight: var(--font-weight-medium, 500);
+      border-radius: var(--border-radius-base, 6px);
     }
+  }
 
-    .login-footer {
-      text-align: center;
-      margin-top: 20px;
-      color: #909399;
+  .login-footer {
+    text-align: center;
+    margin-top: var(--spacing-lg, 20px);
+    color: var(--text-color-secondary, #71717a);
+    font-size: var(--font-size-base, 14px);
 
-      a {
-        color: #409eff;
-        text-decoration: none;
+    a {
+      color: var(--text-color-primary, #09090b);
+      text-decoration: none;
+      font-weight: var(--font-weight-medium, 500);
 
-        &:hover {
-          text-decoration: underline;
-        }
+      &:hover {
+        text-decoration: underline;
       }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .login-container {
+    .login-box {
+      margin: var(--spacing-base, 16px);
+      padding: var(--spacing-xl, 24px);
     }
   }
 }

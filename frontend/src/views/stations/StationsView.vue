@@ -18,7 +18,7 @@
         <template #default="{ node, data }">
           <!-- Station 节点 -->
           <div v-if="data._type === 'station'" class="tree-station">
-            <span class="station-callsign">📡 {{ data.callsign }}</span>
+            <span class="station-callsign">{{ data.callsign }}</span>
             <span class="station-meta">({{ data.locationCount }} locations)</span>
             <div class="station-actions">
               <el-button size="small" text type="danger" @click="handleDeleteStation(data)">{{ $t('common.delete') }}</el-button>
@@ -318,19 +318,19 @@ onMounted(async () => {
 <style scoped lang="scss">
 .stations-container {
   .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;
-    h1 { margin-bottom:5px; } p { color:#909399; } .header-actions { display:flex; gap:8px; } }
+    h1 { margin-bottom:5px; } p { color:var(--text-color-secondary); } .header-actions { display:flex; gap:8px; } }
 }
 .tree-station {
   display:flex; align-items:center; gap:8px; padding:4px 0; width:100%;
   .station-callsign { font-size:16px; font-weight:bold; }
-  .station-meta { font-size:12px; color:#909399; }
+  .station-meta { font-size:12px; color:var(--text-color-secondary); }
   .station-actions { margin-left:auto; flex-shrink:0; }
 }
 .tree-location {
   display:flex; align-items:center; gap:12px; width:100%; padding:4px 0; flex-wrap:wrap;
   .location-radio { flex-shrink:0; .location-name { font-weight:600; margin-left:4px; } }
   .location-details { display:flex; align-items:center; gap:6px; flex-wrap:wrap;
-    .detail-item { font-size:12px; color:#606266; }
+    .detail-item { font-size:12px; color:var(--text-color-regular); }
   }
   .location-actions { margin-left:auto; flex-shrink:0; }
 }
