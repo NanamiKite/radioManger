@@ -9,6 +9,7 @@ from typing import Optional
 
 from app.database.session import get_db
 from app.dependencies import get_current_user
+from app.config import settings
 from app.services.udp_listener_service import udp_listener
 from app.services.log_service import LogService
 from app.schemas.qso_log import QSOLogCreate
@@ -82,8 +83,24 @@ async def udp_ws(websocket: WebSocket):
     try:
         payload = SecurityUtils.decode_token(token)
         user_id = payload.get("sub")
+        jti = payload.get("jti")
         if not user_id:
             await websocket.close(code=4001, reason="Invalid token")
+            return
+        # 检查 token 黑名单（所有模式）
+        if jti:
+            from app.services.token_blacklist_service import token_blacklist
+            if token_blacklist.is_blacklisted(jti):
+                await websocket.close(code=4001, reason="Token revoked")
+                return
+        # 检查用户状态
+        from app.models.user import User as UserModel
+        from app.database.session import SessionLocal
+        db = SessionLocal()
+        user = db.query(UserModel).filter(UserModel.id == int(user_id)).first()
+        db.close()
+        if not user or user.is_deleted or not user.is_active:
+            await websocket.close(code=4001, reason="User disabled")
             return
     except Exception:
         await websocket.close(code=4001, reason="Invalid token")

@@ -288,6 +288,12 @@ async def confirm_delete_account(
     if not current_user.deletion_scheduled_at:
         raise HTTPException(status_code=400, detail="No deletion scheduled")
 
+    # 校验冷却期：必须过了 30 天
+    cooldown_end = current_user.deletion_scheduled_at + timedelta(days=30)
+    if datetime.now(timezone.utc).replace(tzinfo=None) < cooldown_end:
+        remaining = (cooldown_end - datetime.now(timezone.utc).replace(tzinfo=None)).days
+        raise HTTPException(status_code=400, detail=f"Cooldown period not ended. {remaining} days remaining.")
+
     # 验证码校验
     from app.services.email_service import EmailService
     if not EmailService.verify_code(current_user.email, req.code, "delete_account"):

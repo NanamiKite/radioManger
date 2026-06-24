@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database.session import get_db
 from app.dependencies import get_current_user
+from app.config import settings
 from app.models.user import User
 from app.models.station import Station
 from app.schemas.dxcluster import (
@@ -122,26 +123,33 @@ async def _authenticate_ws(ws: WebSocket) -> User:
         await ws.close(code=4401)
         raise HTTPException(status_code=401, detail="Missing token")
 
-    db = next(get_db())
-    try:
-        payload = SecurityUtils.decode_token(token)
-        user_id = payload.get("sub")
-        if not user_id:
-            await ws.close(code=4401)
-            raise HTTPException(status_code=401, detail="Invalid token")
-        from app.models.user import User as UserModel
-        user = db.query(UserModel).filter(UserModel.id == int(user_id)).first()
-        if not user:
-            await ws.close(code=4401)
-            raise HTTPException(status_code=401, detail="User not found")
-        return user
-    except HTTPException:
-        raise
-    except Exception as e:
+    from app.database.session import SessionLocal
+    db = SessionLocal()
+    payload = SecurityUtils.decode_token(token)
+    user_id = payload.get("sub")
+    jti = payload.get("jti")
+    if not user_id:
         await ws.close(code=4401)
-        raise HTTPException(status_code=401, detail=f"Auth failed: {e}")
-    finally:
-        db.close()
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # 检查 token 黑名单（所有模式）
+    if jti:
+        from app.services.token_blacklist_service import token_blacklist
+        if token_blacklist.is_blacklisted(jti):
+            await ws.close(code=4401)
+            raise HTTPException(status_code=401, detail="Token revoked")
+
+    from app.models.user import User as UserModel
+    user = db.query(UserModel).filter(UserModel.id == int(user_id)).first()
+    if not user or user.is_deleted or not user.is_active:
+        await ws.close(code=4401)
+        raise HTTPException(status_code=401, detail="User not found or disabled")
+
+    # 预加载字段后关闭 session
+    _ = user.username
+    _ = user.id
+    db.close()
+    return user
 
 
 @router.websocket("/ws")

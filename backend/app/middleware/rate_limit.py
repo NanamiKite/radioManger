@@ -13,6 +13,10 @@ logger = logging.getLogger("radiomanager.middleware")
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """简易内存速率限制中间件"""
 
+    # 敏感端点独立限流（更严格）
+    STRICT_PATHS = {"/api/v1/auth/login", "/api/v1/auth/register"}
+    STRICT_MAX = 5  # 5次/分钟
+
     def __init__(self, app, max_requests: int = 100, window_seconds: int = 60):
         super().__init__(app)
         self.max_requests = max_requests
@@ -29,14 +33,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         now = time.time()
         window_start = now - self.window_seconds
 
+        # 用路径区分限流桶
+        is_strict = request.url.path in self.STRICT_PATHS
+        bucket = f"{client_ip}:strict" if is_strict else client_ip
+        limit = self.STRICT_MAX if is_strict else self.max_requests
+
         # 清理过期记录
-        self._requests[client_ip] = [
-            t for t in self._requests[client_ip] if t > window_start
+        self._requests[bucket] = [
+            t for t in self._requests[bucket] if t > window_start
         ]
+        if not self._requests[bucket]:
+            del self._requests[bucket]
 
         # 检查限制
-        if len(self._requests[client_ip]) >= self.max_requests:
-            logger.warning(f"Rate limit exceeded for {client_ip}")
+        if len(self._requests.get(bucket, [])) >= limit:
+            logger.warning(f"Rate limit exceeded for {bucket}")
             return JSONResponse(
                 status_code=429,
                 content={
@@ -47,5 +58,5 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             )
 
         # 记录请求
-        self._requests[client_ip].append(now)
+        self._requests[bucket].append(now)
         return await call_next(request)

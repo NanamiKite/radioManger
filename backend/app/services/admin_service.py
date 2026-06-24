@@ -25,8 +25,8 @@ class AdminService:
         if keyword:
             escaped = keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             query = query.filter(
-                (User.username.ilike(f"%{escaped}%")) |
-                (User.email.ilike(f"%{escaped}%"))
+                (User.username.ilike(f"%{escaped}%", escape="\\")) |
+                (User.email.ilike(f"%{escaped}%", escape="\\"))
             )
         if role:
             query = query.filter(User.role == role)
@@ -57,6 +57,9 @@ class AdminService:
         user = db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
         if user:
             user.password_hash = SecurityUtils.hash_password(new_password)
+            # 清除该用户所有 session，强制重新登录
+            from app.models.user_session import UserSession
+            db.query(UserSession).filter(UserSession.user_id == user_id).delete()
             db.commit()
             db.refresh(user)
         return user

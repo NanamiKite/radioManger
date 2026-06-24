@@ -2,9 +2,20 @@ const { app, BrowserWindow, Menu, Tray, dialog } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
+// ── 单实例锁：防止重复启动导致 SQLite 锁冲突 ──
+const gotTheLock = app.requestSingleInstanceLock()
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+  })
+
 // 部署模式：auto = 从环境变量读取 | local = 本地后端 | lan = 局域网 | cloud = 云服务器
 const DEPLOY_MODE = process.env.RADIOMANAGER_MODE || 'auto'
-const API_URL = process.env.RADIOMANAGER_API_URL || 'http://localhost:8000'
 
 let mainWindow = null
 
@@ -26,6 +37,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
     }
   })
 
@@ -79,3 +91,4 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow()
 })
+} // end of else (single instance lock)

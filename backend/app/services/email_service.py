@@ -27,9 +27,10 @@ class EmailService:
 
     @staticmethod
     def generate_code() -> str:
-        """生成6位验证码"""
-        import random
-        return ''.join([str(random.randint(0, 9)) for _ in range(6)])
+        """生成6位验证码（密码学安全随机数）"""
+        import secrets
+        import string
+        return ''.join(secrets.choice(string.digits) for _ in range(6))
 
     @staticmethod
     def store_code(email: str, code: str, purpose: str, ttl_seconds: int = 300):
@@ -55,7 +56,8 @@ class EmailService:
         if __import__('time').time() > entry["expires"]:
             del EmailService._codes[key]
             return False
-        if entry["code"] == code:
+        import hmac
+        if hmac.compare_digest(entry["code"], code):
             del EmailService._codes[key]
             return True
         return False

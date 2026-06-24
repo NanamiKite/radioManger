@@ -5,6 +5,38 @@ import { logsApi } from '@/api/logs'
 import { stationsApi } from '@/api/stations'
 import { locationsApi } from '@/api/locations'
 
+interface LogQueryParams {
+  page: number
+  page_size: number
+  sort_by: string
+  sort_order: string
+  start_date?: string
+  end_date?: string
+  band?: string
+  mode?: string
+  call_sign?: string
+  grid_square?: string
+  dxcc?: string
+  station_id?: number
+}
+
+interface LogFilters {
+  start_date: string
+  end_date: string
+  band: string
+  mode: string
+  call_sign: string
+  grid_square: string
+  dxcc: string
+  station_id: number | null
+}
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'object' && err !== null && 'message' in err) return String((err as { message: unknown }).message)
+  return 'Unknown error'
+}
+
 export const useLogsStore = defineStore('logs', () => {
   const logs = ref<QSOLog[]>([])
   const stations = ref<Station[]>([])
@@ -14,22 +46,27 @@ export const useLogsStore = defineStore('logs', () => {
   })
   const sortBy = ref('qso_date')
   const sortOrder = ref('desc')
-  const filters = reactive({
+  const filters = reactive<LogFilters>({
     start_date: '', end_date: '', band: '', mode: '', call_sign: '', grid_square: '',
     dxcc: '',
-    station_id: null as number | null,
+    station_id: null,
   })
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
-  const buildParams = () => {
-    const params: Record<string, any> = {
+  const buildParams = (): LogQueryParams => {
+    const params: LogQueryParams = {
       page: pagination.page, page_size: pagination.page_size,
       sort_by: sortBy.value, sort_order: sortOrder.value,
     }
-    for (const [key, val] of Object.entries(filters)) {
-      if (val !== '' && val !== null && val !== undefined) params[key] = val
-    }
+    if (filters.start_date) params.start_date = filters.start_date
+    if (filters.end_date) params.end_date = filters.end_date
+    if (filters.band) params.band = filters.band
+    if (filters.mode) params.mode = filters.mode
+    if (filters.call_sign) params.call_sign = filters.call_sign
+    if (filters.grid_square) params.grid_square = filters.grid_square
+    if (filters.dxcc) params.dxcc = filters.dxcc
+    if (filters.station_id !== null) params.station_id = filters.station_id
     return params
   }
 
@@ -41,8 +78,8 @@ export const useLogsStore = defineStore('logs', () => {
       logs.value = response.items
       pagination.total = response.total
       pagination.pages = response.pages
-    } catch (err: any) {
-      error.value = err.message || 'Failed to fetch logs'
+    } catch (err: unknown) {
+      error.value = getErrorMessage(err)
     } finally {
       isLoading.value = false
     }
@@ -51,7 +88,6 @@ export const useLogsStore = defineStore('logs', () => {
   const fetchStations = async () => {
     try {
       stations.value = await stationsApi.list()
-      // 通过激活的位置找到激活的台站
       try {
         const activeLoc = await locationsApi.getActive()
         if (activeLoc.station_id) {
@@ -63,8 +99,8 @@ export const useLogsStore = defineStore('logs', () => {
           activeStation.value = stations.value[0]
         }
       }
-    } catch (err: any) {
-      error.value = err.message || 'Failed to fetch stations'
+    } catch (err: unknown) {
+      error.value = getErrorMessage(err)
     }
   }
 
@@ -76,25 +112,25 @@ export const useLogsStore = defineStore('logs', () => {
     } catch { /* no active location */ }
   }
 
-  const createLog = async (data: any) => {
+  const createLog = async (data: Partial<QSOLog>) => {
     try {
       const log = await logsApi.create(data)
       logs.value.unshift(log)
       return log
-    } catch (err: any) {
-      error.value = err.message || 'Failed to create log'
+    } catch (err: unknown) {
+      error.value = getErrorMessage(err)
       throw err
     }
   }
 
-  const updateLog = async (id: number, data: any) => {
+  const updateLog = async (id: number, data: Partial<QSOLog>) => {
     try {
       const updated = await logsApi.update(id, data)
       const index = logs.value.findIndex(log => log.id === id)
       if (index > -1) logs.value[index] = updated
       return updated
-    } catch (err: any) {
-      error.value = err.message || 'Failed to update log'
+    } catch (err: unknown) {
+      error.value = getErrorMessage(err)
       throw err
     }
   }
@@ -103,13 +139,13 @@ export const useLogsStore = defineStore('logs', () => {
     try {
       await logsApi.delete(id)
       logs.value = logs.value.filter(log => log.id !== id)
-    } catch (err: any) {
-      error.value = err.message || 'Failed to delete log'
+    } catch (err: unknown) {
+      error.value = getErrorMessage(err)
       throw err
     }
   }
 
-  const createStation = async (data: any) => {
+  const createStation = async (data: { callsign: string }) => {
     const station = await stationsApi.create(data)
     stations.value.push(station)
     return station

@@ -152,7 +152,17 @@ async def import_logs(
     if not file.filename or not (file.filename.endswith(".adi") or file.filename.endswith(".adif")):
         raise HTTPException(status_code=400, detail="Only .adi / .adif files are supported")
 
-    content = (await file.read()).decode("utf-8", errors="replace")
+    # 文件大小限制（50MB）
+    MAX_IMPORT_SIZE = 50 * 1024 * 1024
+    content = b""
+    while True:
+        chunk = await file.read(1024 * 1024)  # 每次读 1MB
+        if not chunk:
+            break
+        content += chunk
+        if len(content) > MAX_IMPORT_SIZE:
+            raise HTTPException(status_code=413, detail="File too large (max 50MB)")
+    content = content.decode("utf-8", errors="replace")
 
     if not station_id:
         from app.services.location_service import LocationService

@@ -259,6 +259,7 @@ export default {
     confirmDeleteMsg: '确定要删除该日志吗？',
     stationId: '使用台站',
     allStations: '全部台站',
+    allDxcc: '所有 DXCC',
     location: '位置',
     allLocations: '全部位置',
     exportStation: '导出台站日志',
@@ -290,6 +291,7 @@ export default {
     time: '时间',
     noData:"暂无spot信息",
     noSpots: '暂无spot信息',
+    selectNode: '选择节点',
   },
   stations: {
     title: '台站管理',
@@ -329,7 +331,15 @@ export default {
     avgDistance: '平均距离',
     km: '公里',
     bandModeMatrix: '波段×模式矩阵',
-    noData: '暂无数据'
+    noData: '暂无数据',
+    filterEntity: '筛选实体...',
+    allBands: '所有波段',
+    all: '全部',
+    confirmed: '已确认',
+    worked: '已通联',
+    notWorked: '未通联',
+    band: '波段',
+    mode: '模式',
   },
   settings: {
     title: '设置',
@@ -366,6 +376,7 @@ export default {
     copyPath: '复制路径',
     openFolder: '打开文件夹',
     pathCopied: '路径已复制，请在文件管理器中打开',
+    enterPasswordConfirm: '请输入密码确认',
   },
   shortcuts: {
     title: '快捷链接',

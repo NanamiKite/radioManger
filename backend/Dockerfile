@@ -17,12 +17,18 @@ COPY . .
 # 创建数据目录
 RUN mkdir -p /app/logs /app/uploads
 
+# 创建非 root 用户
+RUN useradd -m -r appuser && chown -R appuser:appuser /app
+
 # 暴露端口
 EXPOSE 8000
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+
+# 切换到非 root 用户
+USER appuser
 
 # 启动
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

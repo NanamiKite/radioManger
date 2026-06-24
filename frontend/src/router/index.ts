@@ -121,7 +121,7 @@ const router = createRouter({
 })
 
 // 路由守卫
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
 
   // 未登录 → 跳转登录页
@@ -138,6 +138,10 @@ router.beforeEach((to, _from, next) => {
 
   // Admin 路由守卫：仅服务器模式 + admin 角色可访问
   if (to.meta.requiresAdmin) {
+    // 确保 dbMode 已获取
+    if (authStore.dbMode === 'sqlite' && authStore.isAuthenticated) {
+      await authStore.fetchDbMode()
+    }
     const dbMode = authStore.dbMode
     const isAdmin = authStore.user?.role === 'admin'
     if (dbMode === 'sqlite' || !isAdmin) {

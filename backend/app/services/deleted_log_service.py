@@ -2,6 +2,7 @@
 
 import json
 import logging
+from decimal import Decimal
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from sqlalchemy.orm import Session
@@ -141,14 +142,14 @@ class DeletedLogService:
             else datetime.strptime(data["qso_date_off"], "%Y%m%d").date()
             if data.get("qso_date_off")
             else None,
-            time_on=datetime.strptime(data["time_on"], "%H:%M:%S").time()
+            time_on=datetime.strptime(data["time_on"][:8], "%H:%M:%S").time()
             if data.get("time_on") else None,
-            time_off=datetime.strptime(data["time_off"], "%H:%M:%S").time()
+            time_off=datetime.strptime(data["time_off"][:8], "%H:%M:%S").time()
             if data.get("time_off") else None,
             band=data.get("band"),
             band_rx=data.get("band_rx"),
-            freq=data.get("freq"),
-            freq_rx=data.get("freq_rx"),
+            freq=Decimal(str(data["freq"])) if data.get("freq") else None,
+            freq_rx=Decimal(str(data["freq_rx"])) if data.get("freq_rx") else None,
             mode=data.get("mode"),
             rst_sent=data.get("rst_sent"),
             rst_rcvd=data.get("rst_rcvd"),

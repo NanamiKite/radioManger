@@ -256,6 +256,7 @@ export default {
     allBands: 'All Bands',
     allModes: 'All Modes',
     allStations: 'All Stations',
+    allDxcc: 'All DXCC',
     location: 'Location',
     allLocations: 'All Locations',
     exportStation: 'Export Station Logs',
@@ -290,8 +291,8 @@ export default {
     comment: 'Comment',
     time: 'Time',
     noData:"No spots yet",
-    noSpots: 'No spots yet'
-    
+    noSpots: 'No spots yet',
+    selectNode: 'Select Node',
   },
   stations: {
     title: 'Stations',
@@ -331,7 +332,15 @@ export default {
     avgDistance: 'Avg Distance',
     km: 'km',
     bandModeMatrix: 'Band × Mode Matrix',
-    noData: 'No data'
+    noData: 'No data',
+    filterEntity: 'Filter entity...',
+    allBands: 'All Bands',
+    all: 'All',
+    confirmed: 'Confirmed',
+    worked: 'Worked',
+    notWorked: 'Not Worked',
+    band: 'Band',
+    mode: 'Mode',
   },
   settings: {
     title: 'Settings',
@@ -368,6 +377,7 @@ export default {
     copyPath: 'Copy Path',
     openFolder: 'Open Folder',
     pathCopied: 'Path copied, open it in File Explorer',
+    enterPasswordConfirm: 'Enter password to confirm',
   },
   shortcuts: {
     title: 'Shortcuts',

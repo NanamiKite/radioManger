@@ -7,12 +7,12 @@ class UserService:
     @staticmethod
     def get_user_by_username(db: Session, username: str):
         """获取用户（通过用户名）"""
-        return db.query(User).filter(User.username == username).first()
-    
+        return db.query(User).filter(User.username == username, User.is_deleted == False).first()
+
     @staticmethod
     def get_user_by_email(db: Session, email: str):
         """获取用户（通过邮箱）"""
-        return db.query(User).filter(User.email == email).first()
+        return db.query(User).filter(User.email == email, User.is_deleted == False).first()
     
     @staticmethod
     def create_user(db: Session, user_data: UserRegister) -> User:

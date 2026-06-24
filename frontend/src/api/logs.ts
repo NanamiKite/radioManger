@@ -3,7 +3,7 @@ import { useAuthStore } from '@/stores/auth'
 import type { QSOLog } from '@/types'
 
 export const logsApi = {
-  create(data: any): Promise<QSOLog> {
+  create(data: Partial<QSOLog>): Promise<QSOLog> {
     return api.post('/logs', data)
   },
 
@@ -75,6 +75,9 @@ export const logsApi = {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(res => {
+        if (!res.ok) {
+          return res.json().then(err => { throw new Error(err.detail || `Export failed (${res.status})`) })
+        }
         const disposition = res.headers.get('Content-Disposition') || ''
         const match = disposition.match(/filename="?(.+?)"?$/)
         const filename = match ? match[1] : 'logs_export.adi'
