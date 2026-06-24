@@ -285,10 +285,6 @@ class ImportExportService:
                     batch = []
 
             except Exception as e:
-                # 回滚当前事务，避免会话进入错误状态
-                db.rollback()
-                # 清空待提交批次
-                batch = []
                 skipped += 1
                 errors.append({
                     "line": idx + 1,
@@ -348,7 +344,9 @@ class ImportExportService:
         location_grid = None
         if location_id:
             loc = db.query(Location).filter(Location.id == location_id, Location.user_id == user_id, Location.is_deleted == False).first()
-            if loc and loc.grid_square:
+            if not loc:
+                raise ValueError(f"Location #{location_id} not found")
+            if loc.grid_square:
                 location_grid = loc.grid_square.strip()[:4].upper()
                 export_callsign = f"{export_callsign}_{location_grid}"
 
@@ -410,7 +408,7 @@ class ImportExportService:
             if sc:
                 parts.append(f"<station_callsign:{len(sc)}>{sc}")
             # my_gridsquare: 优先使用日志存储的，其次从关联位置获取
-            mg = log.my_gridsquare or locations.get(log.location_id) if log.location_id else None
+            mg = log.my_gridsquare or (locations.get(log.location_id) if log.location_id else None)
             if mg:
                 parts.append(f"<my_gridsquare:{len(mg)}>{mg}")
             if log.tx_pwr:

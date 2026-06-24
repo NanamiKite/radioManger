@@ -30,12 +30,16 @@ export const useDxClusterStore = defineStore('dxcluster', () => {
       } else if (n.length > 0) {
         selectedNode.value = n[0]
       }
-    } catch (e: any) {
-      error.value = e?.message || 'Failed to fetch DX cluster info'
+    } catch (e: unknown) {
+      error.value = e instanceof Error ? e.message : 'Failed to fetch DX cluster info'
     }
   }
 
   /** 建立 WebSocket 连接，接收实时 spot */
+  let _reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  let _reconnectAttempts = 0
+  const MAX_RECONNECT = 5
+
   const connectWS = () => {
     if (ws && ws.readyState <= WebSocket.OPEN) return
     const authStore = useAuthStore()
@@ -46,8 +50,22 @@ export const useDxClusterStore = defineStore('dxcluster', () => {
     const url = `${proto}://${window.location.host}/api/v1/dxcluster/ws?token=${encodeURIComponent(authStore.token)}`
     ws = new WebSocket(url)
 
-    ws.onopen = () => { wsConnected.value = true; error.value = null }
-    ws.onclose = () => { wsConnected.value = false }
+    ws.onopen = () => {
+      wsConnected.value = true
+      error.value = null
+      _reconnectAttempts = 0
+    }
+    ws.onclose = () => {
+      wsConnected.value = false
+      // 指数退避重连
+      if (_reconnectAttempts < MAX_RECONNECT) {
+        const delay = Math.min(1000 * Math.pow(2, _reconnectAttempts), 16000)
+        _reconnectTimer = setTimeout(() => {
+          _reconnectAttempts++
+          connectWS()
+        }, delay)
+      }
+    }
     ws.onerror = () => { error.value = 'WebSocket error' }
 
     ws.onmessage = (ev) => {
@@ -66,6 +84,8 @@ export const useDxClusterStore = defineStore('dxcluster', () => {
   }
 
   const disconnectWS = () => {
+    if (_reconnectTimer) { clearTimeout(_reconnectTimer); _reconnectTimer = null }
+    _reconnectAttempts = MAX_RECONNECT // 阻止自动重连
     if (ws) {
       ws.onclose = null
       ws.close()
@@ -76,7 +96,7 @@ export const useDxClusterStore = defineStore('dxcluster', () => {
 
   const fetchStatus = async () => {
     try { status.value = await dxclusterApi.getStatus() }
-    catch (e: any) { error.value = e?.message }
+    catch (e: unknown) { error.value = e instanceof Error ? e.message : 'Failed to fetch status' }
   }
 
   /** 连接到选定节点 */

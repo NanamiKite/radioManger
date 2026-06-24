@@ -1,45 +1,3 @@
-# from fastapi import Depends, HTTPException, status
-# from sqlalchemy.orm import Session
-# from app.database.session import get_db
-# from app.utils.security import SecurityUtils
-# from fastapi.security import HTTPAuthorizationCredentials
-
-
-# security = HTTPBearer()
-
-# async def get_current_user(
-#     credentials: HTTPAuthCredentials = Depends(security),
-#     db: Session = Depends(get_db)
-# ):
-#     """获取当前认证用户"""
-#     from app.models.user import User
-    
-#     try:
-#         payload = SecurityUtils.decode_token(credentials.credentials)
-#         user_id = payload.get("sub")
-        
-#         if user_id is None:
-#             raise HTTPException(
-#                 status_code=status.HTTP_401_UNAUTHORIZED,
-#                 detail="Invalid token"
-#             )
-        
-#         user = db.query(User).filter(User.id == int(user_id)).first()
-        
-#         if not user:
-#             raise HTTPException(
-#                 status_code=status.HTTP_401_UNAUTHORIZED,
-#                 detail="User not found"
-#             )
-        
-#         return user
-        
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail=str(e)
-#         )
-
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import (
     HTTPBearer,
@@ -99,6 +57,12 @@ async def get_current_user(
                 detail="User not found"
             )
 
+        if user.is_deleted or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Account is disabled or deleted"
+            )
+
         # 服务器模式下更新会话活跃时间
         if jti and settings.DATABASE_MODE == "mysql":
             from app.services.session_service import SessionService
@@ -109,8 +73,8 @@ async def get_current_user(
     except HTTPException:
         raise
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Authentication failed: {str(e)}"
+            detail="Authentication failed"
         )

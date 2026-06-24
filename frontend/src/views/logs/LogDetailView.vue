@@ -9,6 +9,7 @@
       <el-descriptions :column="2" border>
         <el-descriptions-item :label="$t('logs.callSign')" width="150">{{ log.call_sign }}</el-descriptions-item>
         <el-descriptions-item :label="$t('logs.qsoDate')">{{ log.qso_date }}</el-descriptions-item>
+        <el-descriptions-item label="Time (UTC)">{{ log.time_on || '-' }}</el-descriptions-item>
         <el-descriptions-item :label="$t('logs.band')">{{ log.band || '-' }}</el-descriptions-item>
         <el-descriptions-item :label="$t('logs.mode')">{{ log.mode || '-' }}</el-descriptions-item>
         <el-descriptions-item :label="$t('logs.freqMhz')">{{ log.freq ? Number(log.freq).toFixed(4) + ' MHz' : '-' }}</el-descriptions-item>

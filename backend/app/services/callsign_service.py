@@ -103,9 +103,22 @@ class CallsignService:
 
     @staticmethod
     def _save_cache(db: Session, data: Dict) -> CallsignCache:
-        """保存呼号到缓存"""
+        """保存呼号到缓存（upsert：存在则更新，不存在则插入）"""
+        call_sign = data["call_sign"]
+        existing = db.query(CallsignCache).filter(CallsignCache.call_sign == call_sign).first()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        if existing:
+            for key in ["first_name", "last_name", "full_name", "country", "grid_square",
+                        "latitude", "longitude", "class_type", "license_date", "license_exp",
+                        "previous_call", "qrz_url"]:
+                if data.get(key) is not None:
+                    setattr(existing, key, data[key])
+            existing.cached_at = now
+            db.commit()
+            db.refresh(existing)
+            return existing
         cache = CallsignCache(
-            call_sign=data["call_sign"],
+            call_sign=call_sign,
             first_name=data.get("first_name"),
             last_name=data.get("last_name"),
             full_name=data.get("full_name"),
@@ -118,7 +131,7 @@ class CallsignService:
             license_exp=data.get("license_exp"),
             previous_call=data.get("previous_call"),
             qrz_url=data.get("qrz_url"),
-            cached_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            cached_at=now,
         )
         db.add(cache)
         db.commit()
@@ -144,9 +157,9 @@ class CallsignService:
         """搜索缓存的呼号"""
         escaped_prefix = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         query = db.query(CallsignCache).filter(
-            CallsignCache.call_sign.ilike(f"{escaped_prefix}%")
+            CallsignCache.call_sign.ilike(f"{escaped_prefix}%", escape="\\")
         )
         if country:
             escaped_country = country.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            query = query.filter(CallsignCache.country.ilike(f"%{escaped_country}%"))
+            query = query.filter(CallsignCache.country.ilike(f"%{escaped_country}%", escape="\\"))
         return [CallsignService._model_to_dict(c) for c in query.limit(20).all()]

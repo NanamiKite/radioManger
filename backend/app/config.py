@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "production"  # development, staging, production
 
     # 数据库设置
-    # DATABASE_MODE: sqlite | mysql | postgresql
+    # DATABASE_MODE: sqlite | mysql
     DATABASE_MODE: str = "sqlite"
     # SQLite本地数据库路径 (仅 DATABASE_MODE=sqlite 时生效)
     # 使用绝对路径避免工作目录问题
@@ -31,7 +31,7 @@ class Settings(BaseSettings):
         return self.DATABASE_URL
 
     # JWT设置
-    SECRET_KEY: str = "radioManager-development-secret-key-please-change-in-production"
+    SECRET_KEY: str = ""
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 7 * 24 * 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
@@ -91,6 +91,18 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=True,
     )
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if not self.SECRET_KEY:
+            import warnings
+            warnings.warn(
+                "SECRET_KEY is empty! Set it in .env or environment variable. "
+                "Using a random key for this session (tokens will not persist across restarts).",
+                stacklevel=2,
+            )
+            import secrets
+            self.SECRET_KEY = secrets.token_hex(32)
 
 @lru_cache()
 def get_settings() -> Settings:

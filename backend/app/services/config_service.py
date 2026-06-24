@@ -24,15 +24,19 @@ class ConfigService:
         """获取所有配置"""
         configs = db.query(SystemConfig).all()
         if not configs:
-            # 首次访问时初始化默认配置
-            for key, info in DEFAULT_CONFIGS.items():
-                config = SystemConfig(
-                    key=key, value=info["value"],
-                    value_type=info["type"], description=info["desc"]
-                )
-                db.add(config)
-            db.commit()
-            configs = db.query(SystemConfig).all()
+            # 首次访问时初始化默认配置（防并发竞争）
+            try:
+                for key, info in DEFAULT_CONFIGS.items():
+                    config = SystemConfig(
+                        key=key, value=info["value"],
+                        value_type=info["type"], description=info["desc"]
+                    )
+                    db.add(config)
+                db.commit()
+                configs = db.query(SystemConfig).all()
+            except Exception:
+                db.rollback()
+                configs = db.query(SystemConfig).all()
         return configs
 
     @staticmethod

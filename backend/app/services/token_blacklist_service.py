@@ -5,26 +5,34 @@ MySQL 模式：Redis 存储，持久化且带 TTL 自动过期
 """
 
 import logging
-from typing import Set
+import time
+from typing import Dict
 from app.config import settings
 
 logger = logging.getLogger("radiomanager.token_blacklist")
 
 
 class MemoryBlacklist:
-    """内存黑名单（SQLite 本地模式）"""
+    """内存黑名单（SQLite 本地模式）- 带过期清理"""
 
     def __init__(self):
-        self._tokens: Set[str] = set()
+        self._tokens: Dict[str, float] = {}  # jti -> expiry_timestamp
 
     def add(self, jti: str, ttl_seconds: int = 0):
-        self._tokens.add(jti)
+        expiry = time.time() + ttl_seconds if ttl_seconds > 0 else float('inf')
+        self._tokens[jti] = expiry
 
     def is_blacklisted(self, jti: str) -> bool:
-        return jti in self._tokens
+        expiry = self._tokens.get(jti)
+        if expiry is None:
+            return False
+        if time.time() > expiry:
+            del self._tokens[jti]
+            return False
+        return True
 
     def remove(self, jti: str):
-        self._tokens.discard(jti)
+        self._tokens.pop(jti, None)
 
 
 class RedisBlacklist:

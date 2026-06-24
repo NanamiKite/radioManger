@@ -20,6 +20,7 @@ from app.api.v1.admin import router as admin_router
 from app.database.base import engine, Base
 from app.middleware.logging import LoggingMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
 from app.services.dxcluster_manager import dxcluster_manager
 
 import app.models
@@ -39,15 +40,17 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="RadioManager API",
     description="Amateur Radio Log Management System API",
-    version="2.4.1",
+    version="2.5.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
 )
 
-app.add_middleware(CORSMiddleware, allow_origins=settings.CORS_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=settings.CORS_ORIGINS, allow_credentials=True, allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"], allow_headers=["*"])
+# 中间件顺序：后添加的先执行请求。执行顺序：RateLimit → Logging → ErrorHandler → CORS
 app.add_middleware(ErrorHandlerMiddleware)
 app.add_middleware(LoggingMiddleware)
+app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
 
 # 路由 - 共9个模块
 app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
@@ -69,17 +72,46 @@ if settings.DATABASE_MODE != "sqlite":
 
 @app.get("/health")
 async def health_check():
-    result = {"status": "ok", "database": settings.DATABASE_MODE}
+    result = {
+        "status": "ok",
+        "database": settings.DATABASE_MODE,
+        "subsystems": {},
+    }
+
+    # 数据库连接检查
+    try:
+        from app.database.session import SessionLocal
+        db = SessionLocal()
+        db.execute(__import__('sqlalchemy').text("SELECT 1"))
+        db.close()
+        result["subsystems"]["database"] = "ok"
+    except Exception:
+        result["subsystems"]["database"] = "error"
+        result["status"] = "degraded"
+
+    # Redis 连接检查（MySQL 模式）
+    if settings.DATABASE_MODE == "mysql":
+        try:
+            import redis
+            r = redis.from_url(settings.SQLITE_URL, socket_timeout=2)
+            r.ping()
+            result["subsystems"]["redis"] = "ok"
+        except Exception:
+            result["subsystems"]["redis"] = "error"
+            result["status"] = "degraded"
+
+    # SQLite 路径信息（前端设置页需要）
     if settings.DATABASE_MODE == "sqlite":
         import os
         db_path = os.path.abspath(settings.SQLITE_PATH)
         result["db_path"] = db_path
         result["db_dir"] = os.path.dirname(db_path)
+
     return result
 
 @app.get("/")
 async def root():
-    return {"name": "RadioManager API", "version": "2.4.0", "docs": "/docs", "database_mode": settings.DATABASE_MODE}
+    return {"name": "RadioManager API", "version": "2.5.0", "docs": "/docs", "database_mode": settings.DATABASE_MODE}
 
 if __name__ == "__main__":
     import uvicorn

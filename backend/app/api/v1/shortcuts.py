@@ -21,6 +21,7 @@ router = APIRouter()
 
 # 用户自定义快捷链接（内存存储，后续可持久化）
 _user_shortcuts: dict = {}
+_shortcut_counter: int = 1000  # 自增 ID，避免与默认 ID 碰撞
 
 
 @router.get("")
@@ -41,12 +42,14 @@ async def create_shortcut(
     current_user=Depends(get_current_user),
 ):
     """添加快捷链接"""
+    global _shortcut_counter
     user_id = current_user.id
     if user_id not in _user_shortcuts:
         _user_shortcuts[user_id] = []
 
+    _shortcut_counter += 1
     shortcut = {
-        "id": len(DEFAULT_SHORTCUTS) + len(_user_shortcuts[user_id]) + 1,
+        "id": _shortcut_counter,
         "name": name,
         "url": url,
         "description": description,

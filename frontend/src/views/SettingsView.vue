@@ -123,7 +123,7 @@
           <div class="about-header">
             <h2>{{ $t('settings.appName') }}</h2>
             <p class="about-desc">{{ $t('settings.description') }}</p>
-            <span class="version-badge">{{ $t('settings.version') }} 2.4.1</span>
+            <span class="version-badge">{{ $t('settings.version') }} 2.5.0</span>
           </div>
 
           <el-divider />
@@ -133,7 +133,7 @@
           <div class="about-info">
             <p>{{ $t('settings.dbMode') }}: <strong>{{ dbMode }}</strong></p>
             <p>{{ $t('settings.apiServer') }}: <strong>{{ apiBase }}</strong></p>
-            <template v-if="dbPath">
+            <template v-if="dbPath && !isServerMode">
               <p>{{ $t('settings.dbPath') }}: <code>{{ dbPath }}</code></p>
               <div style="margin-top:8px; display:flex; gap:8px;">
                 <el-button size="small" @click="copyDbPath">{{ $t('settings.copyPath') }}</el-button>
@@ -163,7 +163,7 @@
       </p>
       <el-form label-width="100px">
         <el-form-item :label="$t('common.password')">
-          <el-input v-model="deletePassword" type="password" placeholder="Enter password to confirm" />
+          <el-input v-model="deletePassword" type="password" :placeholder="$t('settings.enterPasswordConfirm')" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -185,7 +185,6 @@ import { ElMessage } from 'element-plus'
 import api from '@/api/index'
 import { udpApi } from '@/api/udp'
 import { authApi } from '@/api/auth'
-import axios from 'axios'
 
 const authStore = useAuthStore()
 const { locale, t } = useI18n()
@@ -226,8 +225,10 @@ onMounted(async () => {
     language.value = authStore.user.language || 'zh-CN'
   }
   try {
-  const res: any = await axios.get('/health')   // api/v1
-  dbMode.value = res.data.database || 'sqlite'   // 直接 axios 没有 response 拦截器，要取 .data
+  // 用 raw axios 请求 /health（不在 /api/v1 前缀下）
+  const rawAxios = await import('axios')
+  const res = await rawAxios.default.get('/health')
+  dbMode.value = res.data.database || 'sqlite'
   isServerMode.value = dbMode.value === 'mysql'
   dbPath.value = res.data.db_path || ''
   dbDir.value = res.data.db_dir || ''

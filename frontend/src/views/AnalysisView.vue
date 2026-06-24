@@ -86,24 +86,24 @@
           <span class="panel-sub">({{ workedCount }} / 340)</span>
         </div>
         <div class="dxcc-filter">
-          <input v-model="dxccFilter" type="text" placeholder="Filter entity..." class="filter-input" />
+          <input v-model="dxccFilter" type="text" :placeholder="$t('analysis.filterEntity')" class="filter-input" />
           <select v-model="dxccBandFilter" class="filter-select">
-            <option value="">All Bands</option>
+            <option value="">{{ $t('analysis.allBands') }}</option>
             <option v-for="band in allBands" :key="band" :value="band">{{ band }}</option>
           </select>
           <select v-model="dxccStatusFilter" class="filter-select">
-            <option value="">All</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="worked">Worked</option>
-            <option value="none">Not Worked</option>
+            <option value="">{{ $t('analysis.all') }}</option>
+            <option value="confirmed">{{ $t('analysis.confirmed') }}</option>
+            <option value="worked">{{ $t('analysis.worked') }}</option>
+            <option value="none">{{ $t('analysis.notWorked') }}</option>
           </select>
         </div>
       </div>
 
       <div class="dxcc-legend">
-        <span class="legend-item"><span class="legend-box dxcc-confirmed"></span> Confirmed</span>
-        <span class="legend-item"><span class="legend-box dxcc-worked"></span> Worked</span>
-        <span class="legend-item"><span class="legend-box dxcc-empty"></span> Not Worked</span>
+        <span class="legend-item"><span class="legend-box dxcc-confirmed"></span> {{ $t('analysis.confirmed') }}</span>
+        <span class="legend-item"><span class="legend-box dxcc-worked"></span> {{ $t('analysis.worked') }}</span>
+        <span class="legend-item"><span class="legend-box dxcc-empty"></span> {{ $t('analysis.notWorked') }}</span>
       </div>
 
       <div class="dxcc-band-summary" v-if="dxccChart">
@@ -179,7 +179,7 @@
             <td class="rate">{{ qslRcvdRate }}%</td>
           </tr>
           <tr>
-            <td>LoTW Confirmed</td>
+            <td>{{ $t('dashboard.lotwConfirmed') }}</td>
             <td class="value">{{ stats?.lotw_confirmed || 0 }}</td>
             <td class="rate">{{ lotwRate }}%</td>
           </tr>

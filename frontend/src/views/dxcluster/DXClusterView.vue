@@ -23,7 +23,7 @@
           <el-select
             v-model="store.selectedNode"
             value-key="host"
-            placeholder="Select Node"
+            :placeholder="$t('dxcluster.selectNode')"
             :disabled="store.isConnected"
             style="width: 100%; margin-left: 8px"
           >

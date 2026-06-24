@@ -122,8 +122,7 @@ class LogService:
         if mode:
             query = query.filter(QSOLog.mode == mode)
         if call_sign:
-            escaped = call_sign.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            query = query.filter(QSOLog.call_sign.ilike(f"%{escaped}%"))
+            query = query.filter(func.upper(QSOLog.call_sign).contains(call_sign.upper()))
         if grid_square:
             query = query.filter(
                 func.upper(func.substr(QSOLog.grid_square, 1, 4)) == grid_square.strip()[:4].upper()
@@ -165,6 +164,11 @@ class LogService:
         update_data = log_data.model_dump(exclude_unset=True)
         if "call_sign" in update_data and update_data["call_sign"]:
             update_data["call_sign"] = update_data["call_sign"].strip().upper()
+            # 呼号变更后重新推断 DXCC
+            from app.utils.dxcc import lookup_dxcc
+            dxcc_result = lookup_dxcc(update_data["call_sign"])
+            if dxcc_result:
+                update_data["dxcc"] = dxcc_result
         for key, value in update_data.items():
             setattr(db_log, key, value)
         db.commit()
@@ -174,7 +178,9 @@ class LogService:
     @staticmethod
     def delete_log(db: Session, log_id: int, user_id: int):
         db_log = LogService.get_log(db, log_id, user_id)
-        db_log.is_deleted = True
+        # 备份到回收站
+        from app.services.deleted_log_service import DeletedLogService
+        DeletedLogService.delete_and_backup(db, db_log, "User deleted")
         db.commit()
 
     @staticmethod
@@ -188,20 +194,22 @@ class LogService:
         total_qso = query.count()
 
         # DXCC：按 dxcc 实体字段去重（已通联）
+        dxcc_filter = [QSOLog.user_id == user_id, QSOLog.is_deleted == False,
+                       QSOLog.dxcc.isnot(None), QSOLog.dxcc != ""]
+        if station_id:
+            dxcc_filter.append(QSOLog.station_id == station_id)
         total_dxcc = (
             db.query(func.count(func.distinct(QSOLog.dxcc)))
-            .filter(QSOLog.user_id == user_id, QSOLog.is_deleted == False,
-                    QSOLog.dxcc.isnot(None), QSOLog.dxcc != "")
+            .filter(*dxcc_filter)
             .scalar()
             or 0
         )
 
         # 已确认 DXCC：至少有一条 QSO 的 qsl_rcvd='Y' 或 lotw_rcvd='Y' 的 DXCC 实体数
+        confirmed_filter = dxcc_filter + [or_(QSOLog.qsl_rcvd == "Y", QSOLog.lotw_rcvd == "Y")]
         confirmed_dxcc = (
             db.query(func.count(func.distinct(QSOLog.dxcc)))
-            .filter(QSOLog.user_id == user_id, QSOLog.is_deleted == False,
-                    QSOLog.dxcc.isnot(None), QSOLog.dxcc != "",
-                    or_(QSOLog.qsl_rcvd == "Y", QSOLog.lotw_rcvd == "Y"))
+            .filter(*confirmed_filter)
             .scalar()
             or 0
         )

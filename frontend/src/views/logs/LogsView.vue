@@ -44,14 +44,14 @@
         </el-form-item>
         <!-- DXCC 过滤 -->
         <el-form-item label="DXCC" style="width:160px">
-          <el-select v-model="logsStore.filters.dxcc" clearable filterable placeholder="All DXCC" style="width:100%">
+          <el-select v-model="logsStore.filters.dxcc" clearable filterable :placeholder="$t('logs.allDxcc')" style="width:100%">
             <el-option v-for="d in dxccOptions" :key="d" :label="d" :value="d" />
           </el-select>
         </el-form-item>
         <!-- 台站过滤 -->
         <el-form-item :label="$t('stations.title')">
-          <el-select v-model="logsStore.filters.station_id" clearable placeholder="All Stations" style="width:140px">
-            <el-option label="All Stations" :value="null" />
+          <el-select v-model="logsStore.filters.station_id" clearable :placeholder="$t('logs.allStations')" style="width:140px">
+            <el-option :label="$t('logs.allStations')" :value="null" />
             <el-option v-for="s in logsStore.stations" :key="s.id" :label="s.callsign" :value="s.id" />
           </el-select>
         </el-form-item>
@@ -279,7 +279,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 import type { FormInstance } from 'element-plus'
-import { el } from 'date-fns/locale'
 
 const router = useRouter()
 const route = useRoute()

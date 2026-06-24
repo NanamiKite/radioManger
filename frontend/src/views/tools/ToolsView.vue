@@ -166,14 +166,7 @@
             </el-form-item>
             <el-form-item :label="$t('tools.numRadials')">
               <el-select v-model.number="numRadials" style="width:120px">
-                <el-option :v-for="n in [4, 8, 12, 16, 24, 32, 36]" :label="n" :value="n" />
-                <el-option label="4" :value="4" />
-                <el-option label="8" :value="8" />
-                <el-option label="12" :value="12" />
-                <el-option label="16" :value="16" />
-                <el-option label="24" :value="24" />
-                <el-option label="32" :value="32" />
-                <el-option label="36" :value="36" />
+                <el-option v-for="n in [4, 8, 12, 16, 24, 32, 36]" :key="n" :label="n" :value="n" />
               </el-select>
             </el-form-item>
           </el-form>

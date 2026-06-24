@@ -1,4 +1,4 @@
-const { contextBridge, ipcMain } = require('electron')
+const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('electron', {
   // 可以在这里定义IPC通信接口

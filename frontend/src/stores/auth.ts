@@ -3,7 +3,23 @@ import { ref, computed } from 'vue'
 import { storage } from '@/utils/storage'
 import type { User } from '@/types'
 import { authApi } from '@/api/auth'
-import axios from 'axios'
+import api from '@/api/index'
+
+interface HealthResponse {
+  status: string
+  database: string
+  subsystems?: Record<string, string>
+}
+
+interface RegisterData {
+  username: string
+  email: string
+  password: string
+  confirm_password: string
+  full_name?: string
+  timezone?: string
+  language?: string
+}
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(storage.getUser())
@@ -14,14 +30,14 @@ export const useAuthStore = defineStore('auth', () => {
   /** 获取数据库模式（用于判断是否为服务器部署） */
   const fetchDbMode = async () => {
     try {
-      const res = await axios.get('/health')
-      dbMode.value = res.data?.database || 'sqlite'
+      const res = await api.get('/health') as unknown as HealthResponse
+      dbMode.value = res?.database || 'sqlite'
     } catch {
       dbMode.value = 'sqlite'
     }
   }
 
-  const register = async (data: any) => {
+  const register = async (data: RegisterData) => {
     const response = await authApi.register(data)
     return response
   }

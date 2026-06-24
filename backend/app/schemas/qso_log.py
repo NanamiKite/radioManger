@@ -1,7 +1,10 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional
+from typing import Optional, Literal
 from datetime import date, time, datetime
 from decimal import Decimal
+
+QslStatus = Literal["Y", "N", "R", "I"]
+LotwStatus = Literal["Y", "N"]
 
 class QSOLogBase(BaseModel):
     station_id: int
@@ -21,12 +24,12 @@ class QSOLogBase(BaseModel):
     grid_square: Optional[str] = None
     operator: Optional[str] = None
     qth: Optional[str] = None
-    qsl_sent: Optional[str] = "N"
-    qsl_rcvd: Optional[str] = "N"
-    eqsl_sent: Optional[str] = "N"
-    eqsl_rcvd: Optional[str] = "N"
-    lotw_sent: Optional[str] = "N"
-    lotw_rcvd: Optional[str] = "N"
+    qsl_sent: QslStatus = "N"
+    qsl_rcvd: QslStatus = "N"
+    eqsl_sent: QslStatus = "N"
+    eqsl_rcvd: QslStatus = "N"
+    lotw_sent: LotwStatus = "N"
+    lotw_rcvd: LotwStatus = "N"
     distance: Optional[int] = None
     dxcc: Optional[str] = None
     tx_pwr: Optional[int] = None
@@ -58,12 +61,12 @@ class QSOLogUpdate(BaseModel):
     grid_square: Optional[str] = None
     operator: Optional[str] = None
     qth: Optional[str] = None
-    qsl_sent: Optional[str] = None
-    qsl_rcvd: Optional[str] = None
-    eqsl_sent: Optional[str] = None
-    eqsl_rcvd: Optional[str] = None
-    lotw_sent: Optional[str] = None
-    lotw_rcvd: Optional[str] = None
+    qsl_sent: Optional[QslStatus] = None
+    qsl_rcvd: Optional[QslStatus] = None
+    eqsl_sent: Optional[QslStatus] = None
+    eqsl_rcvd: Optional[QslStatus] = None
+    lotw_sent: Optional[LotwStatus] = None
+    lotw_rcvd: Optional[LotwStatus] = None
     distance: Optional[int] = None
     tx_pwr: Optional[int] = None
     my_gridsquare: Optional[str] = None

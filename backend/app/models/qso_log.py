@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Time, Numeric, DateTime, Boolean, ForeignKey, Enum, Text, Index
+from sqlalchemy import Column, Integer, String, Date, Time, Numeric, DateTime, Boolean, ForeignKey, Text, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.database.base import Base
@@ -35,12 +35,12 @@ class QSOLog(Base):
     qth = Column(String(200))
     
     # QSL状态
-    qsl_sent = Column(Enum("Y", "N", "R", "I", name="qsl_status"), default="N")
-    qsl_rcvd = Column(Enum("Y", "N", "R", "I", name="qsl_status"), default="N")
-    eqsl_sent = Column(Enum("Y", "N", "R", "I", name="qsl_status"), default="N")
-    eqsl_rcvd = Column(Enum("Y", "N", "R", "I", name="qsl_status"), default="N")
-    lotw_sent = Column(Enum("Y", "N", name="lotw_status"), default="N")
-    lotw_rcvd = Column(Enum("Y", "N", name="lotw_status"), default="N")
+    qsl_sent = Column(String(1), default="N")
+    qsl_rcvd = Column(String(1), default="N")
+    eqsl_sent = Column(String(1), default="N")
+    eqsl_rcvd = Column(String(1), default="N")
+    lotw_sent = Column(String(1), default="N")
+    lotw_rcvd = Column(String(1), default="N")
     
     # 扩展信息
     distance = Column(Integer)

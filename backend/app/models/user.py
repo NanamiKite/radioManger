@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum, Index
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.database.base import Base
@@ -12,7 +12,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     full_name = Column(String(100))
     avatar_url = Column(String(500))
-    role = Column(Enum("user", "admin", name="user_role"), default="user")
+    role = Column(String(20), default="user")
     timezone = Column(String(50), default="UTC")
     language = Column(String(10), default="zh-CN")
     is_active = Column(Boolean, default=True)
