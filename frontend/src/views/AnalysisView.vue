@@ -123,11 +123,12 @@
           </thead>
           <tbody>
             <tr v-for="entity in filteredDxccEntities" :key="entity.name"
-                :class="{ 'row-clickable': entity.total > 0 }"
-                @click="entity.total > 0 && goToLogs(entity.name)">
-              <td class="entity-col" :class="{ 'entity-worked': entity.total > 0 }">{{ entity.name }}</td>
+                :class="{ 'row-clickable': entity.total > 0 }">
+              <td class="entity-col" :class="{ 'entity-worked': entity.total > 0 }"
+                  @click="entity.total > 0 && goToLogs(entity.name)">{{ entity.name }}</td>
               <td v-for="band in allBands" :key="band" class="band-col"
-                  :class="getCellClass(entity, band)">
+                  :class="[getCellClass(entity, band), { 'cell-clickable': entity.bands[band] }]"
+                  @click="entity.bands[band] && goToLogs(entity.name, band)">
                 {{ getCellText(entity, band) }}
               </td>
               <td class="total-col">{{ entity.total || '-' }}</td>
@@ -356,12 +357,14 @@ const getCellText = (entity: FullDxccEntity, band: string) => {
   return 'W'
 }
 
-const goToLogs = (entityName: string) => {
+const goToLogs = (entityName: string, band?: string) => {
   logsStore.filters.call_sign = ''
   logsStore.filters.grid_square = ''
-  logsStore.filters.band = ''
+  logsStore.filters.band = band || ''
   logsStore.filters.mode = ''
-  router.push({ name: 'Logs', query: { dxcc: entityName } })
+  const query: Record<string, string> = { dxcc: entityName }
+  if (band) query.band = band
+  router.push({ name: 'Logs', query })
 }
 
 const matrixData = computed(() => {
@@ -619,7 +622,8 @@ onMounted(async () => {
 
   .dxcc-chart-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 13px;
 
     th, td {
@@ -633,6 +637,9 @@ onMounted(async () => {
       background: var(--bg-color-hover);
       color: var(--text-color-secondary);
       font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
 
     .entity-col {
@@ -701,6 +708,11 @@ onMounted(async () => {
     .dxcc-empty {
       background: transparent;
       color: var(--text-color-placeholder);
+    }
+
+    .cell-clickable {
+      cursor: pointer;
+      &:hover { filter: brightness(0.85); }
     }
   }
 

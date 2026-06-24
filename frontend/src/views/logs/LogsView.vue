@@ -467,6 +467,10 @@ onMounted(async () => {
   if (dxccQuery) {
     logsStore.filters.dxcc = dxccQuery
   }
+  const bandQuery = route.query.band as string
+  if (bandQuery) {
+    logsStore.filters.band = bandQuery
+  }
 
   await logsStore.fetchLogs()
 

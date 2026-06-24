@@ -81,6 +81,11 @@ class Settings(BaseSettings):
     TEST_ACCOUNT_PASSWORD: str = "admin123"
     TEST_ACCOUNT_EMAIL: str = "admin@radiomanager.dev"
 
+    # 服务器模式管理员设置
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = ""
+    ADMIN_EMAIL: str = "admin@radiomanager.local"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

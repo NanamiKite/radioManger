@@ -16,6 +16,7 @@ from app.api.v1 import (
     map_router,
     udp_router,
 )
+from app.api.v1.admin import router as admin_router
 from app.database.base import engine, Base
 from app.middleware.logging import LoggingMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
@@ -62,9 +63,19 @@ app.include_router(dxcluster_router, prefix=f"{settings.API_V1_STR}/dxcluster", 
 app.include_router(map_router, prefix=f"{settings.API_V1_STR}/map", tags=["map"])
 app.include_router(udp_router, prefix=f"{settings.API_V1_STR}/udp", tags=["udp"])
 
+# Admin 路由 - 仅服务器模式（MySQL）启用
+if settings.DATABASE_MODE != "sqlite":
+    app.include_router(admin_router, prefix=f"{settings.API_V1_STR}/admin", tags=["admin"])
+
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "database": settings.DATABASE_MODE}
+    result = {"status": "ok", "database": settings.DATABASE_MODE}
+    if settings.DATABASE_MODE == "sqlite":
+        import os
+        db_path = os.path.abspath(settings.SQLITE_PATH)
+        result["db_path"] = db_path
+        result["db_dir"] = os.path.dirname(db_path)
+    return result
 
 @app.get("/")
 async def root():

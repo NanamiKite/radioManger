@@ -40,42 +40,49 @@ export interface SystemStatus {
   online_sessions: number
 }
 
+export interface PaginatedResponse<T> {
+  items: T[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export const adminApi = {
   // 用户管理
-  getUsers(params: { page?: number; page_size?: number; keyword?: string; role?: string; is_active?: boolean }) {
+  getUsers(params: { page?: number; page_size?: number; keyword?: string; role?: string; is_active?: boolean }): Promise<PaginatedResponse<AdminUser>> {
     return api.get('/admin/users', { params })
   },
-  getUser(userId: number) {
+  getUser(userId: number): Promise<AdminUser> {
     return api.get(`/admin/users/${userId}`)
   },
-  toggleUser(userId: number) {
+  toggleUser(userId: number): Promise<AdminUser> {
     return api.post(`/admin/users/${userId}/toggle`)
   },
-  resetPassword(userId: number, newPassword: string) {
+  resetPassword(userId: number, newPassword: string): Promise<any> {
     return api.post(`/admin/users/${userId}/reset-password`, { new_password: newPassword })
   },
-  deleteUser(userId: number) {
+  deleteUser(userId: number): Promise<any> {
     return api.delete(`/admin/users/${userId}`)
   },
-  getUserStats(userId: number) {
+  getUserStats(userId: number): Promise<{ qso_count: number; station_count: number }> {
     return api.get(`/admin/users/${userId}/stats`)
   },
 
   // 审计日志
-  getAuditLogs(params: { page?: number; page_size?: number; user_id?: number; action?: string }) {
+  getAuditLogs(params: { page?: number; page_size?: number; user_id?: number; action?: string }): Promise<PaginatedResponse<AuditLog>> {
     return api.get('/admin/audit-logs', { params })
   },
 
   // 系统配置
-  getConfigs() {
+  getConfigs(): Promise<SystemConfig[]> {
     return api.get('/admin/system/config')
   },
-  updateConfig(key: string, value: string) {
+  updateConfig(key: string, value: string): Promise<any> {
     return api.patch('/admin/system/config', { key, value })
   },
 
   // 系统状态
-  getStatus() {
+  getStatus(): Promise<SystemStatus> {
     return api.get('/admin/system/status')
   },
 }
