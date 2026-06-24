@@ -8,7 +8,7 @@ from app.services.import_export_service import ImportExportService
 from app.services.sync_service import SyncService
 from app.services.github_service import GitHubService
 from app.services.deleted_log_service import DeletedLogService
-from app.services.cache_service import CacheService, cache
+from app.services.cache_service import cache
 
 __all__ = [
     "UserService",
@@ -21,6 +21,5 @@ __all__ = [
     "SyncService",
     "GitHubService",
     "DeletedLogService",
-    "CacheService",
     "cache",
 ]

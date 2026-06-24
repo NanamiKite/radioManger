@@ -24,6 +24,10 @@ export default defineConfig({
         // 必须开启 ws 转发，否则 WebSocket 升级握手不会被代理到后端
         // （DX Cluster 实时 spot 推送依赖此通道）
         ws: true
+      },
+      '/health': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
       }
     }
   },

@@ -86,6 +86,22 @@
             <el-menu-item index="/recycle">
               <span>{{ $t('nav.recycle') }}</span>
             </el-menu-item>
+
+            <!-- Admin 菜单组（仅服务器模式 + admin 角色） -->
+            <template v-if="isAdminPanel">
+              <div class="nav-divider"></div>
+              <div class="nav-section-title">{{ $t('admin.section') }}</div>
+              <el-menu-item index="/admin/users">
+                <span>{{ $t('admin.userManagement') }}</span>
+              </el-menu-item>
+              <el-menu-item index="/admin/system">
+                <span>{{ $t('admin.systemStatus') }}</span>
+              </el-menu-item>
+              <el-menu-item index="/admin/audit">
+                <span>{{ $t('admin.auditLog') }}</span>
+              </el-menu-item>
+            </template>
+
             <el-menu-item index="/settings">
               <span>{{ $t('nav.settings') }}</span>
             </el-menu-item>
@@ -101,7 +117,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useLogsStore } from '@/stores/logs'
@@ -120,12 +136,23 @@ const { themeMode, isDark, toggleTheme, getThemeIcon, getThemeLabel } = useTheme
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const currentUser = computed(() => authStore.user)
+// Admin 面板：仅服务器模式 + admin 角色
+const isAdminPanel = computed(() => {
+  return authStore.dbMode !== 'sqlite' && currentUser.value?.role === 'admin'
+})
 const activeMenu = ref(route.path)
 const currentLanguage = ref(getLanguage())
 const searchQuery = ref('')
 
 watch(() => route.path, (newPath: string) => {
   activeMenu.value = newPath
+})
+
+// 获取数据库模式（判断是否为服务器部署）
+onMounted(() => {
+  if (isAuthenticated.value) {
+    authStore.fetchDbMode()
+  }
 })
 
 const handleLanguageChange = (language: string) => {
@@ -325,6 +352,21 @@ const handleGlobalSearch = () => {
 
   &::-webkit-scrollbar { width: 4px; }
   &::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 2px; }
+
+  .nav-divider {
+    height: 1px;
+    background: var(--border-color-lighter);
+    margin: 8px 16px;
+  }
+
+  .nav-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-color-placeholder);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 4px 24px 4px;
+  }
 
   :deep(.el-menu) {
     border-right: none;

@@ -7,6 +7,9 @@ from app.models.statistics import Statistics
 from app.models.log_file import LogFile
 from app.models.sync_history import SyncHistory
 from app.models.deleted_log import DeletedLog
+from app.models.audit_log import AuditLog
+from app.models.user_session import UserSession
+from app.models.system_config import SystemConfig
 
 __all__ = [
     "User",
@@ -18,4 +21,7 @@ __all__ = [
     "LogFile",
     "SyncHistory",
     "DeletedLog",
+    "AuditLog",
+    "UserSession",
+    "SystemConfig",
 ]

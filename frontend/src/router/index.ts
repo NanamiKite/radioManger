@@ -89,6 +89,25 @@ const routes = [
     component: () => import('@/views/map/MapView.vue'),
     meta: { requiresAuth: true }
   },
+  // ── Admin 路由（仅服务器模式） ──
+  {
+    path: '/admin/users',
+    name: 'AdminUsers',
+    component: () => import('@/views/admin/UsersView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/admin/system',
+    name: 'AdminSystem',
+    component: () => import('@/views/admin/SystemView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/admin/audit',
+    name: 'AdminAudit',
+    component: () => import('@/views/admin/AuditLogView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
@@ -105,13 +124,29 @@ const router = createRouter({
 router.beforeEach((to, _from, next) => {
   const authStore = useAuthStore()
 
+  // 未登录 → 跳转登录页
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next({ name: 'Login' })
-  } else if ((to.name === 'Login' || to.name === 'Register') && authStore.isAuthenticated) {
-    next({ name: 'Dashboard' })
-  } else {
-    next()
+    return
   }
+
+  // 已登录访问登录/注册 → 跳转首页
+  if ((to.name === 'Login' || to.name === 'Register') && authStore.isAuthenticated) {
+    next({ name: 'Dashboard' })
+    return
+  }
+
+  // Admin 路由守卫：仅服务器模式 + admin 角色可访问
+  if (to.meta.requiresAdmin) {
+    const dbMode = authStore.dbMode
+    const isAdmin = authStore.user?.role === 'admin'
+    if (dbMode === 'sqlite' || !isAdmin) {
+      next({ name: 'Dashboard' })
+      return
+    }
+  }
+
+  next()
 })
 
 export default router

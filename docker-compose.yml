@@ -44,9 +44,13 @@ services:
       DATABASE_URL: mysql+pymysql://radiomanager:${MYSQL_PASSWORD:-password123}@mysql:3306/radiomanager
       REDIS_URL: redis://redis:6379
       SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
-      ENABLE_TEST_ACCOUNT: "true"
+      ENABLE_TEST_ACCOUNT: "false"
       DEBUG: "false"
       ENVIRONMENT: production
+      # 管理员账号（首次启动自动创建）
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@radiomanager.local}
     ports:
       - "8000:8000"
     depends_on:

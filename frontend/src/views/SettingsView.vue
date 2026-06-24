@@ -65,6 +65,34 @@
               <el-button type="primary" @click="changePassword" :loading="changingPassword">{{ $t('settings.changePassword') }}</el-button>
             </el-form-item>
           </el-form>
+
+          <!-- 账号注销（仅服务器模式） -->
+          <template v-if="isServerMode">
+            <el-divider />
+            <div class="danger-zone">
+              <h4>{{ $t('admin.deleteAccount') }}</h4>
+              <p class="danger-desc">{{ $t('admin.deleteAccountDesc') }}</p>
+
+              <!-- 已申请注销：显示倒计时 + 撤销按钮 -->
+              <div v-if="deletionScheduled" class="deletion-pending">
+                <el-alert type="warning" :closable="false" show-icon>
+                  {{ $t('admin.deleteAccountCooldown') }}
+                </el-alert>
+                <div style="margin-top: 12px;">
+                  <el-button type="primary" @click="cancelDeletion" :loading="cancellingDeletion">
+                    {{ $t('admin.cancelDelete') }}
+                  </el-button>
+                </div>
+              </div>
+
+              <!-- 未申请：显示注销按钮 -->
+              <div v-else>
+                <el-button type="danger" @click="showDeleteDialog = true">
+                  {{ $t('admin.deleteAccount') }}
+                </el-button>
+              </div>
+            </div>
+          </template>
         </el-card>
       </el-tab-pane>
 
@@ -105,6 +133,13 @@
           <div class="about-info">
             <p>{{ $t('settings.dbMode') }}: <strong>{{ dbMode }}</strong></p>
             <p>{{ $t('settings.apiServer') }}: <strong>{{ apiBase }}</strong></p>
+            <template v-if="dbPath">
+              <p>{{ $t('settings.dbPath') }}: <code>{{ dbPath }}</code></p>
+              <div style="margin-top:8px; display:flex; gap:8px;">
+                <el-button size="small" @click="copyDbPath">{{ $t('settings.copyPath') }}</el-button>
+                <el-button size="small" type="primary" @click="openDbFolder">{{ $t('settings.openFolder') }}</el-button>
+              </div>
+            </template>
           </div>
 
           <el-divider />
@@ -120,6 +155,24 @@
         </el-card>
       </el-tab-pane>
     </el-tabs>
+
+    <!-- 注销确认弹窗 -->
+    <el-dialog v-model="showDeleteDialog" :title="$t('admin.deleteAccount')" width="440px">
+      <p style="margin-bottom:16px;color:var(--text-color-secondary)">
+        {{ $t('admin.deleteAccountDesc') }}
+      </p>
+      <el-form label-width="100px">
+        <el-form-item :label="$t('common.password')">
+          <el-input v-model="deletePassword" type="password" placeholder="Enter password to confirm" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showDeleteDialog = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="danger" @click="requestDeletion" :loading="requestingDeletion">
+          {{ $t('admin.confirmDelete') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -131,6 +184,7 @@ import { setLanguage, getLanguage } from '@/locales'
 import { ElMessage } from 'element-plus'
 import api from '@/api/index'
 import { udpApi } from '@/api/udp'
+import { authApi } from '@/api/auth'
 import axios from 'axios'
 
 const authStore = useAuthStore()
@@ -144,9 +198,17 @@ const savingPrefs = ref(false)
 const prefResult = ref('')
 const changingPassword = ref(false)
 const dbMode = ref('loading...')
+const dbPath = ref('')
+const dbDir = ref('')
 const apiBase = ref('/api/v1')
 
 const udpForm = ref({ wsjtx_port: 2237, n1mm_port: 12060 })
+const isServerMode = ref(false)
+const deletionScheduled = ref(false)
+const showDeleteDialog = ref(false)
+const deletePassword = ref('')
+const requestingDeletion = ref(false)
+const cancellingDeletion = ref(false)
 
 const saveUdpSettings = async () => {
   try {
@@ -166,8 +228,40 @@ onMounted(async () => {
   try {
   const res: any = await axios.get('/health')   // api/v1
   dbMode.value = res.data.database || 'sqlite'   // 直接 axios 没有 response 拦截器，要取 .data
+  isServerMode.value = dbMode.value === 'mysql'
+  dbPath.value = res.data.db_path || ''
+  dbDir.value = res.data.db_dir || ''
   } catch { dbMode.value = 'unknown' }
 })
+
+const copyDbPath = async () => {
+  if (!dbPath.value) return
+  try {
+    await navigator.clipboard.writeText(dbPath.value)
+    ElMessage.success(t('common.copy') + ' ✓')
+  } catch {
+    // fallback
+    const ta = document.createElement('textarea')
+    ta.value = dbPath.value
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    ElMessage.success(t('common.copy') + ' ✓')
+  }
+}
+
+const openDbFolder = () => {
+  if (!dbDir.value) return
+  // Electron 环境：调用 shell.openPath
+  if (window.electronAPI?.openPath) {
+    window.electronAPI.openPath(dbDir.value)
+    return
+  }
+  // Web 环境：复制路径让用户自己打开
+  navigator.clipboard.writeText(dbDir.value).catch(() => {})
+  ElMessage.info(t('settings.pathCopied') + '\n' + dbDir.value)
+}
 
 const handleLanguageChange = (lang: string) => {
   setLanguage(lang)
@@ -213,6 +307,34 @@ const changePassword = async () => {
     ElMessage.error(err?.response?.data?.detail || 'Failed to change password')
   } finally { changingPassword.value = false }
 }
+
+const requestDeletion = async () => {
+  if (!deletePassword.value) {
+    ElMessage.error(t('validation.required'))
+    return
+  }
+  requestingDeletion.value = true
+  try {
+    await authApi.deleteAccount(deletePassword.value)
+    deletionScheduled.value = true
+    showDeleteDialog.value = false
+    deletePassword.value = ''
+    ElMessage.success(t('admin.deleteAccountCooldown'))
+  } catch (err: any) {
+    ElMessage.error(err?.response?.data?.detail || 'Failed')
+  } finally { requestingDeletion.value = false }
+}
+
+const cancelDeletion = async () => {
+  cancellingDeletion.value = true
+  try {
+    await authApi.cancelDeleteAccount()
+    deletionScheduled.value = false
+    ElMessage.success(t('admin.cancelDelete') + ' - OK')
+  } catch (err: any) {
+    ElMessage.error(err?.response?.data?.detail || 'Failed')
+  } finally { cancellingDeletion.value = false }
+}
 </script>
 
 <style scoped lang="scss">
@@ -228,9 +350,23 @@ const changePassword = async () => {
     p { color: var(--text-color-secondary); }
   }
 
-  .el-card { max-width: 600px; }
+    .el-card { max-width: 600px; }
 
-  .field-hint {
+    .danger-zone {
+      h4 {
+        margin: 0 0 4px;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--color-danger, #f56c6c);
+      }
+      .danger-desc {
+        font-size: 13px;
+        color: var(--text-color-secondary);
+        margin: 0 0 12px;
+      }
+    }
+
+    .field-hint {
     font-size: var(--font-size-small);
     color: var(--text-color-secondary);
     margin-top: 4px;
@@ -315,6 +451,16 @@ const changePassword = async () => {
         strong {
           color: var(--text-color-primary);
           font-weight: var(--font-weight-regular);
+        }
+
+        code {
+          font-size: 12px;
+          background: var(--bg-color-hover);
+          padding: 2px 6px;
+          border-radius: 3px;
+          font-family: 'JetBrains Mono', 'Fira Code', monospace;
+          color: var(--text-color-primary);
+          word-break: break-all;
         }
       }
     }

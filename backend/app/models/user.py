@@ -17,7 +17,11 @@ class User(Base):
     language = Column(String(10), default="zh-CN")
     is_active = Column(Boolean, default=True)
     is_deleted = Column(Boolean, default=False)
-    
+
+    # 账号注销冷却期（服务器模式）
+    deletion_scheduled_at = Column(DateTime, nullable=True)   # 申请注销时间，30天后生效
+    deletion_cancelled = Column(Boolean, default=False)        # 是否已撤销注销
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
     updated_at = Column(
         DateTime,
