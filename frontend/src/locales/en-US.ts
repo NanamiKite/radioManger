@@ -329,7 +329,9 @@ export default {
     dxccEntities: 'DXCC Entities',
     lastQso: 'Last QSO',
     avgDistance: 'Avg Distance',
-    km: 'km'
+    km: 'km',
+    bandModeMatrix: 'Band × Mode Matrix',
+    noData: 'No data'
   },
   settings: {
     title: 'Settings',
@@ -372,6 +374,7 @@ export default {
     title: 'Recycle Bin',
     recycleBinTip: 'Deleted logs are kept for 7 days before permanent removal',
     recyleBinEmpty: 'Recycle bin is empty',
+    clearAll: 'Clear All',
   },
   callsign: {
     fullName: 'Full Name',

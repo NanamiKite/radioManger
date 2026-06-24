@@ -79,6 +79,7 @@ async def get_logs(
     mode: Optional[str] = None,
     call_sign: Optional[str] = None,
     grid_square: Optional[str] = None,
+    dxcc: Optional[str] = None,
     station_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -90,7 +91,7 @@ async def get_logs(
         skip=skip, limit=page_size,
         start_date=start_date, end_date=end_date,
         band=band, mode=mode, call_sign=call_sign,
-        grid_square=grid_square,
+        grid_square=grid_square, dxcc=dxcc,
         station_id=station_id,
         sort_by=sort_by, sort_order=sort_order,
     )
@@ -271,3 +272,33 @@ async def restore_deleted_log(
         return _enrich_log(new_log, cache, lcache)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+class BatchDeleteRequest(BaseModel):
+    ids: List[int]
+
+
+@router.post("/recycle/batch-delete")
+async def batch_delete_recycle_items(
+    request: BatchDeleteRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """批量永久删除回收站条目"""
+    if not request.ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No IDs provided")
+
+    deleted_count = DeletedLogService.batch_permanent_delete(db, request.ids, current_user.id)
+    # 自动清理过期条目
+    DeletedLogService.cleanup_expired(db, current_user.id)
+    return {"deleted": deleted_count}
+
+
+@router.post("/recycle/clear-all")
+async def clear_recycle_bin(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """清空回收站"""
+    deleted_count = DeletedLogService.clear_all(db, current_user.id)
+    return {"deleted": deleted_count}

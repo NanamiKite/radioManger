@@ -14,6 +14,7 @@ from app.utils.dxcc import lookup_dxcc
 SORTABLE_FIELDS = {
     "qso_date", "call_sign", "band", "mode", "freq",
     "rst_sent", "rst_rcvd", "qsl_sent", "qsl_rcvd",
+    "lotw_sent", "lotw_rcvd",
     "dxcc", "distance", "created_at", "station_id",
 }
 
@@ -100,6 +101,7 @@ class LogService:
         mode: Optional[str] = None,
         call_sign: Optional[str] = None,
         grid_square: Optional[str] = None,
+        dxcc: Optional[str] = None,
         station_id: Optional[int] = None,
         sort_by: str = "qso_date",
         sort_order: str = "desc",
@@ -125,6 +127,8 @@ class LogService:
             query = query.filter(
                 func.upper(func.substr(QSOLog.grid_square, 1, 4)) == grid_square.strip()[:4].upper()
             )
+        if dxcc:
+            query = query.filter(QSOLog.dxcc == dxcc)
 
         # 安全排序
         sort_col = getattr(QSOLog, sort_by, None) if sort_by in SORTABLE_FIELDS else QSOLog.qso_date

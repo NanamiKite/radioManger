@@ -161,3 +161,40 @@ class DeletedLogService:
         if count > 0:
             logger.info(f"Cleaned up {count} expired deleted log entries")
         return count
+
+    @staticmethod
+    def batch_permanent_delete(db: Session, deleted_ids: List[int], user_id: int) -> int:
+        """批量永久删除回收站条目"""
+        entries = (
+            db.query(DeletedLog)
+            .filter(
+                DeletedLog.id.in_(deleted_ids),
+                DeletedLog.user_id == user_id,
+            )
+            .all()
+        )
+
+        count = len(entries)
+        for entry in entries:
+            db.delete(entry)
+
+        db.commit()
+        if count > 0:
+            logger.info(f"Batch permanently deleted {count} recycle bin entries for user {user_id}")
+        return count
+
+    @staticmethod
+    def clear_all(db: Session, user_id: int) -> int:
+        """清空用户回收站所有条目"""
+        count = (
+            db.query(DeletedLog)
+            .filter(
+                DeletedLog.user_id == user_id,
+                DeletedLog.is_restored == False,
+            )
+            .delete(synchronize_session=False)
+        )
+        db.commit()
+        if count > 0:
+            logger.info(f"Cleared {count} recycle bin entries for user {user_id}")
+        return count

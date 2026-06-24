@@ -33,3 +33,33 @@ async def get_band_mode_stats(
             "modes": mode_stats,
         }
     }
+
+
+@router.get("/dxcc")
+async def get_dxcc_stats(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """获取DXCC实体排名统计"""
+    dxcc_stats = StatsService.get_dxcc_stats(db, current_user.id)
+    return {"data": dxcc_stats}
+
+
+@router.get("/dxcc-chart")
+async def get_dxcc_chart(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """获取DXCC图表数据（实体×波段确认状态）"""
+    chart = StatsService.get_dxcc_chart(db, current_user.id)
+    return {"data": chart}
+
+
+@router.get("/band-mode-matrix")
+async def get_band_mode_matrix(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """获取波段×模式交叉矩阵"""
+    matrix = StatsService.get_band_mode_matrix(db, current_user.id)
+    return {"data": matrix}

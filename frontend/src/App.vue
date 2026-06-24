@@ -3,25 +3,43 @@
     <el-container class="app-container">
       <el-header v-if="isAuthenticated" class="app-header">
         <div class="header-content">
-          <div class="logo">
-            <h1>{{ $t('common.appName') }}</h1>
+          <!-- 左侧：Logo -->
+          <div class="header-left">
+            <h1 class="logo-text">{{ $t('common.appName') }}</h1>
           </div>
+
+          <!-- 中间：搜索框 -->
+          <div class="header-center">
+            <div class="search-bar">
+              <span class="search-icon">S</span>
+              <input
+                v-model="searchQuery"
+                type="text"
+                :placeholder="$t('logs.callSign') + ' / DXCC / Grid'"
+                class="search-input"
+                @keydown.enter="handleGlobalSearch"
+              />
+              <button v-if="searchQuery" class="search-clear" @click="searchQuery = ''">X</button>
+            </div>
+          </div>
+
+          <!-- 右侧：操作 -->
           <div class="header-right">
-            <!-- 主题切换按钮 -->
             <el-tooltip :content="getThemeLabel(themeMode)" placement="bottom">
-              <button class="theme-toggle" @click="toggleTheme" :title="getThemeLabel(themeMode)">
-                <span class="theme-icon">{{ getThemeIcon(themeMode) }}</span>
+              <button class="icon-btn" @click="toggleTheme">
+                <span>{{ getThemeIcon(themeMode) }}</span>
               </button>
             </el-tooltip>
 
-            <el-select v-model="currentLanguage" @change="handleLanguageChange" style="width: 100px;">
+            <el-select v-model="currentLanguage" @change="handleLanguageChange" size="small" style="width: 80px;">
               <el-option label="中文" value="zh-CN" />
               <el-option label="EN" value="en-US" />
             </el-select>
+
             <el-dropdown>
-              <span class="el-dropdown-link">
+              <span class="user-btn">
                 {{ currentUser?.username }}
-                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                <span class="user-arrow">v</span>
               </span>
               <template #dropdown>
                 <el-dropdown-menu>
@@ -86,24 +104,25 @@
 import { computed, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useLogsStore } from '@/stores/logs'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { ArrowDown } from '@element-plus/icons-vue'
 import { setLanguage, getLanguage } from '@/locales'
 import { useTheme } from '@/utils/theme'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const logsStore = useLogsStore()
 const { locale } = useI18n()
 
-// 主题切换
 const { themeMode, isDark, toggleTheme, getThemeIcon, getThemeLabel } = useTheme()
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const currentUser = computed(() => authStore.user)
 const activeMenu = ref(route.path)
 const currentLanguage = ref(getLanguage())
+const searchQuery = ref('')
 
 watch(() => route.path, (newPath: string) => {
   activeMenu.value = newPath
@@ -121,6 +140,19 @@ const handleLogout = () => {
 const goToSettings = () => {
   router.push({ name: 'Settings' })
 }
+
+// 全局搜索：跳转到日志页并填入搜索词
+const handleGlobalSearch = () => {
+  const q = searchQuery.value.trim()
+  if (!q) return
+  logsStore.filters.call_sign = q.toUpperCase()
+  logsStore.pagination.page = 1
+  if (route.name !== 'Logs') {
+    router.push({ name: 'Logs' })
+  } else {
+    logsStore.fetchLogs()
+  }
+}
 </script>
 
 <style scoped lang="scss">
@@ -134,76 +166,146 @@ const goToSettings = () => {
   height: 100%;
 }
 
-// ── 顶部导航栏 — 干净白底 ──
+// ── Gmail 风格顶部栏 ──
 .app-header {
   background-color: var(--bg-color-card);
   border-bottom: 1px solid var(--border-color-lighter);
-  padding: 0 var(--spacing-xl);
+  padding: 0 16px;
   height: 56px;
   z-index: var(--z-index-top);
-  position: relative;
 
   .header-content {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
     height: 100%;
 
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-sm);
+    // 左侧 Logo
+    .header-left {
+      flex-shrink: 0;
 
-      h1 {
+      .logo-text {
         margin: 0;
-        font-size: var(--font-size-large);
-        font-weight: var(--font-weight-semibold);
+        font-size: 18px;
+        font-weight: 600;
         color: var(--text-color-primary);
-        letter-spacing: -0.01em;
+        white-space: nowrap;
       }
     }
 
+    // 中间搜索框
+    .header-center {
+      flex: 0 1 360px;
+      min-width: 200px;
+
+      .search-bar {
+        display: flex;
+        align-items: center;
+        background: var(--bg-color-hover);
+        border-radius: 8px;
+        padding: 0 12px;
+        height: 36px;
+        transition: background 0.2s, box-shadow 0.2s;
+
+        &:focus-within {
+          background: var(--bg-color-card);
+          box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
+        }
+
+        .search-icon {
+          flex-shrink: 0;
+          width: 16px;
+          height: 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--text-color-secondary);
+          font-size: 12px;
+          margin-right: 8px;
+        }
+
+        .search-input {
+          flex: 1;
+          border: none;
+          outline: none;
+          background: transparent;
+          font-size: 13px;
+          color: var(--text-color-primary);
+          font-family: inherit;
+          min-width: 0;
+
+          &::placeholder {
+            color: var(--text-color-placeholder);
+          }
+        }
+
+        .search-clear {
+          flex-shrink: 0;
+          width: 18px;
+          height: 18px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: none;
+          background: none;
+          cursor: pointer;
+          color: var(--text-color-secondary);
+          font-size: 11px;
+          border-radius: 50%;
+          margin-left: 4px;
+
+          &:hover {
+            background: var(--border-color-lighter);
+          }
+        }
+      }
+    }
+
+    // 右侧操作
     .header-right {
+      flex-shrink: 0;
       display: flex;
       align-items: center;
-      gap: var(--spacing-sm);
+      gap: 8px;
 
-      .theme-toggle {
+      .icon-btn {
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 34px;
-        height: 34px;
-        border: 1px solid var(--border-color-lighter);
+        width: 32px;
+        height: 32px;
+        border: none;
         background: transparent;
-        border-radius: var(--border-radius-base);
+        border-radius: 50%;
         cursor: pointer;
-        transition: background var(--transition-duration) var(--transition-function);
-        padding: 0;
+        color: var(--text-color-secondary);
+        font-size: 14px;
+        transition: background 0.15s;
 
         &:hover {
           background: var(--bg-color-hover);
-        }
-
-        .theme-icon {
-          font-size: 16px;
-          line-height: 1;
         }
       }
 
-      .el-dropdown-link {
-        cursor: pointer;
+      .user-btn {
         display: flex;
         align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        cursor: pointer;
         color: var(--text-color-regular);
-        padding: var(--spacing-xs) var(--spacing-sm);
-        border-radius: var(--border-radius-base);
-        transition: background var(--transition-duration) var(--transition-function);
-        font-weight: var(--font-weight-medium);
-        font-size: var(--font-size-base);
+        font-size: 14px;
+        font-weight: 500;
+        transition: background 0.15s;
 
         &:hover {
           background: var(--bg-color-hover);
+        }
+
+        .user-arrow {
+          font-size: 10px;
+          color: var(--text-color-secondary);
         }
       }
     }
@@ -214,35 +316,30 @@ const goToSettings = () => {
   height: calc(100% - 56px);
 }
 
-// ── 侧边栏 — Multica 浅灰风格 ──
+// ── 侧边栏 — Gmail 风格 ──
 .app-aside {
   background-color: var(--sidebar-bg);
   border-right: 1px solid var(--border-color-lighter);
   overflow-y: auto;
   overflow-x: hidden;
 
-  &::-webkit-scrollbar {
-    width: 4px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--border-color);
-    border-radius: 2px;
-  }
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 2px; }
 
   :deep(.el-menu) {
     border-right: none;
     background: transparent;
-    padding: var(--spacing-sm) var(--spacing-xs);
+    padding: 8px 6px;
 
     .el-menu-item {
-      height: 40px;
-      line-height: 40px;
-      margin-bottom: 2px;
-      border-radius: var(--border-radius-base);
+      height: 36px;
+      line-height: 36px;
+      margin-bottom: 1px;
+      border-radius: 0 20px 20px 0;
       color: var(--sidebar-text);
-      font-size: var(--font-size-base);
-      transition: all var(--transition-duration) var(--transition-function);
+      font-size: 14px;
+      transition: all 0.15s;
+      padding-left: 24px !important;
 
       &:hover {
         background: var(--sidebar-hover);
@@ -252,14 +349,13 @@ const goToSettings = () => {
       &.is-active {
         background: var(--color-accent);
         color: #ffffff;
-        font-weight: var(--font-weight-medium);
+        font-weight: 600;
       }
 
       span {
         display: flex;
         align-items: center;
-        gap: var(--spacing-sm);
-        font-size: var(--font-size-base);
+        font-size: 14px;
       }
     }
   }
@@ -268,51 +364,38 @@ const goToSettings = () => {
 // ── 主内容区 ──
 .app-main {
   background-color: var(--bg-color-page);
-  padding: var(--spacing-xl);
+  padding: 24px;
   overflow-y: auto;
   overflow-x: hidden;
 
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
+  &::-webkit-scrollbar { width: 6px; }
+  &::-webkit-scrollbar-track { background: transparent; }
   &::-webkit-scrollbar-thumb {
     background: var(--border-color);
     border-radius: 3px;
-    &:hover {
-      background: var(--text-color-placeholder);
-    }
+    &:hover { background: var(--text-color-placeholder); }
   }
 }
 
 // ── 响应式 ──
 @media (max-width: 768px) {
+  .app-header .header-content {
+    .header-center { flex: 0 1 200px; min-width: 140px; }
+  }
+
   .app-aside {
     width: 56px !important;
-
     :deep(.el-menu) {
-      padding: var(--spacing-xs);
-
+      padding: 4px;
       .el-menu-item {
-        span {
-          font-size: 0;
-          width: 100%;
-          justify-content: center;
-          gap: 0;
-          &::before {
-            font-size: 18px;
-          }
-        }
+        padding-left: 0 !important;
+        justify-content: center;
+        span { font-size: 0; }
+        span::before { font-size: 18px; }
       }
     }
   }
 
-  .app-main {
-    padding: var(--spacing-base);
-  }
+  .app-main { padding: 16px; }
 }
 </style>

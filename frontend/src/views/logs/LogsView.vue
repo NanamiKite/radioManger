@@ -42,6 +42,12 @@
             <el-option label="RTTY" value="RTTY" /><el-option label="SAT" value="SAT" />
           </el-select>
         </el-form-item>
+        <!-- DXCC 过滤 -->
+        <el-form-item label="DXCC" style="width:160px">
+          <el-select v-model="logsStore.filters.dxcc" clearable filterable placeholder="All DXCC" style="width:100%">
+            <el-option v-for="d in dxccOptions" :key="d" :label="d" :value="d" />
+          </el-select>
+        </el-form-item>
         <!-- 台站过滤 -->
         <el-form-item :label="$t('stations.title')">
           <el-select v-model="logsStore.filters.station_id" clearable placeholder="All Stations" style="width:140px">
@@ -95,7 +101,13 @@
         </el-table-column>
         <el-table-column prop="rst_sent" :label="$t('logs.rstSent')" width="90" sortable="custom" />
         <el-table-column prop="rst_rcvd" :label="$t('logs.rstReceived')" width="90" sortable="custom" />
-        <el-table-column prop="qsl_rcvd" :label="$t('logs.qslReceived')" width="80" sortable="custom" />
+        <el-table-column prop="lotw_rcvd" label="LoTW确认" width="90" sortable="custom">
+          <template #default="scope">
+            <span :class="scope.row.lotw_rcvd === 'Y' ? 'lotw-yes' : 'lotw-no'">
+              {{ scope.row.lotw_rcvd === 'Y' ? 'Y' : 'N' }}
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column prop="grid_square" :label="$t('logs.gridSquare')" width="100" sortable="custom" />
         <el-table-column prop="comment" :label="$t('logs.comment')" min-width="150" show-overflow-tooltip />
         <el-table-column :label="$t('common.operations')" width="160" fixed="right">
@@ -439,15 +451,34 @@ async function checkUdpStatus() {
   } catch {}
 }
 
+// DXCC 下拉选项（从用户日志中提取）
+const dxccOptions = ref<string[]>([])
+
 onMounted(async () => {
   await logsStore.fetchStations()
   applyActiveStationFilter()
-  // 从地图跳转时读取网格筛选参数
+
+  // 读取 URL 查询参数
   const gridQuery = route.query.grid as string
   if (gridQuery) {
     logsStore.filters.grid_square = gridQuery.toUpperCase()
   }
+  const dxccQuery = route.query.dxcc as string
+  if (dxccQuery) {
+    logsStore.filters.dxcc = dxccQuery
+  }
+
   await logsStore.fetchLogs()
+
+  // 提取用户日志中所有 DXCC 实体作为下拉选项
+  try {
+    const { statsApi } = await import('@/api/stats')
+    const res = await statsApi.getDxccChart()
+    dxccOptions.value = (res.data.entities || []).map((e: any) => e.entity).sort()
+  } catch {
+    dxccOptions.value = []
+  }
+
   if (logsStore.activeStation) createForm.station_id = logsStore.activeStation.id
   updateUtcNow()
   checkUdpStatus()
@@ -530,6 +561,24 @@ const handleDelete = async (log: any) => {
   .filter-card { margin-bottom:16px; }
   .table-card { margin-bottom:16px; }
   .callsign-link { font-weight: 600; color: var(--color-accent); font-family: monospace; cursor: pointer; &:hover { text-decoration: underline; } }
+  .lotw-yes {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 3px;
+    background: var(--color-green-bg);
+    color: var(--color-green);
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .lotw-no {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 3px;
+    background: var(--color-red-bg);
+    color: var(--color-red);
+    font-weight: 600;
+    font-size: 13px;
+  }
   .pagination-wrapper { margin-top:16px; display:flex; justify-content:flex-end; }
 }
 </style>

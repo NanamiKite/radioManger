@@ -216,7 +216,7 @@ DXCC_PREFIXES = [
     (r"^JX", "Jan Mayen"),
     (r"^JY", "Jordan"),
     # === 美属太平洋离岛短呼号防误判修正区（必须写在本土 K/N/W 之前） ===
-    (r"^[KNW]H[0-9]", "Hawaii/Pacific US Ter."),       # 优先捕获标准两字母前缀（如 KH6, WH6）
+    # 具体前缀必须在通配 [KNW]H[0-9] 之前，否则 KH8 会被误判为 Hawaii
     (r"^KG4", "Guantanamo Bay"),
     (r"^KH0", "Mariana Is."),
     (r"^KH1", "Baker & Howland Is."),
@@ -230,6 +230,7 @@ DXCC_PREFIXES = [
     (r"^KH7", "Hawaii"),
     (r"^KH8", "American Samoa"),
     (r"^KH9", "Wake I."),
+    (r"^[KNW]H[0-9]", "Hawaii/Pacific US Ter."),       # 通配兜底（KH6/WH6 等已被上面具体规则捕获）
     (r"^KL", "Alaska"),
     (r"^KP1", "Navassa I."),
     (r"^KP2", "Virgin Is."),
