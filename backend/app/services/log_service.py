@@ -122,7 +122,8 @@ class LogService:
         if mode:
             query = query.filter(QSOLog.mode == mode)
         if call_sign:
-            query = query.filter(QSOLog.call_sign.ilike(f"%{call_sign}%"))
+            escaped = call_sign.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            query = query.filter(QSOLog.call_sign.ilike(f"%{escaped}%"))
         if grid_square:
             query = query.filter(
                 func.upper(func.substr(QSOLog.grid_square, 1, 4)) == grid_square.strip()[:4].upper()

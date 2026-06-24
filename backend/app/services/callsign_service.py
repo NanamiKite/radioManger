@@ -142,9 +142,11 @@ class CallsignService:
     @staticmethod
     def search(db: Session, prefix: str, country: Optional[str] = None) -> list:
         """搜索缓存的呼号"""
+        escaped_prefix = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         query = db.query(CallsignCache).filter(
-            CallsignCache.call_sign.ilike(f"{prefix}%")
+            CallsignCache.call_sign.ilike(f"{escaped_prefix}%")
         )
         if country:
-            query = query.filter(CallsignCache.country.ilike(f"%{country}%"))
+            escaped_country = country.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            query = query.filter(CallsignCache.country.ilike(f"%{escaped_country}%"))
         return [CallsignService._model_to_dict(c) for c in query.limit(20).all()]
