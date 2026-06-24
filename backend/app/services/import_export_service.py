@@ -340,14 +340,14 @@ class ImportExportService:
 
         export_callsign = "AllStations"
         if station_id:
-            stn = db.query(Station).filter(Station.id == station_id, Station.is_deleted == False).first()
+            stn = db.query(Station).filter(Station.id == station_id, Station.user_id == user_id, Station.is_deleted == False).first()
             if stn:
                 export_callsign = stn.callsign
 
         # 查询位置网格（用于 my_gridsquare 过滤）
         location_grid = None
         if location_id:
-            loc = db.query(Location).filter(Location.id == location_id, Location.is_deleted == False).first()
+            loc = db.query(Location).filter(Location.id == location_id, Location.user_id == user_id, Location.is_deleted == False).first()
             if loc and loc.grid_square:
                 location_grid = loc.grid_square.strip()[:4].upper()
                 export_callsign = f"{export_callsign}_{location_grid}"
@@ -369,9 +369,9 @@ class ImportExportService:
             query = query.filter(QSOLog.band == band)
 
         logs = query.order_by(QSOLog.qso_date).all()
-        stations = {s.id: s.callsign for s in db.query(Station.id, Station.callsign).filter(Station.is_deleted == False).all()}
+        stations = {s.id: s.callsign for s in db.query(Station.id, Station.callsign).filter(Station.user_id == user_id, Station.is_deleted == False).all()}
         # 预加载所有位置网格
-        locations = {l.id: l.grid_square for l in db.query(Location).filter(Location.is_deleted == False).all()}
+        locations = {l.id: l.grid_square for l in db.query(Location).filter(Location.user_id == user_id, Location.is_deleted == False).all()}
 
         # RadioManager 格式导出
         content = "RadioManager ADIF Export<eoh>\n"

@@ -32,14 +32,26 @@ class DeletedLogService:
             "time_on": str(qso_log.time_on) if qso_log.time_on else None,
             "time_off": str(qso_log.time_off) if qso_log.time_off else None,
             "band": qso_log.band,
+            "band_rx": qso_log.band_rx,
             "freq": str(qso_log.freq) if qso_log.freq else None,
+            "freq_rx": str(qso_log.freq_rx) if qso_log.freq_rx else None,
             "mode": qso_log.mode,
             "rst_sent": qso_log.rst_sent,
             "rst_rcvd": qso_log.rst_rcvd,
             "grid_square": qso_log.grid_square,
+            "operator": qso_log.operator,
+            "qth": qso_log.qth,
             "qsl_sent": qso_log.qsl_sent,
             "qsl_rcvd": qso_log.qsl_rcvd,
+            "eqsl_sent": qso_log.eqsl_sent,
+            "eqsl_rcvd": qso_log.eqsl_rcvd,
+            "lotw_sent": qso_log.lotw_sent,
+            "lotw_rcvd": qso_log.lotw_rcvd,
+            "distance": qso_log.distance,
             "dxcc": qso_log.dxcc,
+            "tx_pwr": qso_log.tx_pwr,
+            "my_gridsquare": qso_log.my_gridsquare,
+            "station_callsign": qso_log.station_callsign,
             "comment": qso_log.comment,
         }
 
@@ -124,15 +136,36 @@ class DeletedLogService:
             else datetime.strptime(data["qso_date"], "%Y%m%d").date()
             if data.get("qso_date")
             else None,
+            qso_date_off=datetime.strptime(data["qso_date_off"], "%Y-%m-%d").date()
+            if isinstance(data.get("qso_date_off"), str) and len(data["qso_date_off"]) == 10
+            else datetime.strptime(data["qso_date_off"], "%Y%m%d").date()
+            if data.get("qso_date_off")
+            else None,
+            time_on=datetime.strptime(data["time_on"], "%H:%M:%S").time()
+            if data.get("time_on") else None,
+            time_off=datetime.strptime(data["time_off"], "%H:%M:%S").time()
+            if data.get("time_off") else None,
             band=data.get("band"),
-            mode=data.get("mode"),
+            band_rx=data.get("band_rx"),
             freq=data.get("freq"),
+            freq_rx=data.get("freq_rx"),
+            mode=data.get("mode"),
             rst_sent=data.get("rst_sent"),
             rst_rcvd=data.get("rst_rcvd"),
             grid_square=data.get("grid_square"),
+            operator=data.get("operator"),
+            qth=data.get("qth"),
             qsl_sent=data.get("qsl_sent", "N"),
             qsl_rcvd=data.get("qsl_rcvd", "N"),
+            eqsl_sent=data.get("eqsl_sent", "N"),
+            eqsl_rcvd=data.get("eqsl_rcvd", "N"),
+            lotw_sent=data.get("lotw_sent", "N"),
+            lotw_rcvd=data.get("lotw_rcvd", "N"),
+            distance=data.get("distance"),
             dxcc=data.get("dxcc"),
+            tx_pwr=data.get("tx_pwr"),
+            my_gridsquare=data.get("my_gridsquare"),
+            station_callsign=data.get("station_callsign"),
             comment=data.get("comment"),
         )
         db.add(new_log)

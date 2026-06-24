@@ -23,9 +23,10 @@ class AdminService:
         """获取用户列表"""
         query = db.query(User).filter(User.is_deleted == False)
         if keyword:
+            escaped = keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             query = query.filter(
-                (User.username.ilike(f"%{keyword}%")) |
-                (User.email.ilike(f"%{keyword}%"))
+                (User.username.ilike(f"%{escaped}%")) |
+                (User.email.ilike(f"%{escaped}%"))
             )
         if role:
             query = query.filter(User.role == role)
