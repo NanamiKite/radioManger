@@ -31,5 +31,13 @@ export const recycleApi = {
 
   restore(deleted_id: number): Promise<QSOLog> {
     return api.post(`/logs/recycle/${deleted_id}/restore`)
+  },
+
+  batchDelete(ids: number[]): Promise<{ deleted: number }> {
+    return api.post('/logs/recycle/batch-delete', { ids })
+  },
+
+  clearAll(): Promise<{ deleted: number }> {
+    return api.post('/logs/recycle/clear-all')
   }
 }

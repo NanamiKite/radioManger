@@ -5,10 +5,21 @@
         <h1>{{ t('recycleBin.title') }}</h1>
         <p>{{ t('recycleBin.recycleBinTip') }}</p>
       </div>
+      <div class="header-actions">
+        <el-button type="danger" plain :disabled="selectedIds.length === 0" @click="handleBatchDelete">
+          {{ t('common.delete') }} ({{ selectedIds.length }})
+        </el-button>
+        <el-button type="danger" :disabled="total === 0" @click="handleClearAll">
+          {{ t('recycleBin.clearAll') }}
+        </el-button>
+      </div>
     </div>
 
     <el-card>
-      <el-table :data="items" v-loading="loading" stripe style="width:100%">
+      <el-table :data="items" v-loading="loading" stripe style="width:100%"
+        @selection-change="handleSelectionChange"
+        :row-key="(row: DeletedLogItem) => row.id">
+        <el-table-column type="selection" width="45" :reserve-selection="true" />
         <el-table-column prop="call_sign" label="Call Sign" width="120" />
         <el-table-column prop="qso_date" label="Date" width="120" />
         <el-table-column prop="band" label="Band" width="70" />
@@ -54,7 +65,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { recycleApi } from '@/api/deleted_logs'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { DeletedLogItem } from '@/api/deleted_logs'
 import { useI18n } from 'vue-i18n'
 
@@ -63,6 +74,7 @@ const loading = ref(false)
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+const selectedIds = ref<number[]>([])
 const { t } = useI18n()
 
 const fetchItems = async () => {
@@ -75,6 +87,10 @@ const fetchItems = async () => {
   finally { loading.value = false }
 }
 
+const handleSelectionChange = (selection: DeletedLogItem[]) => {
+  selectedIds.value = selection.map(item => item.id)
+}
+
 const handleRestore = async (item: DeletedLogItem) => {
   try {
     await recycleApi.restore(item.id)
@@ -85,12 +101,70 @@ const handleRestore = async (item: DeletedLogItem) => {
   }
 }
 
+const handleBatchDelete = async () => {
+  if (selectedIds.value.length === 0) return
+
+  try {
+    await ElMessageBox.confirm(
+      `Permanently delete ${selectedIds.value.length} items? This cannot be undone.`,
+      'Confirm Delete',
+      { type: 'warning', confirmButtonText: t('common.delete'), cancelButtonText: t('common.cancel') }
+    )
+
+    const res = await recycleApi.batchDelete(selectedIds.value)
+    ElMessage.success(`Deleted ${res.deleted} items`)
+    selectedIds.value = []
+    await fetchItems()
+  } catch (err: any) {
+    if (err !== 'cancel') {
+      ElMessage.error(err?.response?.data?.detail || 'Delete failed')
+    }
+  }
+}
+
+const handleClearAll = async () => {
+  if (total.value === 0) return
+
+  try {
+    // 第一次确认
+    await ElMessageBox.confirm(
+      `This will permanently delete ALL ${total.value} items in the recycle bin. This cannot be undone!`,
+      'Clear Recycle Bin',
+      { type: 'error', confirmButtonText: 'Continue', cancelButtonText: t('common.cancel') }
+    )
+
+    // 第二次确认
+    await ElMessageBox.confirm(
+      `Are you absolutely sure? All ${total.value} items will be permanently deleted.`,
+      'Final Confirmation',
+      { type: 'error', confirmButtonText: 'Yes, Delete All', cancelButtonText: t('common.cancel') }
+    )
+
+    const res = await recycleApi.clearAll()
+    ElMessage.success(`Cleared ${res.deleted} items from recycle bin`)
+    selectedIds.value = []
+    await fetchItems()
+  } catch (err: any) {
+    if (err !== 'cancel') {
+      ElMessage.error(err?.response?.data?.detail || 'Clear failed')
+    }
+  }
+}
+
 onMounted(fetchItems)
 </script>
 
 <style scoped lang="scss">
 .recycle-container {
-  .page-header { margin-bottom:20px; h1 { margin-bottom:5px; } p { color:var(--text-color-secondary); } }
-  .pagination-wrapper { margin-top:16px; display:flex; justify-content:flex-end; }
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+    h1 { margin-bottom: 5px; font-size: 20px; font-weight: 600; color: var(--text-color-primary); }
+    p { color: var(--text-color-secondary); font-size: 14px; margin: 0; }
+    .header-actions { display: flex; gap: 8px; }
+  }
+  .pagination-wrapper { margin-top: 16px; display: flex; justify-content: flex-end; }
 }
 </style>

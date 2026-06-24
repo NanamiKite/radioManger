@@ -327,7 +327,9 @@ export default {
     dxccEntities: 'DXCC实体',
     lastQso: '最后通联',
     avgDistance: '平均距离',
-    km: '公里'
+    km: '公里',
+    bandModeMatrix: '波段×模式矩阵',
+    noData: '暂无数据'
   },
   settings: {
     title: '设置',
@@ -370,6 +372,7 @@ export default {
     title: '回收站',
     recycleBinTip: '删除的日志会在7天后被永久删除',
     recyleBinEmpty: '回收站为空',
+    clearAll: '清空回收站',
   },
 
   validation: {

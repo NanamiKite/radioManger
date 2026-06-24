@@ -22,7 +22,7 @@ class Station(Base):
     locations = relationship("Location", back_populates="station", cascade="all, delete-orphan")
 
     __table_args__ = (
-        Index("idx_user_callsign", "user_id", "callsign", unique=True),
+        Index("idx_user_callsign", "user_id", "callsign", "is_deleted", unique=True),
     )
 
     def __repr__(self):

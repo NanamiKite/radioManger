@@ -1,7 +1,7 @@
 """统计计算服务"""
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, case
 from typing import Optional
 from datetime import date
 
@@ -115,31 +115,148 @@ class StatsService:
 
     @staticmethod
     def get_dxcc_stats(db: Session, user_id: int) -> dict:
-        """获取DXCC统计（按呼号前缀分组）"""
-        call_signs = (
-            db.query(QSOLog.call_sign, func.count(QSOLog.id).label("count"))
+        """获取DXCC统计（按dxcc实体字段分组）"""
+        dxcc_entries = (
+            db.query(
+                QSOLog.dxcc.label("entity"),
+                func.count(QSOLog.id).label("count"),
+            )
             .filter(
                 QSOLog.user_id == user_id,
                 QSOLog.is_deleted == False,
+                QSOLog.dxcc.isnot(None),
+                QSOLog.dxcc != "",
             )
-            .group_by(QSOLog.call_sign)
+            .group_by(QSOLog.dxcc)
             .order_by(func.count(QSOLog.id).desc())
             .all()
         )
 
         dxcc_list = []
-        for row in call_signs:
+        for row in dxcc_entries:
             dxcc_list.append({
-                "entity": row.call_sign,
-                "code": row.call_sign,
+                "entity": row.entity,
                 "count": row.count,
             })
 
         return {
             "total_dxcc": len(dxcc_list),
-            "confirmed_dxcc": 0,
             "dxcc_list": dxcc_list,
         }
+
+    @staticmethod
+    def get_dxcc_chart(db: Session, user_id: int) -> dict:
+        """获取DXCC图表数据（实体×波段确认状态）"""
+        rows = (
+            db.query(
+                QSOLog.dxcc.label("entity"),
+                func.lower(QSOLog.band).label("band"),
+                func.count(QSOLog.id).label("count"),
+                func.max(
+                    case(
+                        (QSOLog.lotw_rcvd == "Y", 1),
+                        else_=0,
+                    )
+                ).label("confirmed"),
+            )
+            .filter(
+                QSOLog.user_id == user_id,
+                QSOLog.is_deleted == False,
+                QSOLog.dxcc.isnot(None),
+                QSOLog.dxcc != "",
+                QSOLog.band.isnot(None),
+            )
+            .group_by(QSOLog.dxcc, func.lower(QSOLog.band))
+            .all()
+        )
+
+        entities = {}
+        bands = set()
+
+        for row in rows:
+            entity = row.entity
+            band = row.band
+            bands.add(band)
+
+            if entity not in entities:
+                entities[entity] = {}
+
+            entities[entity][band] = {
+                "count": row.count,
+                "confirmed": bool(row.confirmed),
+            }
+
+        entity_totals = {}
+        for entity, band_data in entities.items():
+            entity_totals[entity] = sum(d["count"] for d in band_data.values())
+
+        sorted_entities = sorted(entity_totals.items(), key=lambda x: x[1], reverse=True)
+
+        band_order = {
+            '160m': 1, '80m': 2, '60m': 3, '40m': 4, '30m': 5,
+            '20m': 6, '17m': 7, '15m': 8, '12m': 9, '10m': 10,
+            '6m': 11, '4m': 12, '2m': 13, '1.25m': 14, '70cm': 15,
+            '33cm': 16, '23cm': 17,
+        }
+        sorted_bands = sorted(bands, key=lambda b: band_order.get(b, 99))
+
+        chart_entities = []
+        for entity, total in sorted_entities:
+            band_data = entities[entity]
+            bands_status = {}
+            for band in sorted_bands:
+                if band in band_data:
+                    bands_status[band] = band_data[band]
+                else:
+                    bands_status[band] = None
+
+            chart_entities.append({
+                "entity": entity,
+                "total": total,
+                "bands": bands_status,
+            })
+
+        band_confirmed = {}
+        band_worked = {}
+        for band in sorted_bands:
+            band_confirmed[band] = 0
+            band_worked[band] = 0
+            for entity_data in chart_entities:
+                bd = entity_data["bands"].get(band)
+                if bd:
+                    band_worked[band] += 1
+                    if bd["confirmed"]:
+                        band_confirmed[band] += 1
+
+        return {
+            "bands": sorted_bands,
+            "entities": chart_entities,
+            "band_confirmed": band_confirmed,
+            "band_worked": band_worked,
+            "total_entities": len(chart_entities),
+        }
+
+    @staticmethod
+    def get_band_mode_matrix(db: Session, user_id: int) -> list:
+        """获取波段×模式交叉矩阵"""
+        rows = (
+            db.query(
+                func.lower(QSOLog.band).label("band"),
+                func.upper(QSOLog.mode).label("mode"),
+                func.count(QSOLog.id).label("count"),
+            )
+            .filter(
+                QSOLog.user_id == user_id,
+                QSOLog.is_deleted == False,
+                QSOLog.band.isnot(None),
+                QSOLog.mode.isnot(None),
+            )
+            .group_by(func.lower(QSOLog.band), func.upper(QSOLog.mode))
+            .order_by(func.lower(QSOLog.band), func.upper(QSOLog.mode))
+            .all()
+        )
+
+        return [{"band": row.band, "mode": row.mode, "count": row.count} for row in rows]
 
     @staticmethod
     def refresh_statistics(db: Session, user_id: int):
