@@ -1,6 +1,7 @@
 """全局错误处理中间件"""
 
 import logging
+from fastapi import HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -22,6 +23,16 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 content={
                     "code": exc.status_code,
                     "message": exc.message,
+                    "data": None,
+                },
+            )
+        except HTTPException as exc:
+            # 保留 FastAPI 原始状态码（401/403/404 等），不吞成 500
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={
+                    "code": exc.status_code,
+                    "message": exc.detail or "Error",
                     "data": None,
                 },
             )

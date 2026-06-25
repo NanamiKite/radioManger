@@ -57,6 +57,8 @@ async def toggle_user(
     current_user: User = Depends(get_current_admin),
 ):
     """启用/禁用用户"""
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot toggle your own account")
     user = AdminService.toggle_user(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -78,6 +80,9 @@ async def reset_password(
     user = AdminService.reset_password(db, user_id, body.new_password)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    # 重置密码后清除该用户所有旧会话
+    from app.services.session_service import SessionService
+    SessionService.remove_all_sessions(db, user_id)
     AuditService.log(db, current_user, "ADMIN_RESET_PASSWORD", "user", user_id,
                      detail=f"Reset password for user {user.username}",
                      ip_address=request.client.host if request.client else None)
@@ -149,8 +154,11 @@ async def update_config(
     config = ConfigService.update(db, body.key, body.value, current_user.id)
     if not config:
         raise HTTPException(status_code=404, detail="Config not found")
+    # 审计日志脱敏：敏感 key 不记录明文值
+    sensitive_keywords = ("SECRET", "PASSWORD", "TOKEN", "KEY")
+    display_value = "***" if any(kw in body.key.upper() for kw in sensitive_keywords) else body.value
     AuditService.log(db, current_user, "ADMIN_UPDATE_CONFIG", "system", None,
-                     detail=f"{body.key} = {body.value}",
+                     detail=f"{body.key} = {display_value}",
                      ip_address=request.client.host if request.client else None)
     return {"message": "Config updated", "key": body.key, "value": body.value}
 

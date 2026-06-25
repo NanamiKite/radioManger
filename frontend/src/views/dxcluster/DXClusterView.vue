@@ -167,8 +167,8 @@ const statusTagType = computed(() => {
 })
 
 const statusText = computed(() => {
-  if (store.isConnecting) return 'Connecting'
-  return store.isConnected ? 'Connected' : 'Disconnected'
+  if (store.isConnecting) return t('dxcluster.connecting')
+  return store.isConnected ? t('dxcluster.connected') : t('dxcluster.disconnected')
 })
 
 /* ================= FORMAT ================= */
@@ -192,9 +192,9 @@ const handleConnect = async () => {
   connecting.value = true
   try {
     await store.connect()
-    ElMessage.success('Connected')
+    ElMessage.success(t('dxcluster.connected'))
   } catch (e: any) {
-    ElMessage.error(e?.message || 'Connect failed')
+    ElMessage.error(e?.message || t('dxcluster.connectFailed'))
   } finally {
     connecting.value = false
   }
@@ -202,7 +202,7 @@ const handleConnect = async () => {
 
 const handleDisconnect = async () => {
   await store.disconnect()
-  ElMessage.info('Disconnected')
+  ElMessage.info(t('dxcluster.disconnected'))
 }
 
 
@@ -245,12 +245,12 @@ onUnmounted(() => {
     margin-bottom: 16px;
 
     .control-label {
-      color: #606266;
+      color: var(--text-color-regular);
     }
 
     .status-info {
       margin-top: 12px;
-      color: #909399;
+      color: var(--text-color-secondary);
       font-size: 13px;
     }
   }
@@ -262,7 +262,7 @@ onUnmounted(() => {
 
   .dx-callsign {
     font-weight: 600;
-    color: #409eff;
+    color: var(--color-accent);
     font-family: monospace;
     cursor: pointer;
   }

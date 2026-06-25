@@ -123,10 +123,8 @@
           <div class="about-header">
             <h2>{{ $t('settings.appName') }}</h2>
             <p class="about-desc">{{ $t('settings.description') }}</p>
-            <span class="version-badge">{{ $t('settings.version') }} 2.5.0</span>
+            <span class="version-badge">{{ $t('settings.version') }} {{ appVersion || '...' }}</span>
           </div>
-
-          <el-divider />
 
           <el-divider />
 
@@ -146,7 +144,7 @@
 
           <div class="about-footer">
             <p class="credit-line">
-              DesignedBy: <strong>NanamiKite</strong>
+              {{ $t('settings.designedBy') }}: <strong>NanamiKite</strong>
             </p>
             <p class="copyright-line">
               &copy; 2026 {{ $t('settings.appName') }} &mdash; MIT License
@@ -185,6 +183,7 @@ import { ElMessage } from 'element-plus'
 import api from '@/api/index'
 import { udpApi } from '@/api/udp'
 import { authApi } from '@/api/auth'
+import { fetchHealth } from '@/api/health'
 
 const authStore = useAuthStore()
 const { locale, t } = useI18n()
@@ -200,6 +199,7 @@ const dbMode = ref('loading...')
 const dbPath = ref('')
 const dbDir = ref('')
 const apiBase = ref('/api/v1')
+const appVersion = ref('')
 
 const udpForm = ref({ wsjtx_port: 2237, n1mm_port: 12060 })
 const isServerMode = ref(false)
@@ -212,8 +212,9 @@ const cancellingDeletion = ref(false)
 const saveUdpSettings = async () => {
   try {
     await udpApi.stop()
+    await udpApi.start()
     ElMessage.success(t('settings.settingsSaved'))
-  } catch { /* ignore */ }
+  } catch { ElMessage.error(t('udp.toggleFailed')) }
 }
 
 const passwordForm = ref({ old_password: '', new_password: '', confirm_password: '' })
@@ -225,13 +226,12 @@ onMounted(async () => {
     language.value = authStore.user.language || 'zh-CN'
   }
   try {
-  // 用 raw axios 请求 /health（不在 /api/v1 前缀下）
-  const rawAxios = await import('axios')
-  const res = await rawAxios.default.get('/health')
-  dbMode.value = res.data.database || 'sqlite'
-  isServerMode.value = dbMode.value === 'mysql'
-  dbPath.value = res.data.db_path || ''
-  dbDir.value = res.data.db_dir || ''
+    const data = await fetchHealth()
+    dbMode.value = data.database || 'sqlite'
+    isServerMode.value = dbMode.value === 'mysql'
+    dbPath.value = data.db_path || ''
+    dbDir.value = data.db_dir || ''
+    appVersion.value = data.version || ''
   } catch { dbMode.value = 'unknown' }
 })
 
@@ -302,10 +302,10 @@ const changePassword = async () => {
       new_password: passwordForm.value.new_password,
       confirm_password: passwordForm.value.confirm_password
     })
-    ElMessage.success('Password changed')
+    ElMessage.success(t('settings.passwordChanged'))
     passwordForm.value = { old_password: '', new_password: '', confirm_password: '' }
   } catch (err: any) {
-    ElMessage.error(err?.response?.data?.detail || 'Failed to change password')
+    ElMessage.error(err?.response?.data?.detail || t('errors.serverError'))
   } finally { changingPassword.value = false }
 }
 
@@ -322,7 +322,7 @@ const requestDeletion = async () => {
     deletePassword.value = ''
     ElMessage.success(t('admin.deleteAccountCooldown'))
   } catch (err: any) {
-    ElMessage.error(err?.response?.data?.detail || 'Failed')
+    ElMessage.error(err?.response?.data?.detail || t('errors.serverError'))
   } finally { requestingDeletion.value = false }
 }
 
@@ -333,7 +333,7 @@ const cancelDeletion = async () => {
     deletionScheduled.value = false
     ElMessage.success(t('admin.cancelDelete') + ' - OK')
   } catch (err: any) {
-    ElMessage.error(err?.response?.data?.detail || 'Failed')
+    ElMessage.error(err?.response?.data?.detail || t('errors.serverError'))
   } finally { cancellingDeletion.value = false }
 }
 </script>

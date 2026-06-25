@@ -12,13 +12,13 @@
           <el-input v-model="keyword" :placeholder="$t('admin.searchUser')" clearable @keyup.enter="fetchUsers" />
         </el-form-item>
         <el-form-item>
-          <el-select v-model="roleFilter" clearable placeholder="Role">
-            <el-option label="user" value="user" />
-            <el-option label="admin" value="admin" />
+          <el-select v-model="roleFilter" clearable :placeholder="$t('admin.role')">
+            <el-option :label="$t('admin.roleUser')" value="user" />
+            <el-option :label="$t('admin.roleAdmin')" value="admin" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-select v-model="activeFilter" clearable placeholder="Status">
+          <el-select v-model="activeFilter" clearable :placeholder="$t('admin.status')">
             <el-option :label="$t('admin.active')" :value="true" />
             <el-option :label="$t('admin.disabled')" :value="false" />
           </el-select>
@@ -32,10 +32,10 @@
     <!-- 用户列表 -->
     <el-card>
       <el-table :data="users" v-loading="loading" stripe>
-        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column prop="id" :label="$t('admin.id')" width="60" />
         <el-table-column prop="username" :label="$t('common.username')" width="120" />
         <el-table-column prop="email" :label="$t('common.email')" min-width="180" />
-        <el-table-column prop="role" label="Role" width="80">
+        <el-table-column prop="role" :label="$t('admin.role')" width="80">
           <template #default="scope">
             <el-tag :type="scope.row.role === 'admin' ? 'danger' : 'info'" size="small">
               {{ scope.row.role }}
@@ -108,7 +108,7 @@ const fetchUsers = async () => {
     users.value = res.items
     total.value = res.total
   } catch {
-    ElMessage.error('Failed to load users')
+    ElMessage.error(t('admin.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -117,21 +117,21 @@ const fetchUsers = async () => {
 const toggleUser = async (user: any) => {
   try {
     await adminApi.toggleUser(user.id)
-    ElMessage.success(`User ${user.username} ${user.is_active ? 'disabled' : 'enabled'}`)
+    ElMessage.success(t('admin.toggleSuccess', { username: user.username, action: user.is_active ? t('admin.actionDisable') : t('admin.actionEnable') }))
     await fetchUsers()
   } catch {
-    ElMessage.error('Failed to toggle user')
+    ElMessage.error(t('admin.toggleFailed'))
   }
 }
 
 const deleteUser = async (user: any) => {
   try {
-    await ElMessageBox.confirm(`Delete user ${user.username}?`, 'Confirm', { type: 'warning' })
+    await ElMessageBox.confirm(t('admin.deleteConfirm', { username: user.username }), t('common.confirm'), { type: 'warning' })
     await adminApi.deleteUser(user.id)
-    ElMessage.success(`User ${user.username} deleted`)
+    ElMessage.success(t('admin.deleteSuccess', { username: user.username }))
     await fetchUsers()
   } catch (err: any) {
-    if (err !== 'cancel') ElMessage.error('Failed to delete user')
+    if (err !== 'cancel') ElMessage.error(t('admin.deleteFailed'))
   }
 }
 
@@ -140,7 +140,7 @@ const viewStats = async (user: any) => {
     userStats.value = await adminApi.getUserStats(user.id)
     showStats.value = true
   } catch {
-    ElMessage.error('Failed to load stats')
+    ElMessage.error(t('admin.loadStatsFailed'))
   }
 }
 

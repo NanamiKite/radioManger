@@ -20,32 +20,32 @@
         @selection-change="handleSelectionChange"
         :row-key="(row: DeletedLogItem) => row.id">
         <el-table-column type="selection" width="45" :reserve-selection="true" />
-        <el-table-column prop="call_sign" label="Call Sign" width="120" />
-        <el-table-column prop="qso_date" label="Date" width="120" />
-        <el-table-column prop="band" label="Band" width="70" />
-        <el-table-column prop="mode" label="Mode" width="80" />
+        <el-table-column prop="call_sign" :label="$t('logs.callSign')" width="120" />
+        <el-table-column prop="qso_date" :label="$t('recycleBin.date')" width="120" />
+        <el-table-column prop="band" :label="$t('logs.band')" width="70" />
+        <el-table-column prop="mode" :label="$t('logs.mode')" width="80" />
         <el-table-column prop="dxcc" label="DXCC" width="120" />
-        <el-table-column prop="delete_reason" label="Reason" width="150" />
-        <el-table-column label="Expires" width="120">
+        <el-table-column prop="delete_reason" :label="$t('recycleBin.reason')" width="150" />
+        <el-table-column :label="$t('recycleBin.expires')" width="120">
           <template #default="scope">
             <el-tag v-if="scope.row.days_remaining && scope.row.days_remaining > 0"
               :type="scope.row.days_remaining <= 1 ? 'danger' : 'warning'" size="small">
-              {{ scope.row.days_remaining }} days
+              {{ $t('recycleBin.days', { count: scope.row.days_remaining }) }}
             </el-tag>
-            <el-tag v-else type="danger" size="small">Expired</el-tag>
+            <el-tag v-else type="danger" size="small">{{ $t('recycleBin.expired') }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="Operations" width="120" fixed="right">
+        <el-table-column :label="$t('common.operations')" width="120" fixed="right">
           <template #default="scope">
             <el-button size="small" type="primary"
               :disabled="!scope.row.days_remaining || scope.row.days_remaining <= 0"
-              @click="handleRestore(scope.row)">Restore</el-button>
+              @click="handleRestore(scope.row)">{{ $t('recycleBin.restore') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
 
       <div v-if="items.length === 0 && !loading" style="text-align:center;padding:40px">
-        <el-empty :description="t('recycleBin.recyleBinEmpty')" />
+        <el-empty :description="t('recycleBin.recycleBinEmpty')" />
       </div>
 
       <div class="pagination-wrapper">
@@ -83,7 +83,7 @@ const fetchItems = async () => {
     const res = await recycleApi.list({ page: page.value, page_size: pageSize.value })
     items.value = res.items
     total.value = res.total
-  } catch { ElMessage.error('Failed to load recycle bin') }
+  } catch { ElMessage.error(t('recycleBin.loadFailed')) }
   finally { loading.value = false }
 }
 
@@ -94,10 +94,10 @@ const handleSelectionChange = (selection: DeletedLogItem[]) => {
 const handleRestore = async (item: DeletedLogItem) => {
   try {
     await recycleApi.restore(item.id)
-    ElMessage.success(`Restored log: ${item.call_sign}`)
+    ElMessage.success(t('recycleBin.restored', { callSign: item.call_sign }))
     await fetchItems()
   } catch (err: any) {
-    ElMessage.error(err?.response?.data?.detail || 'Restore failed')
+    ElMessage.error(err?.response?.data?.detail || t('recycleBin.restoreFailed'))
   }
 }
 
@@ -106,18 +106,18 @@ const handleBatchDelete = async () => {
 
   try {
     await ElMessageBox.confirm(
-      `Permanently delete ${selectedIds.value.length} items? This cannot be undone.`,
-      'Confirm Delete',
+      t('recycleBin.batchDeleteConfirm', { count: selectedIds.value.length }),
+      t('common.confirmDelete'),
       { type: 'warning', confirmButtonText: t('common.delete'), cancelButtonText: t('common.cancel') }
     )
 
     const res = await recycleApi.batchDelete(selectedIds.value)
-    ElMessage.success(`Deleted ${res.deleted} items`)
+    ElMessage.success(t('recycleBin.batchDeleted', { count: res.deleted }))
     selectedIds.value = []
     await fetchItems()
   } catch (err: any) {
     if (err !== 'cancel') {
-      ElMessage.error(err?.response?.data?.detail || 'Delete failed')
+      ElMessage.error(err?.response?.data?.detail || t('recycleBin.deleteFailed'))
     }
   }
 }
@@ -128,25 +128,25 @@ const handleClearAll = async () => {
   try {
     // 第一次确认
     await ElMessageBox.confirm(
-      `This will permanently delete ALL ${total.value} items in the recycle bin. This cannot be undone!`,
-      'Clear Recycle Bin',
-      { type: 'error', confirmButtonText: 'Continue', cancelButtonText: t('common.cancel') }
+      t('recycleBin.clearAllConfirm', { count: total.value }),
+      t('recycleBin.clearAllTitle'),
+      { type: 'error', confirmButtonText: t('recycleBin.continue'), cancelButtonText: t('common.cancel') }
     )
 
     // 第二次确认
     await ElMessageBox.confirm(
-      `Are you absolutely sure? All ${total.value} items will be permanently deleted.`,
-      'Final Confirmation',
-      { type: 'error', confirmButtonText: 'Yes, Delete All', cancelButtonText: t('common.cancel') }
+      t('recycleBin.finalConfirm', { count: total.value }),
+      t('recycleBin.finalConfirmTitle'),
+      { type: 'error', confirmButtonText: t('recycleBin.yesDeleteAll'), cancelButtonText: t('common.cancel') }
     )
 
     const res = await recycleApi.clearAll()
-    ElMessage.success(`Cleared ${res.deleted} items from recycle bin`)
+    ElMessage.success(t('recycleBin.cleared', { count: res.deleted }))
     selectedIds.value = []
     await fetchItems()
   } catch (err: any) {
     if (err !== 'cancel') {
-      ElMessage.error(err?.response?.data?.detail || 'Clear failed')
+      ElMessage.error(err?.response?.data?.detail || t('recycleBin.clearFailed'))
     }
   }
 }

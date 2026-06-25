@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, onScopeDispose } from 'vue'
 import { dxclusterApi, type DxNode, type Spot, type ClusterStatus } from '@/api/dxcluster'
 import { useAuthStore } from '@/stores/auth'
 
@@ -131,6 +131,9 @@ export const useDxClusterStore = defineStore('dxcluster', () => {
       spots.value = []
     } catch (e: any) { error.value = e?.message }
   }
+
+  // 组件卸载时自动清理 WebSocket 和重连定时器
+  onScopeDispose(() => { disconnectWS() })
 
   return {
     spots, status, nodes, selectedNode, wsConnected, error,

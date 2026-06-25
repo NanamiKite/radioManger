@@ -65,6 +65,16 @@ class SessionService:
             logger.info(f"Session removed, jti={jti[:8]}...")
 
     @staticmethod
+    def remove_all_sessions(db: Session, user_id: int):
+        """移除用户所有会话（改密码/重置密码时调用，使所有旧 token 失效）"""
+        if not SessionService.is_enabled():
+            return
+        deleted = db.query(UserSession).filter(UserSession.user_id == user_id).delete()
+        if deleted:
+            db.commit()
+            logger.info(f"All {deleted} sessions removed for user_id={user_id}")
+
+    @staticmethod
     def update_activity(db: Session, jti: str):
         """更新会话活跃时间"""
         if not SessionService.is_enabled():

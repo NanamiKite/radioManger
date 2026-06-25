@@ -29,10 +29,15 @@
         </el-form-item>
         <el-form-item :label="$t('logs.band')" style="width:120px">
           <el-select v-model="logsStore.filters.band" clearable :placeholder="$t('logs.allBands')">
+            <el-option label="2190m" value="2190m" />
             <el-option label="160m" value="160m" /><el-option label="80m" value="80m" />
             <el-option label="40m" value="40m" /><el-option label="20m" value="20m" />
             <el-option label="15m" value="15m" /><el-option label="10m" value="10m" />
-            <el-option label="6m" value="6m" /><el-option label="2m" value="2m" /><el-option label="70cm" value="70cm" />
+            <el-option label="6m" value="6m" /><el-option label="2m" value="2m" />
+            <el-option label="70cm" value="70cm" /><el-option label="23cm" value="23cm" />
+            <el-option label="13cm" value="13cm" /><el-option label="5cm" value="5cm" />
+            <el-option label="3cm" value="3cm" /><el-option label="1.2cm" value="1.2cm" />
+            <el-option label="6mm" value="6mm" />
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('logs.mode')" style="width:120px">
@@ -268,7 +273,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useLogsStore } from '@/stores/logs'
 import { logsApi } from '@/api/logs'
@@ -279,6 +284,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 import type { FormInstance } from 'element-plus'
+import { getDefaultFrequency } from '@/utils/constants'
 
 const router = useRouter()
 const route = useRoute()
@@ -306,31 +312,10 @@ const logRules = {
   mode: [{ required: true, message: 'Please select mode', trigger: 'change' }]
 }
 
-const bandFrequencyMap: Record<string, string> = {
-  '2190m': '0.1375',
-  '160m': '1.800',
-  '80m': '3.500',
-  '40m': '7.000',
-  '20m': '14.000',
-  '15m': '21.000',
-  '10m': '28.000',
-  '6m': '50.000',
-  '4m': '70.000',
-  '2m': '144.000',
-  '70cm': '430.000',
-  '23cm': '1240.000',
-  '13cm': '2300.000',
-  '5cm': '5760.000',
-  '3cm': '10000.000',
-  '1.2cm': '24000.000',
-  '6mm': '47000.000',
-}
-
-// 2. 切换波段时的联动处理函数
 const handleBandChange = (val: string) => {
-  // 根据选中的波段获取默认频率，如果找不到则清空或保持原样
-  if (bandFrequencyMap[val]) {
-    createForm.freq = bandFrequencyMap[val]
+  const freq = getDefaultFrequency(val)
+  if (freq) {
+    createForm.freq = freq
   }
 }
 
@@ -493,6 +478,13 @@ watch(() => logsStore.activeStation, (s) => {
     // 激活台站变化时自动切换日志过滤并刷新
     logsStore.filters.station_id = s.id
     logsStore.fetchLogs()
+  }
+})
+
+onUnmounted(() => {
+  if (udpWs) {
+    udpWs.close()
+    udpWs = null
   }
 })
 

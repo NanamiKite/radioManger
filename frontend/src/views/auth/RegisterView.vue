@@ -119,7 +119,7 @@ const handleRegister = async (): Promise<void> => {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%);
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-light, #66b1ff) 100%);
   padding: 20px;
   .lang-selector-wrapper {
     position: absolute;
@@ -129,22 +129,22 @@ const handleRegister = async (): Promise<void> => {
   }
 
   .register-box {
-    background: white;
+    background: var(--bg-color-card, white);
     border-radius: 8px;
     padding: 40px;
     width: 100%;
     max-width: 400px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 20px var(--box-shadow-dark, rgba(0, 0, 0, 0.2));
 
     h1 {
       text-align: center;
       margin-bottom: 10px;
-      color: #409eff;
+      color: var(--color-accent);
     }
 
     p {
       text-align: center;
-      color: #909399;
+      color: var(--text-color-secondary);
       margin-bottom: 30px;
     }
 
@@ -155,10 +155,10 @@ const handleRegister = async (): Promise<void> => {
     .register-footer {
       text-align: center;
       margin-top: 20px;
-      color: #909399;
+      color: var(--text-color-secondary);
 
       a {
-        color: #409eff;
+        color: var(--color-accent);
         text-decoration: none;
 
         &:hover {

@@ -53,6 +53,7 @@ export const useLogsStore = defineStore('logs', () => {
   })
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  let _fetchRequestId = 0  // 请求 ID 守卫，防止旧响应覆盖新数据
 
   const buildParams = (): LogQueryParams => {
     const params: LogQueryParams = {
@@ -71,17 +72,21 @@ export const useLogsStore = defineStore('logs', () => {
   }
 
   const fetchLogs = async () => {
+    const requestId = ++_fetchRequestId
     isLoading.value = true
     error.value = null
     try {
       const response = await logsApi.list(buildParams())
+      // 仅当本次请求是最新的才更新数据（防止旧响应覆盖新数据）
+      if (requestId !== _fetchRequestId) return
       logs.value = response.items
       pagination.total = response.total
       pagination.pages = response.pages
     } catch (err: unknown) {
+      if (requestId !== _fetchRequestId) return
       error.value = getErrorMessage(err)
     } finally {
-      isLoading.value = false
+      if (requestId === _fetchRequestId) isLoading.value = false
     }
   }
 

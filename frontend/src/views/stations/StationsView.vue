@@ -57,7 +57,7 @@
     </el-card>
 
     <!-- 新建 Station 对话框 -->
-    <el-dialog v-model="showStationDialog" title="New Station" width="400px">
+    <el-dialog v-model="showStationDialog" :title="$t('stations.newStation')" width="400px">
       <el-form ref="stationFormRef" :model="stationForm" :rules="stationRules" label-width="100px">
         <el-form-item :label="$t('stations.callSign')" prop="callsign">
           <el-input v-model="stationForm.callsign" placeholder="e.g. BA7ABC" @input="(v: string) => stationForm.callsign = v.toUpperCase()" />
@@ -70,15 +70,15 @@
     </el-dialog>
 
     <!-- 新建/编辑 Location 对话框 -->
-    <el-dialog v-model="showLocationDialog" :title="editingLocation ? 'Edit Location' : 'New Location'" width="500px">
+    <el-dialog v-model="showLocationDialog" :title="editingLocation ? $t('stations.editLocation') : $t('stations.newLocation')" width="500px">
       <el-form ref="locationFormRef" :model="locationForm" :rules="locationRules" label-width="120px">
         <el-form-item :label="$t('stations.title')" prop="station_id">
           <el-select v-model="locationForm.station_id" style="width:100%">
             <el-option v-for="s in stations" :key="s.id" :label="s.callsign" :value="s.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="Name" prop="name">
-          <el-input v-model="locationForm.name" placeholder="e.g. Home, Mobile, Field" />
+        <el-form-item :label="$t('stations.name')" prop="name">
+          <el-input v-model="locationForm.name" :placeholder="$t('stations.namePlaceholder')" />
         </el-form-item>
         <el-form-item :label="$t('stations.gridSquare')" prop="grid_square">
           <el-input v-model="locationForm.grid_square" placeholder="e.g. OL63" @input="(v: string) => locationForm.grid_square = v.toUpperCase()" />
@@ -89,7 +89,7 @@
         <el-form-item :label="$t('stations.antennaModel')">
           <el-input v-model="locationForm.antenna_model" />
         </el-form-item>
-        <el-form-item label="Antenna Height (m)">
+        <el-form-item :label="$t('stations.antennaHeight')">
           <el-input-number v-model="locationForm.antenna_height" :min="0" :step="0.5" style="width:100%" />
         </el-form-item>
         <el-form-item :label="$t('stations.qth')">
@@ -142,7 +142,7 @@ const treeData = computed(() => {
 const showStationDialog = ref(false)
 const stationFormRef = ref<FormInstance>()
 const stationForm = reactive({ callsign: '' })
-const stationRules = { callsign: [{ required: true, message: 'Required', trigger: 'blur' }] }
+const stationRules = { callsign: [{ required: true, message: t('stations.required'), trigger: 'blur' }] }
 
 // Location dialog
 const showLocationDialog = ref(false)
@@ -197,8 +197,8 @@ const handleDeleteStation = async (station: any) => {
         t('common.deleteWithoutExport'),
         t('common.deleteStationWarning', { callsign }),
         {
-          confirmButtonText: 'Delete anyway',
-          cancelButtonText: 'Cancel',
+          confirmButtonText: t('stations.deleteAnyway'),
+          cancelButtonText: t('stations.cancel'),
           distinguishCancelAndClose: true,
           type: 'warning',
         }
@@ -224,7 +224,7 @@ const handleDeleteStation = async (station: any) => {
     }
   } catch (err: any) {
     if (err?.response?.status === 400) {
-      ElMessage.error(err?.response?.data?.detail || 'Cannot delete this station')
+      ElMessage.error(err?.response?.data?.detail || t('stations.cannotDeleteStation'))
     } else if (err !== 'cancel' && err !== 'close') {
       ElMessage.error(err?.response?.data?.detail || err?.message || t('errors.serverError'))
     }
@@ -290,7 +290,7 @@ const handleSubmitLocation = async () => {
 
 const handleDeleteLocation = async (loc: any) => {
   try {
-    await ElMessageBox.confirm(`Delete location "${loc.name}"?`, t('common.confirmDelete'), { type: 'warning' })
+    await ElMessageBox.confirm(t('stations.deleteLocation', { name: loc.name }), t('common.confirmDelete'), { type: 'warning' })
     await locationsApi.delete(getLocationRealId(loc))
     ElMessage.success(t('common.deleteSuccess'))
     await loadData()
