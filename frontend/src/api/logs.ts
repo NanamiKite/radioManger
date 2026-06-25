@@ -61,6 +61,8 @@ export const logsApi = {
     station_id?: number | null
     location_id?: number | null
   }): Promise<void> {
+    // 使用原生 fetch 而非 Axios：需要以 blob 方式下载文件并触发浏览器保存。
+    // Axios 的 response.data 自动解包会破坏 blob 二进制数据。
     const authStore = useAuthStore()
     const token = authStore.token
     const query = new URLSearchParams()

@@ -120,7 +120,8 @@ export const useLogsStore = defineStore('logs', () => {
   const createLog = async (data: Partial<QSOLog>) => {
     try {
       const log = await logsApi.create(data)
-      logs.value.unshift(log)
+      // 重新拉取以保证排序和分页正确
+      await fetchLogs()
       return log
     } catch (err: unknown) {
       error.value = getErrorMessage(err)

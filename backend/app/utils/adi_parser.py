@@ -24,15 +24,7 @@ class ADIParser:
             if not entry.strip():
                 continue
 
-            record = {}
-            # 大小写不敏感提取所有标签
-            pattern = r"<([A-Z_]+)(?::(\d+))?>(.*?)(?=<[A-Z_]+|$)"
-            matches = re.finditer(pattern, entry, re.DOTALL | re.IGNORECASE)
-
-            for match in matches:
-                tag_name = match.group(1)
-                tag_value = match.group(3).strip()
-                record[tag_name.lower()] = tag_value
+            record = ADIParser._parse_record_fields(entry)
 
             if record:
                 records.append(record)
@@ -40,9 +32,62 @@ class ADIParser:
         return records
 
     @staticmethod
+    def _parse_record_fields(entry: str) -> Dict:
+        """解析单条记录的所有字段，使用 length 精确截取值。"""
+        record = {}
+        pos = 0
+        while pos < len(entry):
+            # 查找下一个 <TAG
+            tag_start = entry.find('<', pos)
+            if tag_start == -1:
+                break
+
+            # 查找 > 结束标签头
+            tag_end = entry.find('>', tag_start)
+            if tag_end == -1:
+                break
+
+            tag_header = entry[tag_start + 1:tag_end]
+
+            # 解析 TAG_NAME:length 或 TAG_NAME
+            if ':' in tag_header:
+                parts = tag_header.split(':', 1)
+                tag_name = parts[0].strip().upper()
+                try:
+                    length = int(parts[1].strip())
+                except ValueError:
+                    length = None
+            else:
+                tag_name = tag_header.strip().upper()
+                length = None
+
+            # 跳过 EOR/EOH 标记
+            if tag_name in ('EOR', 'EOH'):
+                pos = tag_end + 1
+                continue
+
+            # 提取值：优先用 length 精确截取
+            if length is not None:
+                value = entry[tag_end + 1: tag_end + 1 + length]
+                pos = tag_end + 1 + length
+            else:
+                # 无 length 时，查找下一个 <TAG 作为结束
+                next_tag = entry.find('<', tag_end + 1)
+                if next_tag == -1:
+                    value = entry[tag_end + 1:]
+                    pos = len(entry)
+                else:
+                    value = entry[tag_end + 1:next_tag]
+                    pos = next_tag
+
+            record[tag_name.lower()] = value.strip()
+
+        return record
+
+    @staticmethod
     def generate_adi_file(logs: List[Dict]) -> str:
         """生成ADI文件"""
-        content = "ADIF Export\n<eoh>\n"
+        content = "<ADIF_VER:5>3.1.0 <PROGRAMID:12>RadioManager <EOH>\n"
 
         for log in logs:
             for key, value in log.items():
@@ -84,9 +129,15 @@ class ADIParser:
             'tx_pwr': 'tx_pwr',
             'my_gridsquare': 'my_gridsquare',
             'my_grid_square': 'my_gridsquare',
+            'my_call': 'my_call',
             'station_callsign': 'station_callsign',
             'distance': 'distance',
             'comment': 'comment',
+            'prop_mode': 'prop_mode',
+            'sat_name': 'sat_name',
+            'srx': 'srx',
+            'stx': 'stx',
+            'contest_id': 'contest_id',
         }
 
         for adi_key, adi_value in adi_record.items():

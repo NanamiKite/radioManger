@@ -74,8 +74,7 @@ class StationService:
     @staticmethod
     def delete_station(db: Session, station_id: int, user_id: int):
         """删除台站：日志移入回收站，位置和台站软删除"""
-        StationService.get_station(db, station_id, user_id)
-        stn = db.query(Station).filter(Station.id == station_id).first()
+        stn = StationService.get_station(db, station_id, user_id)
 
         # 日志移入回收站（7天保留）
         from app.services.deleted_log_service import DeletedLogService

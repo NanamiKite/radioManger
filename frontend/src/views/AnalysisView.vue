@@ -214,6 +214,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useStatsStore } from '@/stores/stats'
 import { useLogsStore } from '@/stores/logs'
+import { useDxccEntities } from '@/composables/useDxccEntities'
 import type { DxccChartBandData } from '@/api/stats'
 
 const router = useRouter()
@@ -226,46 +227,7 @@ const bandStats = computed(() => statsStore.bandStats)
 const modeStats = computed(() => statsStore.modeStats)
 const dxccChart = computed(() => statsStore.dxccChart)
 
-const ALL_DXCC_ENTITIES: string[] = [
-  'Afghanistan','Albania','Algeria','American Samoa','Andorra','Angola','Anguilla','Antarctica',
-  'Antigua & Barbuda','Armenia','Aruba','Asiatic Russia','Austral Islands','Australia','Austria',
-  'Azerbaijan','Azores','Bahamas','Bahrain','Baker & Howland Is','Bangladesh','Barbados','Belarus',
-  'Belgium','Belize','Benin','Bermuda','Bhutan','Bolivia','Bosnia-Herzegovina','Botswana',
-  'Brazil','British Virgin Is.','Brunei','Bulgaria','Burkina Faso','Burundi','Cambodia',
-  'Cameroon','Canada','Canary Islands','Cape Verde','Cayman Islands','Central African Republic',
-  'Ceuta & Melilla','Chad','Chile','China','Christmas Island','Clipperton Island','Cocos Island',
-  'Colombia','Comoros','Congo','Cook Islands','Costa Rica','Croatia','Cuba','Cyprus',
-  'Czech Republic','Dem. Rep. of Congo','Denmark','Djibouti','Dominica','Dominican Republic',
-  'Dodecanese','East Malaysia','East Timor','Ecuador','Egypt','El Salvador','England',
-  'Equatorial Guinea','Eritrea','Estonia','Ethiopia','European Russia','Faroe Islands',
-  'Fernando de Noronha','Fiji','Finland','France','French Guiana','French Polynesia',
-  'Gabon','Galapagos Islands','Georgia','Germany','Ghana','Gibraltar','Gilbert Islands',
-  'Greece','Greenland','Grenada','Guadeloupe','Guam','Guatemala','Guinea','Guinea-Bissau',
-  'Guyana','Haiti','Hawaii','Heard Island','Hungary','Iceland','India','Indonesia','Iran',
-  'Iraq','Ireland','Israel','Italy','Ivory Coast','Jamaica','Japan','Jordan','Juan Fernandez',
-  'Juan de Nova','Kaliningrad','Kazakhstan','Kenya','Kerguelen Islands','Kiribati',
-  'Korea','Kuwait','Kyrgyzstan','Laos','Latvia','Lebanon','Lesotho','Liberia','Libya',
-  'Liechtenstein','Lithuania','Luxembourg','Madagascar','Malawi','Malaysia','Maldives',
-  'Mali','Malta','Mariana Islands','Marquesas Islands','Marshall Islands','Martinique',
-  'Mauritania','Mauritius','Mayotte','Mexico','Micronesia','Midway Island','Moldova',
-  'Monaco','Mongolia','Montenegro','Montserrat','Morocco','Mozambique','Myanmar','Namibia',
-  'Nauru','Nepal','Netherlands','New Caledonia','New Zealand','Nicaragua','Niger','Nigeria',
-  'Niue','Norfolk Island','North Cook Islands','North Macedonia','Northern Ireland',
-  'Norway','Ogasawara','Oman','Pakistan','Palau','Palestine','Panama','Papua New Guinea',
-  'Paraguay','Peru','Philippines','Pitcairn Island','Poland','Portugal','Puerto Rico',
-  'Qatar','Reunion','Romania','Russia (Kaliningrad)','Rwanda','Sable Island','Saint Barthelemy',
-  'Saint Helena','Saint Kitts & Nevis','Saint Lucia','Saint Martin','Saint Paul Island',
-  'Saint Pierre & Miquelon','Saint Vincent','Samoa','San Marino','Sao Tome & Principe',
-  'Saudi Arabia','Scotland','Senegal','Serbia','Seychelles','Sierra Leone','Singapore',
-  'Slovakia','Slovenia','Solomon Islands','Somalia','South Africa','South Cook Islands',
-  'South Georgia','South Korea','South Sudan','Spain','Spratly Islands','Sri Lanka',
-  'Sudan','Suriname','Svalbard','Eswatini','Sweden','Switzerland','Syria','Taiwan',
-  'Tajikistan','Tanzania','Thailand','Togo','Tokelau','Tonga','Trinidad & Tobago',
-  'Tromelin Island','Tunisia','Turkey','Turkmenistan','Turks & Caicos','Tuvalu',
-  'U.S. Virgin Is.','Uganda','Ukraine','United Arab Emirates','United States','Uruguay',
-  'Uzbekistan','Vanuatu','Vatican City','Venezuela','Vietnam','Wales','Wake Island',
-  'Wallis & Futuna','West Malaysia','Western Sahara','Yemen','Zambia','Zimbabwe',
-]
+const { fullDxccEntities, workedCount } = useDxccEntities(dxccChart)
 
 const allBands = computed(() => {
   return dxccChart.value?.bands || ['160m','80m','60m','40m','30m','20m','17m','15m','12m','10m','6m']
@@ -284,32 +246,6 @@ const sortedBandStats = computed(() => {
     return fa - fb
   })
 })
-
-interface FullDxccEntity {
-  name: string
-  total: number
-  bands: Record<string, DxccChartBandData | null>
-}
-
-const fullDxccEntities = computed<FullDxccEntity[]>(() => {
-  const chartData = dxccChart.value
-  const userMap: Record<string, { total: number; bands: Record<string, DxccChartBandData | null> }> = {}
-  if (chartData) {
-    for (const e of chartData.entities) {
-      userMap[e.entity] = { total: e.total, bands: e.bands }
-    }
-  }
-
-  return ALL_DXCC_ENTITIES.map(name => {
-    const userData = userMap[name]
-    if (userData) {
-      return { name, total: userData.total, bands: userData.bands }
-    }
-    return { name, total: 0, bands: {} }
-  }).sort((a, b) => a.name.localeCompare(b.name))
-})
-
-const workedCount = computed(() => fullDxccEntities.value.filter(e => e.total > 0).length)
 
 const dxccFilter = ref('')
 const dxccBandFilter = ref('')

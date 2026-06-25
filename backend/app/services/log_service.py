@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, case, Integer
 from typing import List, Optional
 from datetime import timezone,  date, datetime, time
 from app.models.qso_log import QSOLog
@@ -197,73 +197,51 @@ class LogService:
         if station_id:
             base_filter.append(QSOLog.station_id == station_id)
 
-        query = db.query(QSOLog).filter(*base_filter)
-        total_qso = query.count()
-
-        # DXCC：按 dxcc 实体字段去重（已通联）
-        dxcc_filter = [QSOLog.user_id == user_id, QSOLog.is_deleted == False,
-                       QSOLog.dxcc.isnot(None), QSOLog.dxcc != ""]
-        if station_id:
-            dxcc_filter.append(QSOLog.station_id == station_id)
-        total_dxcc = (
-            db.query(func.count(func.distinct(QSOLog.dxcc)))
-            .filter(*dxcc_filter)
-            .scalar()
-            or 0
-        )
-
-        # 已确认 DXCC：至少有一条 QSO 的 qsl_rcvd='Y' 或 lotw_rcvd='Y' 的 DXCC 实体数
-        confirmed_filter = dxcc_filter + [or_(QSOLog.qsl_rcvd == "Y", QSOLog.lotw_rcvd == "Y")]
-        confirmed_dxcc = (
-            db.query(func.count(func.distinct(QSOLog.dxcc)))
-            .filter(*confirmed_filter)
-            .scalar()
-            or 0
-        )
-
-        # 最后通联日期
-        last_qso = query.order_by(QSOLog.qso_date.desc()).first()
-
-        qsl_sent = query.filter(QSOLog.qsl_sent == "Y").count()
-        qsl_rcvd = query.filter(QSOLog.qsl_rcvd == "Y").count()
-        eqsl_sent = query.filter(QSOLog.eqsl_sent == "Y").count()
-        eqsl_rcvd = query.filter(QSOLog.eqsl_rcvd == "Y").count()
-        lotw_confirmed = query.filter(QSOLog.lotw_rcvd == "Y").count()
-
-        # 本月 QSO
         today = datetime.now(timezone.utc).date()
         month_start = today.replace(day=1)
-        monthly_qso = query.filter(QSOLog.qso_date >= month_start).count()
-
-        # 本年 QSO
         year_start = today.replace(month=1, day=1)
-        yearly_qso = query.filter(QSOLog.qso_date >= year_start).count()
 
-        # 已确认 QSO（qsl_rcvd='Y' 或 lotw_rcvd='Y' 取并集）
-        confirmed_qso = query.filter(
-            or_(QSOLog.qsl_rcvd == "Y", QSOLog.lotw_rcvd == "Y")
-        ).count()
+        # 一条聚合查询拿完所有计数（10 个指标合并为 1 条 SQL）
+        from sqlalchemy import case
+        stats_row = db.query(
+            func.count(QSOLog.id).label("total_qso"),
+            func.max(QSOLog.qso_date).label("last_qso_date"),
+            func.sum(case((QSOLog.qsl_sent == "Y", 1), else_=0)).label("qsl_sent"),
+            func.sum(case((QSOLog.qsl_rcvd == "Y", 1), else_=0)).label("qsl_rcvd"),
+            func.sum(case((QSOLog.eqsl_sent == "Y", 1), else_=0)).label("eqsl_sent"),
+            func.sum(case((QSOLog.eqsl_rcvd == "Y", 1), else_=0)).label("eqsl_rcvd"),
+            func.sum(case((QSOLog.lotw_rcvd == "Y", 1), else_=0)).label("lotw_confirmed"),
+            func.sum(case((QSOLog.qso_date >= month_start, 1), else_=0)).label("monthly_qso"),
+            func.sum(case((QSOLog.qso_date >= year_start, 1), else_=0)).label("yearly_qso"),
+            func.sum(case((or_(QSOLog.qsl_rcvd == "Y", QSOLog.lotw_rcvd == "Y"), 1), else_=0)).label("confirmed_qso"),
+        ).filter(*base_filter).first()
 
-        # 台站数量
-        station_count = (
-            db.query(func.count(Station.id))
-            .filter(Station.user_id == user_id, Station.is_deleted == False)
-            .scalar()
-            or 0
-        )
+        total_qso = stats_row.total_qso or 0
+
+        # DXCC 计数需要单独查询（COUNT DISTINCT 无法与上面的聚合混用）
+        dxcc_filter = base_filter + [QSOLog.dxcc.isnot(None), QSOLog.dxcc != ""]
+        total_dxcc = db.query(func.count(func.distinct(QSOLog.dxcc))).filter(*dxcc_filter).scalar() or 0
+
+        confirmed_dxcc_filter = dxcc_filter + [or_(QSOLog.qsl_rcvd == "Y", QSOLog.lotw_rcvd == "Y")]
+        confirmed_dxcc = db.query(func.count(func.distinct(QSOLog.dxcc))).filter(*confirmed_dxcc_filter).scalar() or 0
+
+        # 台站数量（不同表，单独查询）
+        station_count = db.query(func.count(Station.id)).filter(
+            Station.user_id == user_id, Station.is_deleted == False
+        ).scalar() or 0
 
         return {
             "total_qso": total_qso,
-            "total_dxcc": total_dxcc or 0,
-            "confirmed_dxcc": confirmed_dxcc or 0,
-            "qsl_sent": qsl_sent,
-            "qsl_rcvd": qsl_rcvd,
-            "eqsl_sent": eqsl_sent,
-            "eqsl_rcvd": eqsl_rcvd,
-            "lotw_confirmed": lotw_confirmed,
-            "last_qso_date": str(last_qso.qso_date) if last_qso else None,
-            "monthly_qso": monthly_qso,
-            "yearly_qso": yearly_qso,
-            "confirmed_qso": confirmed_qso,
+            "total_dxcc": total_dxcc,
+            "confirmed_dxcc": confirmed_dxcc,
+            "qsl_sent": int(stats_row.qsl_sent or 0),
+            "qsl_rcvd": int(stats_row.qsl_rcvd or 0),
+            "eqsl_sent": int(stats_row.eqsl_sent or 0),
+            "eqsl_rcvd": int(stats_row.eqsl_rcvd or 0),
+            "lotw_confirmed": int(stats_row.lotw_confirmed or 0),
+            "last_qso_date": str(stats_row.last_qso_date) if stats_row.last_qso_date else None,
+            "monthly_qso": int(stats_row.monthly_qso or 0),
+            "yearly_qso": int(stats_row.yearly_qso or 0),
+            "confirmed_qso": int(stats_row.confirmed_qso or 0),
             "station_count": station_count,
         }

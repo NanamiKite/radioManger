@@ -17,6 +17,48 @@ logger = logging.getLogger("radiomanager.import_export")
 # 批量提交阈值
 BATCH_COMMIT_SIZE = 500
 
+# 日期格式列表：(格式字符串, 期望长度)
+_DATE_FORMATS = [
+    ("%Y-%m-%d", 10),
+    ("%Y%m%d", 8),
+    ("%d-%m-%y", 8),
+    ("%d-%m-%Y", 10),
+    ("%y-%m-%d", 8),
+    ("%m-%d-%y", 8),
+    ("%m-%d-%Y", 10),
+]
+
+
+def _parse_date_flexible(raw: Optional[str]) -> Optional[date]:
+    """尝试多种格式解析日期字符串，返回 date 或 None"""
+    if not raw or not isinstance(raw, str):
+        return None
+    raw = raw.strip()
+    for fmt, expected_len in _DATE_FORMATS:
+        if len(raw) == expected_len:
+            try:
+                return datetime.strptime(raw, fmt).date()
+            except ValueError:
+                continue
+    # 最后尝试直接解析前 10 位
+    try:
+        return datetime.strptime(raw[:10], "%Y-%m-%d").date()
+    except (ValueError, IndexError):
+        return None
+
+
+def _parse_time_flexible(raw: Optional[str]) -> Optional[time]:
+    """尝试解析时间字符串，返回 time 或 None"""
+    if not raw:
+        return None
+    raw = raw.strip()[:8]
+    for fmt in ("%H:%M:%S", "%H%M%S", "%H%M", "%H:%M"):
+        try:
+            return datetime.strptime(raw, fmt).time()
+        except ValueError:
+            continue
+    return None
+
 
 class ImportExportService:
     """日志导入导出服务"""
@@ -58,28 +100,36 @@ class ImportExportService:
         errors = []
         batch = []
 
-        # 预加载现有日志用于去重（6字段：call_sign + qso_date + time_on + band + mode + freq）
-        existing_map: Dict[tuple, QSOLog] = {}
-        existing_logs = (
-            db.query(QSOLog)
+        # 预加载现有日志用于去重（只查 6 个去重字段 + id，减少内存占用）
+        existing_map: Dict[tuple, int] = {}  # key -> log_id
+        existing_rows = (
+            db.query(
+                QSOLog.id,
+                QSOLog.call_sign,
+                QSOLog.qso_date,
+                QSOLog.time_on,
+                QSOLog.band,
+                QSOLog.mode,
+                QSOLog.freq,
+            )
             .filter(
                 QSOLog.user_id == user_id,
                 QSOLog.is_deleted == False,
             )
             .all()
         )
-        for log in existing_logs:
-            time_str = log.time_on.strftime("%H%M%S") if log.time_on else ""
-            freq_str = str(float(log.freq)) if log.freq else ""
+        for row in existing_rows:
+            time_str = row.time_on.strftime("%H%M%S") if row.time_on else ""
+            freq_str = str(float(row.freq)) if row.freq else ""
             key = (
-                (log.call_sign or "").upper(),
-                str(log.qso_date),
+                (row.call_sign or "").upper(),
+                str(row.qso_date),
                 time_str,
-                (log.band or "").lower(),
-                (log.mode or "").upper(),
+                (row.band or "").lower(),
+                (row.mode or "").upper(),
                 freq_str,
             )
-            existing_map[key] = log
+            existing_map[key] = row.id
 
         for idx, record in enumerate(mapped_records):
             try:
@@ -98,44 +148,16 @@ class ImportExportService:
 
                 # 解析日期（支持多种格式）
                 raw_date = str(record.get("qso_date", ""))
-                qso_date = None
-                date_formats = [
-                    ("%Y%m%d", 8),      # 20230523
-                    ("%Y-%m-%d", 10),   # 2023-05-23
-                    ("%d-%m-%y", 8),    # 23-05-23
-                    ("%d-%m-%Y", 10),   # 23-05-2023
-                    ("%y-%m-%d", 8),    # 23-05-23
-                    ("%m-%d-%y", 8),    # 05-23-23
-                    ("%m-%d-%Y", 10),   # 05-23-2023
-                ]
-                for fmt, expected_len in date_formats:
-                    if len(raw_date) == expected_len:
-                        try:
-                            qso_date = datetime.strptime(raw_date, fmt).date()
-                            break
-                        except ValueError:
-                            continue
+                qso_date = _parse_date_flexible(raw_date)
                 if not qso_date:
-                    try:
-                        qso_date = datetime.strptime(raw_date, "%Y%m%d").date()
-                    except ValueError:
-                        raise ValueError(f"Invalid date format: {raw_date}")
+                    raise ValueError(f"Invalid date format: {raw_date}")
 
                 call_sign = record.get("call_sign", "").upper()
 
-                # 解析 time_on（支持 HHmmss / HH:mm:ss / HHmm 格式）
-                time_on_str = ""
-                time_on_obj = None
+                # 解析 time_on
                 raw_time = record.get("time_on") or ""
-                if raw_time:
-                    t = raw_time.replace(":", "").strip()
-                    if len(t) >= 6:
-                        t = t[:6]
-                    elif len(t) == 4:
-                        t = t + "00"
-                    if len(t) == 6 and t.isdigit():
-                        time_on_str = t
-                        time_on_obj = time(int(t[0:2]), int(t[2:4]), int(t[4:6]))
+                time_on_obj = _parse_time_flexible(raw_time)
+                time_on_str = time_on_obj.strftime("%H%M%S") if time_on_obj else ""
 
                 # 6字段去重键
                 rec_band = (record.get("band") or "").lower()
@@ -143,10 +165,13 @@ class ImportExportService:
                 rec_freq = str(float(record["freq"])) if record.get("freq") else ""
                 dedup_key = (call_sign, str(qso_date), time_on_str, rec_band, rec_mode, rec_freq)
 
-                existing_log = existing_map.get(dedup_key)
+                existing_log_id = existing_map.get(dedup_key)
 
-                if existing_log:
-                    # === 重复记录：合并逻辑 ===
+                if existing_log_id:
+                    # === 重复记录：加载完整 ORM 对象后合并 ===
+                    existing_log = db.query(QSOLog).filter(QSOLog.id == existing_log_id).first()
+                    if not existing_log:
+                        continue
                     log_changed = False
 
                     # 1. 只填空不覆盖：导入记录有值但现有记录为空的字段 → 填入
@@ -170,26 +195,16 @@ class ImportExportService:
 
                     # qso_date_off 需要转为 date 对象
                     if record.get("qso_date_off") and not existing_log.qso_date_off:
-                        raw_doff = str(record["qso_date_off"])
-                        parsed_date_off = None
-                        for fmt, expected_len in [("%Y%m%d", 8), ("%Y-%m-%d", 10), ("%d-%m-%y", 8), ("%d-%m-%Y", 10)]:
-                            if len(raw_doff) == expected_len:
-                                try:
-                                    parsed_date_off = datetime.strptime(raw_doff, fmt).date()
-                                    break
-                                except ValueError:
-                                    continue
+                        parsed_date_off = _parse_date_flexible(str(record["qso_date_off"]))
                         if parsed_date_off:
                             existing_log.qso_date_off = parsed_date_off
                             log_changed = True
 
                     # time_off 需要转为 time 对象
                     if record.get("time_off") and not existing_log.time_off:
-                        raw_toff = record["time_off"].replace(":", "").strip()
-                        if len(raw_toff) >= 6:
-                            raw_toff = raw_toff[:6]
-                        if len(raw_toff) == 6 and raw_toff.isdigit():
-                            existing_log.time_off = time(int(raw_toff[0:2]), int(raw_toff[2:4]), int(raw_toff[4:6]))
+                        parsed_time_off = _parse_time_flexible(record["time_off"])
+                        if parsed_time_off:
+                            existing_log.time_off = parsed_time_off
                             log_changed = True
 
                     # 2. QSL 确认单向更新（只能 N→Y，不能 Y→N）
@@ -216,27 +231,9 @@ class ImportExportService:
                 if not my_gridsquare and active_location:
                     my_gridsquare = active_location.grid_square or ""
 
-                # 解析 qso_date_off
-                qso_date_off_obj = None
-                raw_date_off = str(record.get("qso_date_off") or "")
-                if raw_date_off:
-                    for fmt, expected_len in [("%Y%m%d", 8), ("%Y-%m-%d", 10), ("%d-%m-%y", 8), ("%d-%m-%Y", 10)]:
-                        if len(raw_date_off) == expected_len:
-                            try:
-                                qso_date_off_obj = datetime.strptime(raw_date_off, fmt).date()
-                                break
-                            except ValueError:
-                                continue
-
-                # 解析 time_off
-                time_off_obj = None
-                raw_time_off = record.get("time_off") or ""
-                if raw_time_off:
-                    t = raw_time_off.replace(":", "").strip()
-                    if len(t) >= 6:
-                        t = t[:6]
-                    if len(t) == 6 and t.isdigit():
-                        time_off_obj = time(int(t[0:2]), int(t[2:4]), int(t[4:6]))
+                # 解析 qso_date_off 和 time_off
+                qso_date_off_obj = _parse_date_flexible(str(record.get("qso_date_off") or ""))
+                time_off_obj = _parse_time_flexible(record.get("time_off"))
 
                 db_log = QSOLog(
                     user_id=user_id,
@@ -249,18 +246,26 @@ class ImportExportService:
                     time_on=time_on_obj,
                     time_off=time_off_obj,
                     band=rec_band or "",
+                    band_rx=record.get("band_rx"),
                     freq=Decimal(str(record["freq"])) if record.get("freq") else None,
+                    freq_rx=Decimal(str(record["freq_rx"])) if record.get("freq_rx") else None,
                     mode=record.get("mode"),
                     rst_sent=record.get("rst_sent"),
                     rst_rcvd=record.get("rst_rcvd"),
                     grid_square=record.get("grid_square"),
                     my_gridsquare=my_gridsquare or None,
+                    my_call=record.get("my_call"),
                     qsl_sent=record.get("qsl_sent", "N"),
                     qsl_rcvd=record.get("qsl_rcvd", "N"),
                     lotw_sent=record.get("lotw_sent", "N"),
                     lotw_rcvd=record.get("lotw_rcvd", "N"),
                     eqsl_sent=record.get("eqsl_sent", "N"),
                     eqsl_rcvd=record.get("eqsl_rcvd", "N"),
+                    prop_mode=record.get("prop_mode"),
+                    sat_name=record.get("sat_name"),
+                    srx=record.get("srx"),
+                    stx=record.get("stx"),
+                    contest_id=record.get("contest_id"),
                     comment=record.get("comment"),
                 )
 
@@ -366,13 +371,13 @@ class ImportExportService:
         if band:
             query = query.filter(QSOLog.band == band)
 
-        logs = query.order_by(QSOLog.qso_date).all()
+        logs = query.order_by(QSOLog.qso_date).yield_per(1000)
         stations = {s.id: s.callsign for s in db.query(Station.id, Station.callsign).filter(Station.user_id == user_id, Station.is_deleted == False).all()}
         # 预加载所有位置网格
         locations = {l.id: l.grid_square for l in db.query(Location).filter(Location.user_id == user_id, Location.is_deleted == False).all()}
 
-        # RadioManager 格式导出
-        content = "RadioManager ADIF Export<eoh>\n"
+        # ADIF 3.1.0 标准头部
+        content = "<ADIF_VER:5>3.1.0 <PROGRAMID:12>RadioManager <PROGRAMVERSION:5>2.5.0 <EOH>\n"
         for log in logs:
             parts = []
             parts.append(f"<call:{len(log.call_sign)}>{log.call_sign}")
@@ -400,10 +405,19 @@ class ImportExportService:
                 parts.append(f"<time_off:{len(ts)}>{ts}")
             if log.band:
                 parts.append(f"<band:{len(log.band)}>{log.band}")
+            if log.band_rx:
+                parts.append(f"<band_rx:{len(log.band_rx)}>{log.band_rx}")
             if log.freq:
                 fs = str(log.freq)
                 parts.append(f"<freq:{len(fs)}>{fs}")
-            # 台站呼号（从关联表获取）
+            if log.freq_rx:
+                fs = str(log.freq_rx)
+                parts.append(f"<freq_rx:{len(fs)}>{fs}")
+            # MY_CALL：标准 ADIF 字段，优先用 my_call，其次 station_callsign
+            mc = log.my_call or stations.get(log.station_id, "")
+            if mc:
+                parts.append(f"<my_call:{len(mc)}>{mc}")
+            # STATION_CALLSIGN：保留兼容性
             sc = stations.get(log.station_id, "")
             if sc:
                 parts.append(f"<station_callsign:{len(sc)}>{sc}")
@@ -414,6 +428,17 @@ class ImportExportService:
             if log.tx_pwr:
                 pw = str(log.tx_pwr)
                 parts.append(f"<tx_pwr:{len(pw)}>{pw}")
+            # ADIF 3.1.0 扩展字段
+            if log.prop_mode:
+                parts.append(f"<prop_mode:{len(log.prop_mode)}>{log.prop_mode}")
+            if log.sat_name:
+                parts.append(f"<sat_name:{len(log.sat_name)}>{log.sat_name}")
+            if log.srx:
+                parts.append(f"<srx:{len(log.srx)}>{log.srx}")
+            if log.stx:
+                parts.append(f"<stx:{len(log.stx)}>{log.stx}")
+            if log.contest_id:
+                parts.append(f"<contest_id:{len(log.contest_id)}>{log.contest_id}")
             if log.comment:
                 parts.append(f"<comment:{len(log.comment)}>{log.comment}")
 

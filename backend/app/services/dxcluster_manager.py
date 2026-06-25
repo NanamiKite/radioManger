@@ -118,13 +118,17 @@ class DXClusterManager:
 
         self._spots: deque[SpotData] = deque(maxlen=MAX_SPOTS)
         self._subscribers: set[asyncio.Queue] = set()
-
         self._connected: bool = False
         self._connecting: bool = False
         self._current_node: Optional[NodeInfo] = None
         self._callsign: Optional[str] = None
         self._connected_at: Optional[float] = None
         self._lock = asyncio.Lock()
+
+    @property
+    def subscriber_count(self) -> int:
+        """当前 WebSocket 订阅者数量"""
+        return len(self._subscribers)
 
     # ------------------------------------------------------------------
     # 状态查询

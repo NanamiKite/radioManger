@@ -19,9 +19,9 @@ DEFAULT_SHORTCUTS = [
 
 router = APIRouter()
 
-# 用户自定义快捷链接（内存存储，后续可持久化）
+# 用户自定义快捷链接
+# ⚠️ 仅内存存储，进程重启后数据丢失，多 worker 间不共享
 _user_shortcuts: dict = {}
-_shortcut_counter: int = 1000  # 自增 ID，避免与默认 ID 碰撞
 
 
 @router.get("")
@@ -42,14 +42,14 @@ async def create_shortcut(
     current_user=Depends(get_current_user),
 ):
     """添加快捷链接"""
-    global _shortcut_counter
+    import time
     user_id = current_user.id
     if user_id not in _user_shortcuts:
         _user_shortcuts[user_id] = []
 
-    _shortcut_counter += 1
+    shortcut_id = time.time_ns() % 10_000_000  # 纳秒时间戳取余，避免碰撞且无需全局状态
     shortcut = {
-        "id": _shortcut_counter,
+        "id": shortcut_id,
         "name": name,
         "url": url,
         "description": description,

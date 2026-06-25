@@ -49,6 +49,15 @@ class QSOLog(Base):
     my_gridsquare = Column(String(6))    # 操作员梅登网格
     station_callsign = Column(String(20)) # 台站呼号（WSJT-X导出字段）
     comment = Column(Text)
+
+    # ADIF 3.1.0 扩展字段
+    my_call = Column(String(20))         # 操作员呼号（标准 ADIF 字段）
+    prop_mode = Column(String(20))       # 传播模式（SAT/EME/AUR 等）
+    sat_name = Column(String(50))        # 卫星名称
+    srx = Column(String(20))             # 接收序列号（比赛日志）
+    stx = Column(String(20))             # 发送序列号（比赛日志）
+    contest_id = Column(String(50))      # 比赛标识
+
     is_deleted = Column(Boolean, default=False)
     
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))

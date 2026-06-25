@@ -3,13 +3,8 @@ import { ref, computed } from 'vue'
 import { storage } from '@/utils/storage'
 import type { User } from '@/types'
 import { authApi } from '@/api/auth'
-import api from '@/api/index'
-
-interface HealthResponse {
-  status: string
-  database: string
-  subsystems?: Record<string, string>
-}
+import type { HealthResponse } from '@/api/health'
+import { fetchHealth } from '@/api/health'
 
 interface RegisterData {
   username: string
@@ -30,7 +25,7 @@ export const useAuthStore = defineStore('auth', () => {
   /** 获取数据库模式（用于判断是否为服务器部署） */
   const fetchDbMode = async () => {
     try {
-      const res = await api.get('/health') as unknown as HealthResponse
+      const res = await fetchHealth()
       dbMode.value = res?.database || 'sqlite'
     } catch {
       dbMode.value = 'sqlite'

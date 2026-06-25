@@ -3,7 +3,7 @@
 import json
 import logging
 from decimal import Decimal
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date as date_type
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,35 @@ from app.models.qso_log import QSOLog
 from app.models.deleted_log import DeletedLog
 
 logger = logging.getLogger("radiomanager.recycle")
+
+# 日期格式列表：(格式字符串, 期望长度)
+_DATE_FORMATS = [
+    ("%Y-%m-%d", 10),
+    ("%Y%m%d", 8),
+    ("%d-%m-%y", 8),
+    ("%d-%m-%Y", 10),
+    ("%y-%m-%d", 8),
+    ("%m-%d-%y", 8),
+    ("%m-%d-%Y", 10),
+]
+
+
+def _parse_date_flexible(raw: Optional[str]) -> Optional[date_type]:
+    """尝试多种格式解析日期字符串，返回 date 或 None"""
+    if not raw or not isinstance(raw, str):
+        return None
+    raw = raw.strip()
+    for fmt, expected_len in _DATE_FORMATS:
+        if len(raw) == expected_len:
+            try:
+                return datetime.strptime(raw, fmt).date()
+            except ValueError:
+                continue
+    # 最后尝试直接解析
+    try:
+        return datetime.strptime(raw[:10], "%Y-%m-%d").date()
+    except (ValueError, IndexError):
+        return None
 
 
 class DeletedLogService:
@@ -53,7 +82,13 @@ class DeletedLogService:
             "tx_pwr": qso_log.tx_pwr,
             "my_gridsquare": qso_log.my_gridsquare,
             "station_callsign": qso_log.station_callsign,
+            "my_call": qso_log.my_call,
             "comment": qso_log.comment,
+            "prop_mode": qso_log.prop_mode,
+            "sat_name": qso_log.sat_name,
+            "srx": qso_log.srx,
+            "stx": qso_log.stx,
+            "contest_id": qso_log.contest_id,
         }
 
         now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -110,7 +145,7 @@ class DeletedLogService:
 
     @staticmethod
     def restore_log(db: Session, deleted_id: int, user_id: int) -> Optional[QSOLog]:
-        """从回收站恢复日志"""
+        """从回收站恢复日志 — 恢复原记录而非创建新记录"""
         entry = (
             db.query(DeletedLog)
             .filter(
@@ -125,58 +160,62 @@ class DeletedLogService:
         if entry.expires_at and entry.expires_at < datetime.now(timezone.utc).replace(tzinfo=None):
             raise ValueError("Deleted log has expired and cannot be restored")
 
-        # 从备份数据恢复
-        data = entry.log_data
-        new_log = QSOLog(
-            user_id=user_id,
-            station_id=data.get("station_id"),
-            location_id=data.get("location_id"),
-            call_sign=data.get("call_sign", ""),
-            qso_date=datetime.strptime(data["qso_date"], "%Y-%m-%d").date()
-            if isinstance(data.get("qso_date"), str) and len(data["qso_date"]) == 10
-            else datetime.strptime(data["qso_date"], "%Y%m%d").date()
-            if data.get("qso_date")
-            else None,
-            qso_date_off=datetime.strptime(data["qso_date_off"], "%Y-%m-%d").date()
-            if isinstance(data.get("qso_date_off"), str) and len(data["qso_date_off"]) == 10
-            else datetime.strptime(data["qso_date_off"], "%Y%m%d").date()
-            if data.get("qso_date_off")
-            else None,
-            time_on=datetime.strptime(data["time_on"][:8], "%H:%M:%S").time()
-            if data.get("time_on") else None,
-            time_off=datetime.strptime(data["time_off"][:8], "%H:%M:%S").time()
-            if data.get("time_off") else None,
-            band=data.get("band"),
-            band_rx=data.get("band_rx"),
-            freq=Decimal(str(data["freq"])) if data.get("freq") else None,
-            freq_rx=Decimal(str(data["freq_rx"])) if data.get("freq_rx") else None,
-            mode=data.get("mode"),
-            rst_sent=data.get("rst_sent"),
-            rst_rcvd=data.get("rst_rcvd"),
-            grid_square=data.get("grid_square"),
-            operator=data.get("operator"),
-            qth=data.get("qth"),
-            qsl_sent=data.get("qsl_sent", "N"),
-            qsl_rcvd=data.get("qsl_rcvd", "N"),
-            eqsl_sent=data.get("eqsl_sent", "N"),
-            eqsl_rcvd=data.get("eqsl_rcvd", "N"),
-            lotw_sent=data.get("lotw_sent", "N"),
-            lotw_rcvd=data.get("lotw_rcvd", "N"),
-            distance=data.get("distance"),
-            dxcc=data.get("dxcc"),
-            tx_pwr=data.get("tx_pwr"),
-            my_gridsquare=data.get("my_gridsquare"),
-            station_callsign=data.get("station_callsign"),
-            comment=data.get("comment"),
-        )
-        db.add(new_log)
-        db.flush()
+        # 恢复原记录：将 is_deleted 改回 False
+        original_log = db.query(QSOLog).filter(
+            QSOLog.id == entry.log_id,
+            QSOLog.user_id == user_id,
+        ).first()
+
+        if original_log:
+            original_log.is_deleted = False
+        else:
+            # 原记录不存在（异常情况），从备份数据重建
+            data = entry.log_data
+            original_log = QSOLog(
+                user_id=user_id,
+                station_id=data.get("station_id"),
+                location_id=data.get("location_id"),
+                call_sign=data.get("call_sign", ""),
+                qso_date=_parse_date_flexible(data.get("qso_date")),
+                qso_date_off=_parse_date_flexible(data.get("qso_date_off")),
+                time_on=datetime.strptime(data["time_on"][:8], "%H:%M:%S").time() if data.get("time_on") else None,
+                time_off=datetime.strptime(data["time_off"][:8], "%H:%M:%S").time() if data.get("time_off") else None,
+                band=data.get("band"),
+                band_rx=data.get("band_rx"),
+                freq=Decimal(str(data["freq"])) if data.get("freq") else None,
+                freq_rx=Decimal(str(data["freq_rx"])) if data.get("freq_rx") else None,
+                mode=data.get("mode"),
+                rst_sent=data.get("rst_sent"),
+                rst_rcvd=data.get("rst_rcvd"),
+                grid_square=data.get("grid_square"),
+                operator=data.get("operator"),
+                qth=data.get("qth"),
+                qsl_sent=data.get("qsl_sent", "N"),
+                qsl_rcvd=data.get("qsl_rcvd", "N"),
+                eqsl_sent=data.get("eqsl_sent", "N"),
+                eqsl_rcvd=data.get("eqsl_rcvd", "N"),
+                lotw_sent=data.get("lotw_sent", "N"),
+                lotw_rcvd=data.get("lotw_rcvd", "N"),
+                distance=data.get("distance"),
+                dxcc=data.get("dxcc"),
+                tx_pwr=data.get("tx_pwr"),
+                my_gridsquare=data.get("my_gridsquare"),
+                station_callsign=data.get("station_callsign"),
+                my_call=data.get("my_call"),
+                comment=data.get("comment"),
+                prop_mode=data.get("prop_mode"),
+                sat_name=data.get("sat_name"),
+                srx=data.get("srx"),
+                stx=data.get("stx"),
+                contest_id=data.get("contest_id"),
+            )
+            db.add(original_log)
 
         # 标记回收站条目为已恢复
         entry.is_restored = True
         db.commit()
-        db.refresh(new_log)
-        return new_log
+        db.refresh(original_log)
+        return original_log
 
     @staticmethod
     def cleanup_expired(db: Session, user_id: Optional[int] = None):

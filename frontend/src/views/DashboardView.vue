@@ -74,16 +74,16 @@
                 </span>
               </template>
             </el-table-column>
-            <el-table-column prop="mode" label="Mode" width="90">
+            <el-table-column prop="mode" :label="$t('logs.mode')" width="90">
               <template #default="scope"><span style="font-size:14px">{{ scope.row.mode }}</span></template>
             </el-table-column>
-            <el-table-column prop="band" label="Band" width="90">
+            <el-table-column prop="band" :label="$t('logs.band')" width="90">
               <template #default="scope"><span style="font-size:14px">{{ scope.row.band }}</span></template>
             </el-table-column>
             <el-table-column prop="qso_date" :label="$t('logs.qsoDate')" width="120">
               <template #default="scope"><span style="font-size:14px">{{ scope.row.qso_date }}</span></template>
             </el-table-column>
-            <el-table-column prop="dxcc" label="DXCC">
+            <el-table-column prop="dxcc" :label="'DXCC'">
               <template #default="scope"><span style="font-size:14px">{{ scope.row.dxcc || '-' }}</span></template>
             </el-table-column>
           </el-table>

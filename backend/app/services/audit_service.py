@@ -1,8 +1,11 @@
 """审计日志服务"""
+import logging
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.models.audit_log import AuditLog
 from app.models.user import User
+
+logger = logging.getLogger("radiomanager.audit")
 
 
 class AuditService:
@@ -29,7 +32,11 @@ class AuditService:
             ip_address=ip_address,
         )
         db.add(entry)
-        db.commit()
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.warning("Failed to write audit log (action=%s), rolling back", action)
 
     @staticmethod
     def get_logs(
