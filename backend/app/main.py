@@ -42,12 +42,12 @@ app = FastAPI(
     title="RadioManager API",
     description="Amateur Radio Log Management System API",
     version=settings.VERSION,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
     lifespan=lifespan,
 )
 
-app.add_middleware(CORSMiddleware, allow_origins=settings.CORS_ORIGINS, allow_credentials=True, allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=settings.CORS_ORIGINS, allow_credentials=True, allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"], allow_headers=["Authorization", "Content-Type", "Accept"])
 # 中间件顺序：后添加的先执行请求。执行顺序：RateLimit → Logging → ErrorHandler → CORS
 app.add_middleware(ErrorHandlerMiddleware)
 app.add_middleware(LoggingMiddleware)

@@ -9,10 +9,10 @@
     <el-card class="filter-card">
       <el-form :inline="true" size="small">
         <el-form-item>
-          <el-input v-model="usernameFilter" placeholder="Username" clearable @keyup.enter="fetchLogs" />
+          <el-input v-model="usernameFilter" :placeholder="$t('admin.username')" clearable @keyup.enter="fetchLogs" />
         </el-form-item>
         <el-form-item>
-          <el-select v-model="actionFilter" clearable placeholder="Action">
+          <el-select v-model="actionFilter" clearable :placeholder="$t('admin.action')">
             <el-option v-for="a in actions" :key="a" :label="a" :value="a" />
           </el-select>
         </el-form-item>
@@ -26,15 +26,15 @@
     <el-card>
       <el-table :data="logs" v-loading="loading" stripe>
         <el-table-column prop="created_at" :label="$t('admin.time')" width="180" />
-        <el-table-column prop="username" label="User" width="120" />
-        <el-table-column prop="action" label="Action" width="160">
+        <el-table-column prop="username" :label="$t('admin.user')" width="120" />
+        <el-table-column prop="action" :label="$t('admin.action')" width="160">
           <template #default="scope">
             <el-tag :type="getActionType(scope.row.action)" size="small">{{ scope.row.action }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="target_type" label="Target" width="100" />
+        <el-table-column prop="target_type" :label="$t('admin.target')" width="100" />
         <el-table-column prop="detail" :label="$t('admin.detail')" min-width="250" show-overflow-tooltip />
-        <el-table-column prop="ip_address" label="IP" width="130" />
+        <el-table-column prop="ip_address" :label="$t('admin.ipAddress')" width="130" />
       </el-table>
 
       <div class="pagination-wrapper">
@@ -85,7 +85,7 @@ const fetchLogs = async () => {
     logs.value = res.items
     total.value = res.total
   } catch {
-    ElMessage.error('Failed to load audit logs')
+    ElMessage.error(t('admin.loadAuditFailed'))
   } finally {
     loading.value = false
   }

@@ -11,6 +11,15 @@ pwd_context = CryptContext(
     deprecated="auto"
 )
 
+class TokenExpiredError(Exception):
+    """Token 已过期"""
+    pass
+
+class InvalidTokenError(Exception):
+    """Token 无效"""
+    pass
+
+
 class SecurityUtils:
     @staticmethod
     def hash_password(password: str) -> str:
@@ -56,6 +65,6 @@ class SecurityUtils:
             )
             return payload
         except jwt.ExpiredSignatureError:
-            raise Exception("Token expired")
+            raise TokenExpiredError("Token expired")
         except jwt.InvalidTokenError:
-            raise Exception("Invalid token")
+            raise InvalidTokenError("Invalid token")

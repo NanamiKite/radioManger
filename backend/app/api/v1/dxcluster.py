@@ -117,6 +117,9 @@ async def _authenticate_ws(ws: WebSocket) -> User:
     """从 query param ?token=xxx 鉴权 WebSocket 连接。
 
     浏览器原生 WebSocket 不支持自定义 header，故用 query param 传 token。
+
+    ⚠️ 安全提示: JWT 放在 URL query 中会被记录在 access log、浏览器历史、代理日志中。
+    长期方案应改为 WebSocket 建立后首条消息发送 token，或使用短期专用 token。
     """
     token = ws.query_params.get("token")
     if not token:
@@ -180,7 +183,7 @@ async def dxcluster_ws(ws: WebSocket):
 
     # 订阅实时流
     queue = await dxcluster_manager.subscribe()
-    logger.info("WS client subscribed to real-time stream (subscribers=%d)", len(dxcluster_manager._subscribers))
+    logger.info("WS client subscribed to real-time stream (subscribers=%d)", dxcluster_manager.subscriber_count)
     try:
         while True:
             item = await queue.get()

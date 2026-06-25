@@ -64,8 +64,6 @@ async def create_log(
         return _enrich_log(log, cache, lcache)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @router.get("", response_model=dict)
 async def get_logs(

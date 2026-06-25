@@ -48,7 +48,7 @@
             <span v-else @click="startEdit(scope.row)" class="config-value">{{ scope.row.value }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="value_type" label="Type" width="80" />
+        <el-table-column prop="value_type" :label="$t('admin.type')" width="80" />
         <el-table-column label="" width="100">
           <template #default="scope">
             <el-button v-if="editingKey === scope.row.key" size="small" type="primary" @click="saveConfig(scope.row)">
@@ -75,11 +75,11 @@ const editingKey = ref('')
 const editValue = ref('')
 
 const fetchStatus = async () => {
-  try { status.value = await adminApi.getStatus() } catch {}
+  try { status.value = await adminApi.getStatus() } catch { ElMessage.error(t('errors.serverError')) }
 }
 
 const fetchConfigs = async () => {
-  try { configs.value = await adminApi.getConfigs() } catch {}
+  try { configs.value = await adminApi.getConfigs() } catch { ElMessage.error(t('errors.serverError')) }
 }
 
 const startEdit = (row: any) => {
@@ -97,9 +97,9 @@ const saveConfig = async (row: any) => {
     await adminApi.updateConfig(row.key, editValue.value)
     row.value = editValue.value
     editingKey.value = ''
-    ElMessage.success('Config updated')
+    ElMessage.success(t('admin.configUpdated'))
   } catch {
-    ElMessage.error('Failed to update config')
+    ElMessage.error(t('admin.configUpdateFailed'))
   }
 }
 

@@ -1,3 +1,4 @@
+from typing import Optional
 from sqlalchemy.orm import Session
 from app.models.user import User
 from app.schemas.user import UserRegister, UserLogin, UserUpdate
@@ -37,16 +38,16 @@ class UserService:
         return db_user
     
     @staticmethod
-    def authenticate_user(db: Session, username: str, password: str) -> User:
-        """认证用户"""
+    def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
+        """认证用户。失败返回 None（不区分原因，防止用户枚举）"""
         user = UserService.get_user_by_username(db, username)
-        
+
         if not user or not SecurityUtils.verify_password(password, user.password_hash):
             return None
-        
+
         if not user.is_active:
-            raise ValueError("User is not active")
-        
+            return None
+
         return user
     
     @staticmethod

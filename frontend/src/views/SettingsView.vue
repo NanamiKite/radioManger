@@ -184,6 +184,7 @@ import api from '@/api/index'
 import { udpApi } from '@/api/udp'
 import { authApi } from '@/api/auth'
 import { fetchHealth } from '@/api/health'
+import { storage } from '@/utils/storage'
 
 const authStore = useAuthStore()
 const { locale, t } = useI18n()
@@ -280,7 +281,7 @@ const savePreferences = async () => {
     // 同步更新 store 中的用户信息
     authStore.user = { ...authStore.user, timezone: timezone.value, language: language.value } as any
     // 同步到 storage
-    localStorage.setItem('user', JSON.stringify(authStore.user))
+    storage.setUser(authStore.user)
     prefResult.value = t('settings.settingsSaved')
   } catch (err: any) {
     prefResult.value = t('errors.serverError') + ': ' + (err?.response?.data?.detail || '')

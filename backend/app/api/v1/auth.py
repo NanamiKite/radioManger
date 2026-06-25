@@ -110,10 +110,11 @@ async def login(user_data: UserLogin, request: Request, db: Session = Depends(ge
             "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             "user": UserResponse.model_validate(user)
         }
-    except ValueError as e:
+    except ValueError:
+        # 统一返回 "Invalid credentials"，不泄露用户是否存在/是否被禁用
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e)
+            detail="Invalid credentials"
         )
 
 

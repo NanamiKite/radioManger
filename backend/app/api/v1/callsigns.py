@@ -67,4 +67,7 @@ async def lookup_callsign(
     current_user=Depends(get_current_user),
 ):
     """查询单个呼号（离线时返回DXCC推断结果）"""
-    return CallsignService.lookup(db, call_sign)
+    result = CallsignService.lookup(db, call_sign)
+    if not result:
+        raise HTTPException(status_code=404, detail="Callsign not found")
+    return result

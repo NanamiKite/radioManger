@@ -59,10 +59,10 @@ const form = reactive({
 
 const rules = {
   username: [
-    { required: true, message: 'Please enter username', trigger: 'blur' }
+    { required: true, message: t('auth.enterUsername'), trigger: 'blur' }
   ],
   password: [
-    { required: true, message: 'Please enter password', trigger: 'blur' }
+    { required: true, message: t('auth.enterPassword'), trigger: 'blur' }
   ]
 }
 

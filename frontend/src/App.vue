@@ -41,7 +41,7 @@
 
           <!-- 右侧：操作 -->
           <div class="header-right">
-            <el-tooltip :content="getThemeLabel(themeMode)" placement="bottom">
+            <el-tooltip :content="$t(getThemeLabel(themeMode))" placement="bottom">
               <button class="icon-btn" @click="toggleTheme">
                 <span>{{ getThemeIcon(themeMode) }}</span>
               </button>

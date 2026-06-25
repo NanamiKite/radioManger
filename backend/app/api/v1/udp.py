@@ -52,20 +52,18 @@ async def udp_stop(current_user=Depends(get_current_user)):
     return {"data": {"running": False}}
 
 
-@router.post("/save-to-log/{user_id}")
+@router.post("/save-to-log")
 async def save_qso_to_log(
-    user_id: int,
-    qso_data: dict,
+    qso_data: QSOLogCreate,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     """将接收到的 QSO 数据保存为日志（由前端调用或自动保存）"""
     try:
-        create_data = QSOLogCreate(**qso_data)
-        log = LogService.create_log(db, current_user.id, create_data)
+        log = LogService.create_log(db, current_user.id, qso_data)
         return {"data": {"id": log.id, "call_sign": log.call_sign}}
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        return {"error": "Failed to save QSO"}
 
 
 @router.websocket("/ws")
@@ -74,6 +72,9 @@ async def udp_ws(websocket: WebSocket):
 
     连接时需要在 query 参数中传递 token:
     ws://host/api/v1/udp/ws?token={jwt_token}
+
+    ⚠️ 安全提示: JWT 放在 URL query 中会被记录在 access log、浏览器历史、代理日志中。
+    长期方案应改为 WebSocket 建立后首条消息发送 token，或使用短期专用 token。
     """
     # 验证 token
     token = websocket.query_params.get("token")
@@ -129,8 +130,8 @@ async def udp_ws(websocket: WebSocket):
                                 "type": "qso_saved",
                                 "data": {"id": log.id, "call_sign": log.call_sign},
                             })
-                        except Exception as e:
-                            await websocket.send_json({"type": "error", "message": str(e)})
+                        except Exception:
+                            await websocket.send_json({"type": "error", "message": "Failed to save QSO"})
                         finally:
                             db.close()
             except json.JSONDecodeError:

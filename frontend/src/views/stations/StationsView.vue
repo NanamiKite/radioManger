@@ -295,7 +295,9 @@ const handleDeleteLocation = async (loc: any) => {
     ElMessage.success(t('common.deleteSuccess'))
     await loadData()
     await logsStore.refreshActiveStation()
-  } catch { /* cancelled */ }
+  } catch (err: any) {
+    if (err !== 'cancel') ElMessage.error(err?.response?.data?.detail || t('errors.serverError'))
+  }
 }
 
 const resetLocationForm = () => {

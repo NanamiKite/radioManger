@@ -112,17 +112,17 @@ function getThemeIcon(mode: ThemeMode): string {
   }
 }
 
-// 获取主题标签
+// 获取主题标签的 i18n key（由调用方 $t() 翻译）
 function getThemeLabel(mode: ThemeMode): string {
   switch (mode) {
     case 'light':
-      return '浅色模式'
+      return 'settings.lightMode'
     case 'dark':
-      return '深色模式'
+      return 'settings.darkMode'
     case 'system':
-      return '跟随系统'
+      return 'settings.followSystem'
     default:
-      return '浅色模式'
+      return 'settings.lightMode'
   }
 }
 

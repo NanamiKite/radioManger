@@ -6,7 +6,7 @@
         <p>
           {{ $t('nav.logs') }}
           <span v-if="logsStore.activeStation" style="margin-left:12px;color:var(--color-accent);">
-             | Active: <strong>{{ logsStore.activeStation.callsign }}</strong>
+             | {{ $t('logs.active') }}: <strong>{{ logsStore.activeStation.callsign }}</strong>
           </span>
         </p>
       </div>
@@ -23,7 +23,7 @@
         <el-form-item :label="$t('logs.callSign')">
           <el-input v-model="logsStore.filters.call_sign" :placeholder="$t('logs.callSign')" clearable />
         </el-form-item>
-        <el-form-item label="Grid">
+        <el-form-item :label="$t('logs.gridSquare')">
           <el-input v-model="logsStore.filters.grid_square" placeholder="OL63" clearable
             @input="(v: string) => logsStore.filters.grid_square = v.toUpperCase()" style="width:80px" />
         </el-form-item>
@@ -81,7 +81,7 @@
         <el-table-column prop="time_on" label="UTC" width="80">
           <template #default="scope">{{ scope.row.time_on ? scope.row.time_on.substring(0, 5) : '-' }}</template>
         </el-table-column>
-        <el-table-column prop="station_callsign" label="De Call" width="120">
+        <el-table-column prop="station_callsign" :label="$t('logs.deCall')" width="120">
           <template #default="scope">
             <el-tag size="small" type="info">{{ scope.row.station_callsign || '-' }}</el-tag>
           </template>
@@ -106,7 +106,7 @@
         </el-table-column>
         <el-table-column prop="rst_sent" :label="$t('logs.rstSent')" width="90" sortable="custom" />
         <el-table-column prop="rst_rcvd" :label="$t('logs.rstReceived')" width="90" sortable="custom" />
-        <el-table-column prop="lotw_rcvd" label="LoTW确认" width="90" sortable="custom">
+        <el-table-column prop="lotw_rcvd" :label="$t('logs.lotwConfirmed')" width="90" sortable="custom">
           <template #default="scope">
             <span :class="scope.row.lotw_rcvd === 'Y' ? 'lotw-yes' : 'lotw-no'">
               {{ scope.row.lotw_rcvd === 'Y' ? 'Y' : 'N' }}
@@ -140,15 +140,15 @@
         :on-change="handleFileChange" :file-list="importFileList"
         :on-remove="() => { importFile = null; importFileList = [] }">
         <el-icon style="font-size:48px;color:var(--text-color-placeholder)"><UploadFilled /></el-icon>
-        <div class="el-upload__text">Drop .adi/.adif file here or <em>click to browse</em></div>
+        <div class="el-upload__text">{{ $t('logs.dropFile') }} <em>{{ $t('logs.clickToBrowse') }}</em></div>
       </el-upload>
       <div v-if="importResult" style="margin-top:12px">
         <el-alert
-          :title="`Imported: ${importResult.imported} | Duplicates: ${importResult.duplicates || 0} | QSL Updated: ${importResult.updated || 0} | Errors: ${importResult.skipped}`"
+          :title="$t('logs.importResult', { imported: importResult.imported, duplicates: importResult.duplicates || 0, updated: importResult.updated || 0, errors: importResult.skipped })"
           :type="importResult.errors?.length ? 'warning' : 'success'" show-icon />
         <el-table v-if="importResult.errors?.length" :data="importResult.errors" size="small" style="margin-top:8px" max-height="200">
-          <el-table-column prop="line" label="Line" width="60" />
-          <el-table-column prop="error" label="Error" />
+          <el-table-column prop="line" :label="$t('logs.line')" width="60" />
+          <el-table-column prop="error" :label="$t('logs.error')" />
         </el-table>
       </div>
       <template #footer>
@@ -189,7 +189,7 @@
             <el-option label="15m" value="15m" /><el-option label="10m" value="10m" />
           </el-select>
         </el-form-item>
-        <el-form-item label="Format">
+        <el-form-item :label="$t('logs.format')">
           <el-radio-group v-model="exportFormat">
             <el-radio value="adi">ADI</el-radio>
             <el-radio value="adif">ADIF</el-radio>
@@ -217,7 +217,7 @@
       <el-form ref="createFormRef" :model="createForm" :rules="logRules" label-width="120px">
         <el-form-item :label="$t('logs.stationId')">
           <el-tag type="info" style="font-size:14px;padding:8px 16px;">
-            {{ logsStore.activeStation?.callsign || 'No active station' }}
+            {{ logsStore.activeStation?.callsign || $t('logs.noActiveStationShort') }}
           </el-tag>
         </el-form-item>
         <el-form-item :label="$t('logs.callSign')" prop="call_sign">
@@ -226,8 +226,8 @@
         <el-form-item :label="$t('logs.qsoDate')" prop="qso_date">
           <el-date-picker v-model="createForm.qso_date" type="date" value-format="YYYY-MM-DD" style="width:100%" />
         </el-form-item>
-        <el-form-item label="Time (UTC)">
-          <el-time-picker v-model="createForm.time_on" value-format="HH:mm:ss" placeholder="UTC+0" style="width:100%" />
+        <el-form-item :label="$t('logs.timeUtc')">
+          <el-time-picker v-model="createForm.time_on" value-format="HH:mm:ss" :placeholder="$t('logs.utcHint')" style="width:100%" />
         </el-form-item>
         <el-form-item :label="$t('logs.band')" prop="band">
           <el-select v-model="createForm.band" @change="handleBandChange" style="width:100%">
@@ -305,11 +305,12 @@ const createForm = reactive({
   station_id: 0, call_sign: '', qso_date: '', time_on: '',
   band: '20m', freq: '14.0000', mode: 'FT8', qsl_sent: 'N', qsl_rcvd: 'N', comment: '', grid_square: ''
 })
+const { t } = useI18n()
 const logRules = {
-  call_sign: [{ required: true, message: 'Please enter callsign', trigger: 'blur' }],
-  qso_date: [{ required: true, message: 'Please select date', trigger: 'change' }],
-  band: [{ required: true, message: 'Please select band', trigger: 'change' }],
-  mode: [{ required: true, message: 'Please select mode', trigger: 'change' }]
+  call_sign: [{ required: true, message: t('logs.pleaseEnterCallsign'), trigger: 'blur' }],
+  qso_date: [{ required: true, message: t('logs.pleaseSelectDate'), trigger: 'change' }],
+  band: [{ required: true, message: t('logs.pleaseSelectBand'), trigger: 'change' }],
+  mode: [{ required: true, message: t('logs.pleaseSelectMode'), trigger: 'change' }]
 }
 
 const handleBandChange = (val: string) => {
@@ -442,6 +443,11 @@ onMounted(async () => {
   await logsStore.fetchStations()
   applyActiveStationFilter()
 
+  // 无激活台站时提示用户
+  if (!logsStore.activeStation && logsStore.stations.length > 0) {
+    ElMessage.info($t('logs.noActiveStation'))
+  }
+
   // 读取 URL 查询参数
   const gridQuery = route.query.grid as string
   if (gridQuery) {
@@ -510,7 +516,7 @@ const lookupCall = (call: string) => {
 const handleCreate = async () => {
   try {
     if (!logsStore.activeStation || !logsStore.activeStation.id) {
-      ElMessage.warning('No active station with a configured location. Please create a station and location first.')
+      ElMessage.warning(t('logs.noStationWarning'))
       showCreateDialog.value = false
       router.push({ name: 'Stations' })
       return
