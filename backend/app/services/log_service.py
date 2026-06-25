@@ -8,6 +8,7 @@ from app.models.station import Station
 from app.schemas.qso_log import QSOLogCreate, QSOLogUpdate
 from app.services.station_service import StationService
 from app.utils.dxcc import lookup_dxcc
+from app.config import settings
 
 
 # 允许排序的安全字段白名单
@@ -122,7 +123,13 @@ class LogService:
         if mode:
             query = query.filter(QSOLog.mode == mode)
         if call_sign:
-            query = query.filter(func.upper(QSOLog.call_sign).contains(call_sign.upper()))
+            # MySQL: utf8mb4_general_ci collation 默认 case-insensitive，LIKE 可走索引前缀
+            # SQLite: 无原生 case-insensitive LIKE，保持 func.upper()
+            if settings.DATABASE_MODE == "mysql":
+                escaped = call_sign.upper().replace("%", "\\%").replace("_", "\\_")
+                query = query.filter(QSOLog.call_sign.like(f"%{escaped}%"))
+            else:
+                query = query.filter(func.upper(QSOLog.call_sign).contains(call_sign.upper()))
         if grid_square:
             query = query.filter(
                 func.upper(func.substr(QSOLog.grid_square, 1, 4)) == grid_square.strip()[:4].upper()

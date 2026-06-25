@@ -155,7 +155,7 @@ class DXClusterManager:
         """返回最近 N 条 spot（新→旧）。"""
         items = list(self._spots)
         items.reverse()
-        print(f"Returning {min(limit, len(items))} spots from history (total stored: {len(items)})")
+        logger.debug("Returning %d spots from history (total stored: %d)", min(limit, len(items)), len(items))
         return [s.to_dict() for s in items[:limit]]
 
     @staticmethod

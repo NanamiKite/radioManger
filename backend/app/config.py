@@ -7,6 +7,7 @@ class Settings(BaseSettings):
 
     # 应用基本设置
     APP_NAME: str = "RadioManager"
+    VERSION: str = "2.5.0"
     DEBUG: bool = False
     API_V1_STR: str = "/api/v1"
     WORKERS: int = 4
@@ -19,8 +20,8 @@ class Settings(BaseSettings):
     # 使用绝对路径避免工作目录问题
     SQLITE_URL: str = "sqlite:///./radiomanager.db"
     SQLITE_PATH: str = "./radiomanager.db"
-    # MySQL连接字符串 (仅 DATABASE_MODE=mysql 时生效)
-    DATABASE_URL: str = "mysql+pymysql://radiomanager:password123@localhost:3306/radiomanager"
+    # MySQL连接字符串 (仅 DATABASE_MODE=mysql 时生效，必须在 .env 中设置)
+    DATABASE_URL: str = ""
     SQLALCHEMY_ECHO: bool = False
 
     @property
@@ -76,7 +77,7 @@ class Settings(BaseSettings):
     ALLOWED_EXTENSIONS: List[str] = ["adi", "adif"]
 
     # 开发模式设置
-    ENABLE_TEST_ACCOUNT: bool = True   # 本地开发默认启用测试账号
+    ENABLE_TEST_ACCOUNT: bool = False   # 本地开发时在 .env 中设为 true 启用测试账号
     TEST_ACCOUNT_USERNAME: str = "admin"
     TEST_ACCOUNT_PASSWORD: str = "admin123"
     TEST_ACCOUNT_EMAIL: str = "admin@radiomanager.dev"
@@ -95,6 +96,10 @@ class Settings(BaseSettings):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if not self.SECRET_KEY:
+            if self.ENVIRONMENT == "production":
+                import sys
+                print("FATAL: SECRET_KEY is empty in production! Set it in .env or environment variable.", file=sys.stderr)
+                raise SystemExit(1)
             import warnings
             warnings.warn(
                 "SECRET_KEY is empty! Set it in .env or environment variable. "
@@ -103,6 +108,11 @@ class Settings(BaseSettings):
             )
             import secrets
             self.SECRET_KEY = secrets.token_hex(32)
+        # MySQL 模式下校验 DATABASE_URL
+        if self.DATABASE_MODE == "mysql" and not self.DATABASE_URL:
+            import sys
+            print("FATAL: DATABASE_MODE=mysql but DATABASE_URL is empty! Set it in .env.", file=sys.stderr)
+            raise SystemExit(1)
 
 @lru_cache()
 def get_settings() -> Settings:

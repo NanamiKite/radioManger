@@ -2,12 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
+import logging
 from app.database.session import get_db
 from app.schemas.user import UserRegister, UserLogin, UserResponse, TokenResponse, UserUpdate
 from app.services.user_service import UserService
 from app.utils.security import SecurityUtils
 from app.config import settings
 from app.dependencies import get_current_user
+
+logger = logging.getLogger("radiomanager.auth")
 
 
 class ChangePasswordRequest(BaseModel):
@@ -155,7 +158,10 @@ async def change_password(
     try:
         UserService.change_password(db, current_user, req.old_password, req.new_password)
 
+        # 改密码后清除该用户所有旧会话，使旧 token 失效
         if settings.DATABASE_MODE == "mysql":
+            from app.services.session_service import SessionService
+            SessionService.remove_all_sessions(db, current_user.id)
             from app.services.audit_service import AuditService
             AuditService.log(db, current_user, "CHANGE_PASSWORD",
                              ip_address=request.client.host if request.client else None)
@@ -193,8 +199,8 @@ async def logout(
                     # 移除会话
                     from app.services.session_service import SessionService
                     SessionService.remove_session(db, jti)
-            except Exception:
-                pass  # token 解析失败不阻塞 logout
+            except Exception as exc:
+                logger.warning("Logout token cleanup failed: %s", exc)
 
         # 审计日志
         from app.services.audit_service import AuditService

@@ -1,7 +1,7 @@
 {
   "name": "radiomanager-frontend",
   "private": true,
-  "version": "2.4.1",
+  "version": "2.5.0",
   "main": "./electron/main.js",
   "description": "RadioManager - Amateur Radio QSO Log Management System",
   "homepage": "https://github.com/NanamiKite/radioManger",

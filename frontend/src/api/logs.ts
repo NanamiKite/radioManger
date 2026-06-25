@@ -53,14 +53,14 @@ export const logsApi = {
     return api.post('/logs/import', formData, { params, timeout: 120000 })
   },
 
-  exportLogs(params: {
+  async exportLogs(params: {
     format?: string
     start_date?: string
     end_date?: string
     band?: string
     station_id?: number | null
     location_id?: number | null
-  }): void {
+  }): Promise<void> {
     const authStore = useAuthStore()
     const token = authStore.token
     const query = new URLSearchParams()
@@ -71,27 +71,24 @@ export const logsApi = {
     if (params.station_id) query.set('station_id', String(params.station_id))
     if (params.location_id) query.set('location_id', String(params.location_id))
 
-    fetch(`/api/v1/logs/export?${query.toString()}`, {
+    const res = await fetch(`/api/v1/logs/export?${query.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then(res => {
-        if (!res.ok) {
-          return res.json().then(err => { throw new Error(err.detail || `Export failed (${res.status})`) })
-        }
-        const disposition = res.headers.get('Content-Disposition') || ''
-        const match = disposition.match(/filename="?(.+?)"?$/)
-        const filename = match ? match[1] : 'logs_export.adi'
-        return res.blob().then(blob => ({ blob, filename }))
-      })
-      .then(({ blob, filename }) => {
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = filename
-        document.body.appendChild(a)
-        a.click()
-        a.remove()
-        window.URL.revokeObjectURL(url)
-      })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: `Export failed (${res.status})` }))
+      throw new Error(err.detail || `Export failed (${res.status})`)
+    }
+    const disposition = res.headers.get('Content-Disposition') || ''
+    const match = disposition.match(/filename="?(.+?)"?$/)
+    const filename = match ? match[1] : 'logs_export.adi'
+    const blob = await res.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.URL.revokeObjectURL(url)
   },
 }

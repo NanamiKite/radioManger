@@ -9,10 +9,10 @@
       <el-descriptions :column="2" border>
         <el-descriptions-item :label="$t('logs.callSign')" width="150">{{ log.call_sign }}</el-descriptions-item>
         <el-descriptions-item :label="$t('logs.qsoDate')">{{ log.qso_date }}</el-descriptions-item>
-        <el-descriptions-item label="Time (UTC)">{{ log.time_on || '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('logs.timeUtc')">{{ log.time_on || '-' }}</el-descriptions-item>
         <el-descriptions-item :label="$t('logs.band')">{{ log.band || '-' }}</el-descriptions-item>
         <el-descriptions-item :label="$t('logs.mode')">{{ log.mode || '-' }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('logs.freqMhz')">{{ log.freq ? Number(log.freq).toFixed(4) + ' MHz' : '-' }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('logs.freqMhz')">{{ log.freq ? Number(log.freq).toFixed(4) + $t('logs.mhz') : '-' }}</el-descriptions-item>
         <el-descriptions-item :label="$t('logs.rstSent')">{{ log.rst_sent || '-' }}</el-descriptions-item>
         <el-descriptions-item :label="$t('logs.rstReceived')">{{ log.rst_rcvd || '-' }}</el-descriptions-item>
         <el-descriptions-item :label="$t('logs.qslSent')">{{ log.qsl_sent || 'N' }}</el-descriptions-item>
@@ -28,18 +28,18 @@
       </div>
     </el-card>
 
-    <el-empty v-else-if="!loading" :description="'Log not found'" />
+    <el-empty v-else-if="!loading" :description="$t('logs.logNotFound')" />
 <!-- 编辑日志表单 -->
     <el-dialog v-model="editing" :title="$t('logs.editLogTitle')" width="600px">
-      <el-form :model="editForm" :rules="logRules" label-width="120px">
+      <el-form ref="editFormRef" :model="editForm" :rules="logRules" label-width="120px">
         <el-form-item :label="$t('logs.callSign')">
           <el-input v-model="editForm.call_sign" @input="(v: string) => editForm.call_sign = v.toUpperCase()" />
         </el-form-item>
         <el-form-item :label="$t('logs.qsoDate')" prop="qso_date">
           <el-date-picker v-model="editForm.qso_date" @input="editForm.qso_date = $event" value-format="YYYY-MM-DD" style="width:100%" />
         </el-form-item>
-        <el-form-item label="Time (UTC)" prop="time_on">
-          <el-time-picker v-model="editForm.time_on" @input="editForm.time_on = $event" value-format="HH:mm:ss" placeholder="UTC+0" style="width:100%" />
+        <el-form-item :label="$t('logs.timeUtc')" prop="time_on">
+          <el-time-picker v-model="editForm.time_on" @input="editForm.time_on = $event" value-format="HH:mm:ss" :placeholder="$t('logs.utcHint')" style="width:100%" />
         </el-form-item>
         <el-form-item :label="$t('logs.band')">
           <el-select v-model="editForm.band" @change="handleBandChange" style="width: 100%">
@@ -112,7 +112,9 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { logsApi } from '@/api/logs'
 import { ElFormItem, ElMessage, ElMessageBox, ElOption } from 'element-plus'
+import type { FormInstance } from 'element-plus'
 import { useI18n } from 'vue-i18n'
+import { getDefaultFrequency } from '@/utils/constants'
 import type { QSOLog } from '@/types'
 
 const route = useRoute()
@@ -124,6 +126,7 @@ const log = ref<QSOLog | null>(null)
 const loading = ref(false)
 const editing = ref(false)
 const submitting = ref(false)
+const editFormRef = ref<FormInstance>()
 
 const editForm = reactive({
   station_id: 0, call_sign: '', qso_date: '', time_on: '',rst_sent: '', rst_rcvd: '',
@@ -131,10 +134,10 @@ const editForm = reactive({
 })
 
 const logRules = {
-  call_sign: [{ required: true, message: 'Please enter callsign', trigger: 'blur' }],
-  qso_date: [{ required: true, message: 'Please select date', trigger: 'change' }],
-  band: [{ required: true, message: 'Please select band', trigger: 'change' }],
-  mode: [{ required: true, message: 'Please select mode', trigger: 'change' }]
+  call_sign: [{ required: true, message: t('logs.pleaseEnterCallsign'), trigger: 'blur' }],
+  qso_date: [{ required: true, message: t('logs.pleaseSelectDate'), trigger: 'change' }],
+  band: [{ required: true, message: t('logs.pleaseSelectBand'), trigger: 'change' }],
+  mode: [{ required: true, message: t('logs.pleaseSelectMode'), trigger: 'change' }]
 }
 
 onMounted(async () => {
@@ -143,6 +146,7 @@ onMounted(async () => {
     log.value = await logsApi.get(logId)
     if (log.value) {
       Object.assign(editForm, {
+        station_id: log.value.station_id || 0,
         call_sign: log.value.call_sign, band: log.value.band || '', mode: log.value.mode || '',
         rst_sent: log.value.rst_sent || '', rst_rcvd: log.value.rst_rcvd || '',
         qsl_sent: log.value.qsl_sent || 'N', qsl_rcvd: log.value.qsl_rcvd || 'N',
@@ -154,37 +158,17 @@ onMounted(async () => {
   } catch { ElMessage.error(t('errors.serverError')) } finally { loading.value = false }
 })
 
-const bandFrequencyMap: Record<string, string> = {
-  '2190m': '0.1375',
-  '160m': '1.800',
-  '80m': '3.500',
-  '40m': '7.000',
-  '20m': '14.000',
-  '15m': '21.000',
-  '10m': '28.000',
-  '6m': '50.000',
-  '4m': '70.000',
-  '2m': '144.000',
-  '70cm': '430.000',
-  '23cm': '1240.000',
-  '13cm': '2300.000',
-  '5cm': '5760.000',
-  '3cm': '10000.000',
-  '1.2cm': '24000.000',
-  '6mm': '47000.000',
-}
-
-
 const handleBandChange = (val: string) => {
-  // 根据选中的波段获取默认频率，如果找不到则清空或保持原样
-  if (bandFrequencyMap[val]) {
-    editForm.freq = bandFrequencyMap[val]
+  const freq = getDefaultFrequency(val)
+  if (freq) {
+    editForm.freq = freq
   }
 }
 
 const goBack = () => router.push({ name: 'Logs' })
 
 const handleUpdate = async () => {
+  await editFormRef.value?.validate()
   submitting.value = true
   try {
     await logsApi.update(logId, editForm)

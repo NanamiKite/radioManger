@@ -11,15 +11,31 @@
           <!-- 中间：搜索框 -->
           <div class="header-center">
             <div class="search-bar">
-              <span class="search-icon">S</span>
+              <el-select v-model="searchType" size="small" class="search-type-select" width="510px">
+                <el-option :label="$t('search.typeCallsign')" value="callsign" />
+                <el-option :label="$t('search.typeGrid')" value="grid" />
+                <el-option :label="$t('search.typeDxcc')" value="dxcc" />
+              </el-select>
               <input
+                v-if="searchType !== 'dxcc'"
                 v-model="searchQuery"
                 type="text"
-                :placeholder="$t('logs.callSign') + ' / DXCC / Grid'"
+                :placeholder="searchType === 'callsign' ? $t('search.placeholderCallsign') : $t('search.placeholderGrid')"
                 class="search-input"
                 @keydown.enter="handleGlobalSearch"
               />
-              <button v-if="searchQuery" class="search-clear" @click="searchQuery = ''">X</button>
+              <el-select
+                v-else
+                v-model="searchDxccValue"
+                filterable
+                clearable
+                :placeholder="$t('search.placeholderDxcc')"
+                class="search-dxcc-select"
+                size="small"
+              >
+                <el-option v-for="d in dxccOptions" :key="d" :label="d" :value="d" />
+              </el-select>
+              <button v-if="searchQuery && searchType !== 'dxcc'" class="search-clear" @click="searchQuery = ''">X</button>
             </div>
           </div>
 
@@ -125,6 +141,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { setLanguage, getLanguage } from '@/locales'
 import { useTheme } from '@/utils/theme'
+import { statsApi } from '@/api/stats'
 
 const router = useRouter()
 const route = useRoute()
@@ -143,15 +160,22 @@ const isAdminPanel = computed(() => {
 const activeMenu = ref(route.path)
 const currentLanguage = ref(getLanguage())
 const searchQuery = ref('')
+const searchType = ref<'callsign' | 'grid' | 'dxcc'>('callsign')
+const searchDxccValue = ref('')
+const dxccOptions = ref<string[]>([])
 
 watch(() => route.path, (newPath: string) => {
   activeMenu.value = newPath
 })
 
-// 获取数据库模式（判断是否为服务器部署）
-onMounted(() => {
+// 获取数据库模式 + DXCC 实体列表
+onMounted(async () => {
   if (isAuthenticated.value) {
     authStore.fetchDbMode()
+    try {
+      const res = await statsApi.getDxccChart()
+      dxccOptions.value = (res.data.entities || []).map((e: any) => e.entity).sort()
+    } catch { dxccOptions.value = [] }
   }
 })
 
@@ -168,18 +192,46 @@ const goToSettings = () => {
   router.push({ name: 'Settings' })
 }
 
-// 全局搜索：跳转到日志页并填入搜索词
+// 全局搜索：根据类型路由到对应过滤器
 const handleGlobalSearch = () => {
-  const q = searchQuery.value.trim()
-  if (!q) return
-  logsStore.filters.call_sign = q.toUpperCase()
+  // 清除所有搜索相关 filter
+  logsStore.filters.call_sign = ''
+  logsStore.filters.grid_square = ''
+  logsStore.filters.dxcc = ''
   logsStore.pagination.page = 1
+
+  if (searchType.value === 'callsign') {
+    const q = searchQuery.value.trim()
+    if (!q) return
+    logsStore.filters.call_sign = q.toUpperCase()
+  } else if (searchType.value === 'grid') {
+    const q = searchQuery.value.trim()
+    if (!q) return
+    logsStore.filters.grid_square = q.toUpperCase()
+  } else if (searchType.value === 'dxcc') {
+    if (!searchDxccValue.value) return
+    logsStore.filters.dxcc = searchDxccValue.value
+  }
+
   if (route.name !== 'Logs') {
     router.push({ name: 'Logs' })
   } else {
     logsStore.fetchLogs()
   }
 }
+
+// DXCC 下拉选择后自动搜索
+watch(searchDxccValue, (val) => {
+  if (searchType.value === 'dxcc' && val) {
+    handleGlobalSearch()
+  }
+})
+
+// 切换搜索类型时清除输入
+watch(searchType, () => {
+  searchQuery.value = ''
+  searchDxccValue.value = ''
+})
 </script>
 
 <style scoped lang="scss">
@@ -222,8 +274,9 @@ const handleGlobalSearch = () => {
 
     // 中间搜索框
     .header-center {
-      flex: 0 1 360px;
-      min-width: 200px;
+      flex: 0 1 50%;
+      min-width: 300px;
+      max-width: 700px;
 
       .search-bar {
         display: flex;
@@ -239,16 +292,21 @@ const handleGlobalSearch = () => {
           box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
         }
 
-        .search-icon {
+        .search-type-select {
           flex-shrink: 0;
-          width: 16px;
-          height: 16px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: var(--text-color-secondary);
-          font-size: 12px;
-          margin-right: 8px;
+          width: 80px;
+          margin-right: 4px;
+          :deep(.el-input__wrapper) {
+            background: transparent;
+            box-shadow: none !important;
+            padding: 0 4px;
+          }
+          :deep(.el-input__inner) {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--color-accent);
+            text-align: center;
+          }
         }
 
         .search-input {
@@ -263,6 +321,19 @@ const handleGlobalSearch = () => {
 
           &::placeholder {
             color: var(--text-color-placeholder);
+          }
+        }
+
+        .search-dxcc-select {
+          flex: 1;
+          min-width: 0;
+          :deep(.el-input__wrapper) {
+            background: transparent;
+            box-shadow: none !important;
+          }
+          :deep(.el-input__inner) {
+            font-size: 13px;
+            color: var(--text-color-primary);
           }
         }
 
@@ -422,7 +493,7 @@ const handleGlobalSearch = () => {
 // ── 响应式 ──
 @media (max-width: 768px) {
   .app-header .header-content {
-    .header-center { flex: 0 1 200px; min-width: 140px; }
+    .header-center { flex: 0 1 200px; min-width: 160px; }
   }
 
   .app-aside {

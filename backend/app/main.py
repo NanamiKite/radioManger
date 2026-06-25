@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from app.config import settings
 from app.api.v1 import (
     auth_router,
@@ -40,7 +41,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="RadioManager API",
     description="Amateur Radio Log Management System API",
-    version="2.5.0",
+    version=settings.VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
@@ -52,7 +53,7 @@ app.add_middleware(ErrorHandlerMiddleware)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
 
-# 路由 - 共9个模块
+# 路由 - 共12个模块
 app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
 app.include_router(users_router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
 app.include_router(logs_router, prefix=f"{settings.API_V1_STR}/logs", tags=["logs"])
@@ -74,6 +75,7 @@ if settings.DATABASE_MODE != "sqlite":
 async def health_check():
     result = {
         "status": "ok",
+        "version": settings.VERSION,
         "database": settings.DATABASE_MODE,
         "subsystems": {},
     }
@@ -82,9 +84,11 @@ async def health_check():
     try:
         from app.database.session import SessionLocal
         db = SessionLocal()
-        db.execute(__import__('sqlalchemy').text("SELECT 1"))
-        db.close()
-        result["subsystems"]["database"] = "ok"
+        try:
+            db.execute(text("SELECT 1"))
+            result["subsystems"]["database"] = "ok"
+        finally:
+            db.close()
     except Exception:
         result["subsystems"]["database"] = "error"
         result["status"] = "degraded"
@@ -93,7 +97,7 @@ async def health_check():
     if settings.DATABASE_MODE == "mysql":
         try:
             import redis
-            r = redis.from_url(settings.SQLITE_URL, socket_timeout=2)
+            r = redis.from_url(settings.REDIS_URL, socket_timeout=2)
             r.ping()
             result["subsystems"]["redis"] = "ok"
         except Exception:
@@ -111,7 +115,7 @@ async def health_check():
 
 @app.get("/")
 async def root():
-    return {"name": "RadioManager API", "version": "2.5.0", "docs": "/docs", "database_mode": settings.DATABASE_MODE}
+    return {"name": "RadioManager API", "version": settings.VERSION, "docs": "/docs", "database_mode": settings.DATABASE_MODE}
 
 if __name__ == "__main__":
     import uvicorn

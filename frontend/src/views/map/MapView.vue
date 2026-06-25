@@ -102,16 +102,20 @@ const ZoomSliderControl = L.Control.extend({
       updateVisual(z)
       e.preventDefault()
     })
-    document.addEventListener('mousemove', (e: MouseEvent) => {
+    const onMouseMove = (e: MouseEvent) => {
       if (!dragging) return
       const z = posToZoom(e.clientY)
       if (map) map.setZoom(z)
       updateVisual(z)
-    })
-    document.addEventListener('mouseup', () => { dragging = false })
+    }
+    const onMouseUp = () => { dragging = false }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
 
-    // 暴露更新方法
+    // 暴露更新方法和清理用的监听器引用
     ;(this as any)._updateVisual = updateVisual
+    ;(this as any)._onMouseMove = onMouseMove
+    ;(this as any)._onMouseUp = onMouseUp
     return container
   },
   _update: function (zoom: number) {
@@ -225,9 +229,12 @@ function drawAllGrids() {
   if (!map) return
   const active = new Map<string, GridData>()
   if (gridData) for (const g of gridData.grids) active.set(g.grid, g)
+  const mapBounds = map.getBounds()
   for (const g4 of allGrid4()) {
     const bounds = gridBounds(g4)
     if (!bounds) continue
+    // 视口过滤：跳过不在当前视口内的网格
+    if (!mapBounds.intersects(bounds)) continue
     const data = active.get(g4)
     const rect = L.rectangle(bounds, {
       color: data ? gridColor(data.count) : '#ccc',
@@ -307,7 +314,16 @@ onMounted(async () => {
   redraw()
 })
 
-onUnmounted(() => { if (map) { map.remove(); map = null } })
+onUnmounted(() => {
+  // 清理缩放滑块的 document 级事件监听器
+  if (zoomSliderControl) {
+    const onMouseMove = (zoomSliderControl as any)._onMouseMove
+    const onMouseUp = (zoomSliderControl as any)._onMouseUp
+    if (onMouseMove) document.removeEventListener('mousemove', onMouseMove)
+    if (onMouseUp) document.removeEventListener('mouseup', onMouseUp)
+  }
+  if (map) { map.remove(); map = null }
+})
 </script>
 
 <style scoped lang="scss">
