@@ -171,7 +171,7 @@ const handleUpdate = async () => {
   await editFormRef.value?.validate()
   submitting.value = true
   try {
-    await logsApi.update(logId, editForm)
+    await logsApi.update(logId, { ...editForm, freq: Number(editForm.freq) || undefined })
     ElMessage.success(t('common.success'))
     editing.value = false
     log.value = await logsApi.get(logId)

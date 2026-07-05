@@ -529,7 +529,7 @@ const handleCreate = async () => {
       const now = new Date()
       createForm.time_on = now.toISOString().substring(11, 19)
     }
-    await logsStore.createLog(createForm)
+    await logsStore.createLog({ ...createForm, freq: Number(createForm.freq) || undefined })
     ElMessage.success($t('common.success')); showCreateDialog.value = false
     resetCreateForm()
   } catch (err: any) { ElMessage.error(err?.response?.data?.detail || err.message || $t('errors.serverError')) }

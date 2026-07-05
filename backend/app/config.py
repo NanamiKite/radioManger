@@ -7,7 +7,7 @@ class Settings(BaseSettings):
 
     # 应用基本设置
     APP_NAME: str = "RadioManager"
-    VERSION: str = "2.5.0"
+    VERSION: str = "2.6.0"
     DEBUG: bool = False
     API_V1_STR: str = "/api/v1"
     WORKERS: int = 4
