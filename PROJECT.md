@@ -1,359 +1,151 @@
-# RadioManager — 项目架构与实现文档
+# RadioManager — 架构与实现索引
 
-> 本文档供 AI 助手快速理解项目全貌。阅读后应能回答架构、数据流、模块职责等问题。
-
----
+本文用于从功能定位源码。使用步骤见 [README](README.md)，详细设计见 [doc/](doc/01_项目总文件说明.md)。
 
 ## 1. 项目概述
 
-RadioManager 是一个业余无线电 QSO 日志管理系统，支持桌面端（Electron）和 Web 端。核心功能包括：QSO 日志 CRUD、ADIF 3.1.0 格式导入导出、DXCC 实体推断、DX Cluster 实时 spot 监控、梅登网格地图热力图、回收站软删除、统计分析。
+RadioManager 以 FastAPI 和 Vue 3 管理业余无线电 QSO 日志。SQLite 用于本机数据，MySQL 用于服务器数据；ADI/ADIF 用于文件交换。地图、DX Cluster、呼号查询和计算工具共用网页界面。
 
-**定位：** 离线优先的个人日志工具，同时支持服务器部署多用户协作。
-
----
+数据库承担实际存储；前端没有 HTTP/本地数据库两套实现。GitHub 同步和邮件发送尚未接通。
 
 ## 2. 技术栈
 
-| 层级 | 技术 |
-|------|------|
-| 桌面端 | Electron（contextIsolation + sandbox） |
-| 前端 | Vue 3 + TypeScript + Pinia + Element Plus + vue-i18n + Leaflet |
-| 后端 | FastAPI + SQLAlchemy 2.0 + Pydantic v2 |
-| 数据库 | SQLite（离线）/ MySQL（服务器），通过 `DATABASE_MODE` 环境变量切换 |
-| 缓存/黑名单 | Redis（仅 MySQL 模式），SQLite 模式用内存 set |
-| 数据库迁移 | Alembic（`render_as_batch=True` 兼容 SQLite） |
-| 容器化 | Docker（非 root 用户，health check） |
-| 认证 | JWT（access + refresh token），bcrypt 密码哈希 |
-
----
+| 层 | 技术与入口 |
+| --- | --- |
+| 网页 | Vue 3、TypeScript、Vite、Element Plus、Pinia、Router、vue-i18n |
+| 地图 | Leaflet、OpenStreetMap、SunCalc |
+| 后端 | FastAPI、SQLAlchemy 2、Pydantic 2、Uvicorn |
+| 存储 | SQLite / MySQL；Redis 用于服务器令牌黑名单 |
+| 身份 | PyJWT、passlib/bcrypt |
+| 客户端 | Electron、Capacitor 配置；独立 Windows pywebview 启动器 |
+| 部署 | Docker Compose、Nginx、Windows 本地包装脚本 |
 
 ## 3. 目录结构
 
-```
-radioManger/
-├── backend/
-│   ├── app/
-│   │   ├── api/v1/           # 12 个路由模块
-│   │   ├── database/         # session.py, base.py, init_db.py
-│   │   ├── middleware/        # rate_limit, logging, error_handler
-│   │   ├── models/           # SQLAlchemy ORM 模型
-│   │   ├── schemas/          # Pydantic 请求/响应模型
-│   │   ├── services/         # 16 个业务服务模块
-│   │   ├── utils/            # adi_parser, dxcc, grid_utils, security
-│   │   ├── config.py         # Settings（pydantic-settings）
-│   │   ├── dependencies.py   # get_current_user 依赖注入
-│   │   ├── dependencies_admin.py  # get_current_admin（仅 MySQL）
-│   │   ├── exceptions.py     # 自定义异常体系
-│   │   └── main.py           # FastAPI 应用入口
-│   ├── alembic/              # 数据库迁移
-│   ├── Dockerfile
-│   └── requirements.txt
-├── frontend/
-│   ├── src/
-│   │   ├── api/              # Axios 封装 + 各模块 API
-│   │   ├── stores/           # Pinia store（auth, logs）
-│   │   ├── views/            # 页面组件
-│   │   ├── utils/            # theme, constants, storage
-│   │   ├── locales/          # i18n（zh-CN, en-US）
-│   │   └── types/            # TypeScript 类型定义
-│   ├── electron/
-│   │   ├── main.js           # Electron 主进程
-│   │   └── preload.js        # 预加载脚本
-│   └── package.json
-└── PROJECT.md                # 本文件
-```
-
----
+| 源码位置 | 阅读目的 |
+| --- | --- |
+| [`backend/app/main.py`](backend/app/main.py) | 应用创建、中间件、路由、健康检查 |
+| [`backend/app/config.py`](backend/app/config.py) | 环境配置与数据库选择 |
+| [`backend/app/api/v1/`](backend/app/api/v1/) | REST/WebSocket 入口 |
+| [`backend/app/services/`](backend/app/services/) | 业务行为和实时服务 |
+| [`backend/app/models/`](backend/app/models/) / [`schemas/`](backend/app/schemas/) | 表结构与 API 字段范围 |
+| [`backend/app/database/`](backend/app/database/) / [`alembic/`](backend/alembic/) | 引擎、会话与迁移 |
+| [`frontend/src/router/index.ts`](frontend/src/router/index.ts) | 页面与守卫 |
+| [`frontend/src/stores/`](frontend/src/stores/) / [`api/`](frontend/src/api/) | 共享状态和客户端请求 |
+| [`frontend/src/views/`](frontend/src/views/) | 页面交互 |
+| [`backend/release_server.py`](backend/release_server.py) | 网页与 API 同源发布 |
+| [`frontend/electron/`](frontend/electron/) | 桌面壳生命周期 |
 
 ## 4. 双数据库架构
 
-这是项目最核心的架构决策。
+`DATABASE_MODE=sqlite` 选择 `SQLITE_URL`，`mysql` 选择 `DATABASE_URL`。两者共用 12 个 ORM 模型。SQLite 启用 WAL 和外键，MySQL 配置连接池检查。
 
-```
-DATABASE_MODE=sqlite  →  SQLITE_URL（本地文件）
-DATABASE_MODE=mysql   →  DATABASE_URL（MySQL 连接串）+ REDIS_URL
-```
-
-**实现方式：**
-- `config.py`：`ACTIVE_DATABASE_URL` 属性根据 `DATABASE_MODE` 返回对应 URL
-- `database/base.py`：`engine` 和 `SessionLocal` 使用 `ACTIVE_DATABASE_URL`
-- `main.py:79`：admin 路由仅在 MySQL 模式下注册
-- `dependencies.py:43`：token 黑名单检查仅在 MySQL 模式下执行
-- `dependencies_admin.py:13`：SQLite 模式跳过权限检查（路由本身不注册，此为防御性代码）
-- `token_blacklist_service.py`：SQLite 模式用 `MemoryBlacklist`（内存 set），MySQL 模式用 `RedisBlacklist`
-- `session_service.py:17`：会话追踪仅 MySQL 模式启用
-- `alembic/env.py`：`render_as_batch=True` 解决 SQLite 不支持 `ALTER TABLE` 的问题
-
----
+MySQL 增加管理员路由、会话追踪和 Redis 黑名单。SQLite 仍执行用户认证。切换模式不迁移数据。路径和迁移行为见[数据库设计](doc/02_数据库设计说明.md)。
 
 ## 5. 认证与鉴权
 
-```
-登录 → UserService.authenticate_user → SecurityUtils.create_token → (access_token, refresh_token)
-请求 → get_current_user → decode_token → 检查黑名单 → 查询用户 → 返回 User 对象
-登出 → token 加入黑名单 + 移除会话记录
-改密码 → SessionService.remove_all_sessions → 所有旧 token 失效
-```
+登录 → bcrypt 校验 → 生成 access/refresh token → 前端保存 access token 与用户。
 
-**关键实现：**
-- `security.py`：自定义 `TokenExpiredError` / `InvalidTokenError` 异常类
-- `dependencies.py`：`get_current_user` 是 FastAPI 依赖注入，所有需认证端点共用
-- `dependencies_admin.py`：`get_current_admin` 在 `get_current_user` 基础上检查 `role == "admin"`
-- `rate_limit.py`：内存速率限制，登录/注册 5 次/分钟，全局 100 次/分钟
+请求 → `get_current_user` → 解码 JWT → MySQL 检查黑名单 → 查询用户启用/删除状态 → 执行业务。管理员依赖另检查角色。
 
----
+无刷新端点。MySQL 登出撤销当前 JTI；改密后的会话删除本身不使所有旧 JWT 失效。会话表不作为 JWT 必须存在的白名单。
 
 ## 6. 数据模型关系
 
+```mermaid
+erDiagram
+    users ||--o{ stations : owns
+    users ||--o{ locations : owns
+    users ||--o{ qso_logs : owns
+    stations ||--o{ locations : contains
+    stations ||--o{ qso_logs : groups
+    locations o|--o{ qso_logs : references
+    users ||--o{ deleted_logs : recycles
 ```
-User (1) ──→ (N) Station (1) ──→ (N) Location
-  │                                      │
-  │                                      ↓
-  └──────── (N) QSOLog ←──────────────┘ (location_id, SET NULL on delete)
-                 │
-                 ↓ (soft delete + backup)
-            DeletedLog（回收站，7 天过期）
-```
 
-**核心模型：**
-- `User`：用户，`role` 字段（String，非 Enum），`is_deleted` 软删除
-- `Station`：台站（仅呼号容器），一个用户可有多个
-- `Location`：位置（网格、电台、天线），归属台站，全局只能激活一个
-- `QSOLog`：QSO 日志，归属用户 + 台站 + 位置，包含 ADIF 3.1.0 全部字段
-- `DeletedLog`：回收站条目，存储 JSON 格式的日志快照
+台站保存呼号，位置保存网格与设备。QSO 的台站外键为 `RESTRICT`，位置外键为 `SET NULL`；这些约束仅在物理删除时触发。日常 API 使用软删除。
 
-**外键策略：**
-- `QSOLog.station_id` → `Station.id`，`ondelete="RESTRICT"`（防止误删有日志的台站）
-- `QSOLog.location_id` → `Location.id`，`ondelete="SET NULL"`（位置删了日志保留）
-
----
+其余表为 `callsign_cache`、`statistics`、`log_files`、`sync_history`、`audit_logs`、`user_sessions`、`system_configs`。
 
 ## 7. 服务层职责
 
-| 服务 | 职责 |
-|------|------|
-| `LogService` | 日志 CRUD、统计聚合（4 条 SQL）、自动推断 DXCC/location/UTC 时间 |
-| `ImportExportService` | ADIF 导入（6 字段去重 + 只填空合并 + QSL 单向流转 + 批量提交）、导出（yield_per） |
-| `UserService` | 注册、认证（失败返回 None 防枚举）、改密码 |
-| `StationService` | 台站 CRUD，删除时级联软删除关联日志和位置 |
-| `LocationService` | 位置 CRUD，激活/取消激活（全局互斥） |
-| `DeletedLogService` | 回收站：备份、恢复（恢复原记录）、清理过期、批量删除 |
-| `StatsService` | 波段/模式/DXCC 统计、DXCC 图表、波段×模式矩阵 |
-| `SessionService` | 会话追踪（仅 MySQL），在线用户统计 |
-| `TokenBlacklistService` | token 黑名单（MemoryBlacklist / RedisBlacklist） |
-| `AdminService` | 用户管理（列表、启禁用、重置密码、软删除） |
-| `AuditService` | 审计日志写入（带 try/except 容错） |
-| `ConfigService` | 系统配置 CRUD（预置默认值） |
-| `CallsignService` | 呼号查询（缓存 + DXCC 推断） |
-| `DXClusterManager` | DX Cluster telnet 连接管理（asyncio，单例，环形缓冲，WebSocket 广播） |
-| `EmailService` | 邮箱验证码（预留接口，当前内存存储） |
-| `SyncService` | GitHub 同步（预留接口） |
-
----
+| 服务 | 主要职责 |
+| --- | --- |
+| `LogService` | QSO CRUD、自动补全、概览聚合 |
+| `StationService` / `LocationService` | 台站、位置与激活操作 |
+| `ImportExportService` | ADI 解析后的导入合并、分批提交与导出 |
+| `DeletedLogService` | 快照、恢复与回收站清理 |
+| `StatsService` | 波段、模式、DXCC 与矩阵 |
+| `CallsignService` | SQL 缓存、QRZ 与离线推断 |
+| `DXClusterManager` | Telnet、spot 缓冲与订阅队列 |
+| `UDPListenerService` | UDP 解析与广播，保存由客户端显式触发 |
+| `UserService` / `AdminService` | 用户操作与管理 |
+| `SessionService` / `AuditService` | 活动追踪与审计 |
+| `ConfigService` | 系统配置项存取 |
+| `token_blacklist` / `cache` | Redis 或内存实现的基础工具 |
+| `EmailService` / `SyncService` / `GitHubService` | 验证码与同步预留逻辑 |
 
 ## 8. API 路由总览
 
-```
-/api/v1/auth         POST /register, /login, /logout, /change-password, /delete-account, /cancel-delete, /confirm-delete
-                     GET  /me
-                     PATCH /me
+常规模块前缀为 `/api/v1/{auth,users,logs,stations,locations,stats,callsigns,sync,shortcuts,dxcluster,map,udp}`。服务器模式另注册 `/api/v1/admin`。
 
-/api/v1/logs         POST /, /import, /recycle/{id}/restore, /recycle/batch-delete, /recycle/clear-all
-                     GET  /, /{id}, /stats/overview, /export, /recycle/list
-                     PATCH /{id}
-                     DELETE /{id}
-
-/api/v1/stations     POST /
-                     GET  /, /{id}
-                     PATCH /{id}
-                     DELETE /{id}
-
-/api/v1/locations    POST /, /{id}/activate
-                     GET  /, /active/current
-                     PATCH /{id}
-                     DELETE /{id}
-
-/api/v1/stats        GET /overview, /band-mode, /dxcc, /dxcc-chart, /band-mode-matrix
-
-/api/v1/callsigns    POST /batch-query
-                     GET  /search/{prefix}, /{call_sign}
-                     DELETE /cache/{call_sign}
-
-/api/v1/dxcluster    POST /connect, /disconnect
-                     GET  /nodes, /status, /spots
-                     WS   /ws
-
-/api/v1/udp          POST /start, /stop, /save-to-log
-                     GET  /status
-                     WS   /ws
-
-/api/v1/map          GET /grids
-
-/api/v1/shortcuts    POST /
-                     GET  /
-                     DELETE /{id}
-
-/api/v1/sync         POST /github/config, /github/push, /github/pull
-                     GET  /history
-
-/api/v1/admin        GET  /users, /users/{id}, /users/{id}/stats, /audit-logs, /system/config, /system/status
-                     POST /users/{id}/toggle, /users/{id}/reset-password
-                     PATCH /system/config
-                     DELETE /users/{id}
-
-/api/v1/users        GET /me
-
-/health              GET  （健康检查：数据库 + Redis 连接状态）
-```
-
----
+日志列表和资源对象直接返回，统计返回 `{data:...}`，导出返回文件，不存在统一成功包装。请求字段、全部端点和消息见 [API 文档](doc/03_API设计说明.md)。
 
 ## 9. 关键数据流
 
 ### 9.1 日志创建
 
-```
-前端 logsApi.create(data)
-  → POST /api/v1/logs
-    → LogService.create_log(db, user_id, QSOLogCreate)
-      → 未指定 station_id？查询激活 Location → 填入 station_id + location_id + my_gridsquare
-      → 未指定 time_on？填入 UTC 当前时间
-      → 未指定 qso_date？填入 UTC 当前日期
-      → 有 call_sign？自动推断 DXCC（lookup_dxcc）
-      → QSL 联动：qsl_rcvd=="Y" → qsl_sent/lotw_sent/lotw_rcvd/eqsl_sent/eqsl_rcvd 全部置 "Y"
-      → db.add + commit + refresh
-    → _enrich_log(log, station_cache, location_cache)  # 填充台站呼号和位置名称
-    → 返回 QSOLogResponse
-```
+`logsApi.create` → `POST /logs` → `LogService.create_log` → 激活位置/UTC/DXCC 补全 → 数据库提交 → 返回日志。创建时收到纸质 QSL 会联动所有 QSL/LoTW/eQSL 标记，PATCH 不执行该联动。
 
 ### 9.2 ADIF 导入
 
-```
-前端 logsApi.importLogs(file, station_id)
-  → POST /api/v1/logs/import（multipart/form-data）
-    → 流式读取（1MB/块，50MB 上限）
-    → ImportExportService.import_adi(db, user_id, content, filename, station_id)
-      → ADIParser.parse_adi_file(content)  # length-based 字段提取
-      → ADIParser.map_adi_fields(records)  # ADIF 字段名 → 应用字段名
-      → 预加载现有日志 6 字段到 existing_map（dict，key=(call_sign,date,time,band,mode,freq) → id）
-      → 遍历导入记录：
-        - 去重键命中？→ 加载完整 ORM 对象 → 只填空合并 + QSL 单向更新
-        - 去重键未命中？→ 创建新记录 → 加入 existing_map（本批次内也去重）
-        - 每 500 条 commit 一次
-      → 记录导入元数据到 LogFile 表
-      → 返回 {imported, skipped, duplicates, merged, errors}
-```
+multipart 文件 → 50 MiB 上限检查 → `ADIParser` → `(call_sign, qso_date, time_on, band, mode, freq)` 匹配 → 新增或补空合并 → 每累计 500 条新记录提交 → `log_files` 元数据。去重范围跨当前用户台站，不是数据库唯一约束。
 
 ### 9.3 统计查询
 
-```
-LogService.get_stats(db, user_id, station_id?)
-  → 1 条聚合 SQL：func.sum(case(...)) 取 total_qso, qsl_sent, qsl_rcvd, eqsl_*, lotw_*, monthly, yearly, confirmed
-  → 2 条 COUNT DISTINCT：total_dxcc, confirmed_dxcc
-  → 1 条 station count
-  → 共 4 条 SQL，返回 13 个指标
-```
+概览由 `LogService.get_stats` 聚合，可指定台站；分布、DXCC 图表和矩阵由 `StatsService` 聚合当前用户日志。`statistics` 不是这些 API 的自动刷新缓存。
 
 ### 9.4 DX Cluster 实时推送
 
-```
-前端 WebSocket 连接 /api/v1/dxcluster/ws?token=xxx
-  → _authenticate_ws(ws)  # 解析 JWT → 检查黑名单 → 查询用户 → 预加载字段 → 关闭 session
-  → ws.accept()
-  → 推送历史 spot（deque 中的 100 条）
-  → dxcluster_manager.subscribe() → 返回 asyncio.Queue
-  → 循环：queue.get() → ws.send_json({type: "spot", data: spot_dict})
-  → 断连时：unsubscribe(queue) + ws.close()
+连接请求 → 解析激活台站呼号 → Telnet 登录 → 解析 spot → 100 条内存缓冲 → WebSocket 广播。WS 建连先逐条发送最多 100 条历史。Telnet 与浏览器 WebSocket 生命周期独立。
 
-后端 DXClusterManager 生命周期：
-  connect(node, callsign) → asyncio.open_connection → _do_login → _listen_task
-  _listen_loop → readline → _strip_telnet_commands → parse_spot → _spots.append → _broadcast
-  disconnect → cancel listen_task → close writer
-```
-
----
+UDP 另走“数据报 → 字段转换 → `qso_received` 广播”；显式保存才创建日志。
 
 ## 10. 前端架构
 
-### 状态管理（Pinia）
-- `auth` store：用户信息、token、登录/登出/注册、数据库模式检测
-- `logs` store：日志列表、分页、过滤、排序、台站管理、请求 ID 守卫（防旧响应覆盖新数据）
+Pinia 分为 `auth`、`logs`、`stats`、`dxcluster`。Axios 默认同源 `/api/v1`，普通超时 30 秒，导入 120 秒；健康检查为同源 `/health`，5 秒超时；文件导出用 `fetch`。
 
-### API 层
-- `api/index.ts`：Axios 实例，请求拦截器自动附加 token，响应拦截器 401 自动登出
-- `api/logs.ts`：`exportLogs` 使用原生 `fetch`（Axios 的 `response.data` 自动解包会破坏 blob）
-- `api/health.ts`：独立 Axios 实例（绕过 `/api/v1` 拦截器）
-
-### i18n
-- `locales/index.ts`：`getLanguage()` 不依赖 i18n 实例（防止初始化顺序导致白屏）
-- `setLanguage()` 通过 `(i18n.global.locale as any).value` 赋值
-
-### 主题
-- `utils/theme.ts`：`light` / `dark` / `system` 三模式，`matchMedia` 监听系统变化
-- `getThemeLabel()` 返回 i18n key（如 `settings.lightMode`），由调用方 `$t()` 翻译
-
----
+页面使用 History 路由，部署需 SPA 回退。语言为 `zh-CN/en-US`；主题为 `light/dark/system`。详情见[前端设计](doc/04_前端架构设计.md)。
 
 ## 11. Electron 安全配置
 
-```javascript
-// frontend/electron/main.js
-webPreferences: {
-  preload: path.join(__dirname, 'preload.js'),
-  contextIsolation: true,   // 渲染进程无法直接访问 Node API
-  nodeIntegration: false,    // 禁止 require/import
-  sandbox: true,             // 沙箱隔离
-}
-```
+[`main.js`](frontend/electron/main.js) 使用 `contextIsolation=true`、`nodeIntegration=false`、`sandbox=true`，并申请单实例锁。`preload.js` 暴露空的 `window.electron` 对象，没有后端或文件系统 IPC 实现。
 
-- 单实例锁：`app.requestSingleInstanceLock()` 防止重复启动导致 SQLite 锁冲突
-- 部署模式：`auto`（从环境变量读取）/ `local` / `lan` / `cloud`
-
----
+Electron 优先加载构建文件，否则加载 5173 页面；不启动 Python，不把后端打入包中。`RADIOMANAGER_MODE` 用于窗口模式标签，不决定 API 地址。
 
 ## 12. 设计决策备忘
 
-| 决策 | 原因 |
-|------|------|
-| `role` 用 String 而非 Enum | 双数据库兼容，SQLite 的 Enum 支持有限 |
-| token 黑名单 SQLite 模式用内存 | SQLite 是离线单用户，黑名单无意义 |
-| `dependencies_admin.py` SQLite 跳过权限 | SQLite 模式下 admin 路由不注册，此为防御性代码 |
-| `sync_service.py` 推送逻辑为空壳 | 预留接口，框架已搭好 |
-| `email_service.py` 内存存储 | 预留接口，等 SMTP 服务接入 |
-| `shortcuts.py` 内存存储 | 轻量功能，重启丢失可接受 |
-| `QSOLog.station_id` 用 `RESTRICT` | 防止误删有日志的台站 |
-| `QSOLog.location_id` 用 `SET NULL` | 位置删了日志保留 |
-| ADIF 解析用 length-based | 正则匹配在值含 `<` 时会误匹配 |
-| 统计用 `func.sum(case(...))` | 13 条查询压到 4 条，减少数据库往返 |
-| `exportLogs` 用原生 fetch | Axios 的 `response.data` 自动解包破坏 blob |
-| WebSocket token 放 query string | 浏览器原生 WebSocket 不支持自定义 header |
-
----
+| 实现选择 | 实际影响 |
+| --- | --- |
+| 台站与位置分离 | 同一呼号可记录多个操作地点 |
+| 软删除与 JSON 快照 | 保留原 QSO，并提供 7 天恢复窗口 |
+| 六字段服务层匹配 | 可识别已有 QSO 后补空，但不提供数据库级去重保证 |
+| 实时服务使用进程内实例 | 单 worker；多用户共享连接和广播 |
+| 前端使用同源路径 | 代理需覆盖 API、health 与 WebSocket |
+| 后台配置表与 Settings 分离 | 存储配置项不等同于修改所有运行开关 |
 
 ## 13. 常量与工具
 
-- `utils/dxcc.py`：530+ 条正则前缀映射，`lookup_dxcc(callsign)` 返回 DXCC 实体名称
-- `utils/grid_utils.py`：梅登网格验证、经纬度转换、距离计算（Haversine）
-- `utils/adi_parser.py`：ADIF 3.1.0 解析器，length-based 字段提取
-- `utils/security.py`：bcrypt 密码哈希、JWT 创建/解码
-- `frontend/src/utils/constants.ts`：波段频率映射、天线计算表、SWR 参考表
-- `frontend/src/data/dxcc-entities.json`：340 个 DXCC 实体名称列表
+[`dxcc.py`](backend/app/utils/dxcc.py) 负责呼号前缀推断；[`grid_utils.py`](backend/app/utils/grid_utils.py) 与前端 [`grid.ts`](frontend/src/utils/grid.ts) 处理网格；[`adi_parser.py`](backend/app/utils/adi_parser.py) 处理 ADIF 标签；[`security.py`](backend/app/utils/security.py) 处理 JWT 与密码。
 
----
+前端 [`constants.ts`](frontend/src/utils/constants.ts) 保存波段与计算器数据，[`dxcc-entities.json`](frontend/src/data/dxcc-entities.json) 保存实体名称。
 
 ## 14. 中间件执行顺序
 
-```
-请求 → RateLimitMiddleware → LoggingMiddleware → ErrorHandlerMiddleware → CORSMiddleware → 路由处理
-```
+普通 HTTP 请求：`RateLimit → Logging → ErrorHandler → CORS → 路由`。认证是路由依赖。限流为单进程内存，普通桶 100 次/60 秒，敏感认证路径共用 5 次/60 秒。
 
-后添加的中间件先执行（FastAPI/Starlette 的洋葱模型）。
+## 15. 功能边界
 
----
+GitHub 未传输日志，邮件未发送；自定义快捷链接和验证码只存内存。Web App Manifest 不包含离线缓存实现；Electron 和 Android 构建配置不代表已包含完整本地后端。
 
-## 15. 已知限制
-
-- DX Cluster 管理器是进程内单例，多 worker 下每个 worker 独立连接（当前部署单 worker）
-- WebSocket token 在 URL query 中，会记录在 access log（已有安全提示注释）
-- `shortcuts.py` 和 `email_service.py` 使用内存存储，进程重启丢失
-- `sync_service.py` 的 GitHub 推送逻辑为预留空壳
+回收站优先恢复原记录，清空只删除快照；ADI 导出不包含 QSL 状态，不能替代数据库备份。部署与备份步骤集中在[部署说明](doc/06_部署说明.md)，完整流程图见[系统架构图](doc/07_系统架构图.md)。

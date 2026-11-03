@@ -1,664 +1,359 @@
-# API设计说明文档
+# API 设计说明
 
-## API概述
+## API 概述
 
-RadioManager后端采用RESTful API设计模式，基于FastAPI框架实现。所有API均使用JSON格式传输，支持JWT令牌认证。
+REST API 默认前缀为 `/api/v1`，由 [`main.py`](../backend/app/main.py) 注册。本文路径与 [`api/v1/`](../backend/app/api/v1/) 和 [`schemas/`](../backend/app/schemas/) 一致。`/health`、`/` 和 OpenAPI 位于版本前缀之外。
 
-## API基本规范
+## API 基本规范
 
-### 统一响应格式
-```json
-{
-    "code": 200,
-    "message": "Success",
-    "data": {}
-}
-```
+### 响应格式
 
-### HTTP状态码
-- `200`: 成功
-- `201`: 创建成功
-- `204`: 无内容
-- `400`: 请求参数错误
-- `401`: 未认证/令牌过期
-- `404`: 资源不存在
-- `422`: 数据验证失败
-- `429`: 请求过于频繁
-- `500`: 服务器内部错误
+成功响应按端点定义返回，没有统一的 `{code, message, data}` 包装：
+
+| 端点类型 | 响应 |
+| --- | --- |
+| 登录 | 顶层 `access_token`、`refresh_token`、`token_type`、`expires_in`、`user` |
+| 台站、位置、单条日志 | 对象 |
+| 台站、位置、DX 节点列表 | 数组 |
+| 日志列表、回收站、同步历史 | `{items, total, page, page_size, pages}` |
+| 统计 API | `{data: ...}` |
+| 日志导入 | 顶层计数、文件 ID 和错误数组 |
+| 日志导出 | 文件响应，`application/octet-stream` |
+| DELETE 成功 | 通常为 204，无响应体 |
+
+Axios 公共客户端只解包 HTTP 的 `response.data`，不会继续提取业务层的 `data`。
+
+### HTTP 状态码
+
+| 状态码 | 含义 |
+| --- | --- |
+| 200 / 201 / 204 | 成功 / 创建成功 / 无内容 |
+| 400 | 业务条件不满足、文件类型错误等 |
+| 401 / 403 | 认证失败 / 权限不足 |
+| 404 | 资源不存在 |
+| 409 | DX Cluster 缺少可用激活台站等冲突 |
+| 413 | 导入文件超过大小限制 |
+| 422 | 参数校验失败或注册信息冲突 |
+| 429 | 触发 IP 限流 |
+| 500 / 502 | 服务端异常 / DX 节点连接失败 |
 
 ### 认证方式
-- **令牌类型**: Bearer Token (JWT, HS256)
-- **过期时间**: AccessToken 7天 / RefreshToken 30天
-- **请求头**: `Authorization: Bearer <token>`
-- **令牌标识**: 每个令牌包含唯一 JTI（JWT ID），用于 Token 黑名单机制（MySQL 模式）
+
+除注册、登录及公共状态接口外，REST 业务端点要求：
+
+```http
+Authorization: Bearer <access_token>
+```
+
+WebSocket 使用 `?token=<access_token>`。令牌有效期默认分别为 7 天和 30 天，但没有 `/auth/refresh` 接口，也没有前端自动续期流程。MySQL 管理接口另要求 `role="admin"`。
 
 ### 分页参数
+
+普通分页默认 `page=1`、`page_size=20`，页码从 1 开始，页大小上限 100。管理审计列表默认 50、上限 200；管理员用户列表与审计列表不返回 `pages`。
+
+日期使用 `YYYY-MM-DD`，时间使用 `HH:MM:SS`。QSO 日期和时间按 UTC 使用，频率单位为 MHz，功率单位为瓦，天线高度单位为米。
+
+## API 端点设计
+
+### 一、用户认证模块（`/api/v1/auth`）
+
+| 方法 | 路径 | 请求 | 返回或条件 |
+| --- | --- | --- | --- |
+| POST | `/register` | JSON 注册信息 | 201，用户对象 |
+| POST | `/login` | JSON 用户名、密码 | 令牌和用户对象 |
+| GET | `/me` | Bearer 认证 | 当前用户 |
+| PATCH | `/me` | JSON 偏好字段 | 更新后的用户 |
+| POST | `/change-password` | JSON 密码字段 | `{message}` |
+| POST | `/logout` | Bearer 认证 | `{message}` |
+| POST | `/delete-account` | `{"password":"..."}` | MySQL 模式申请注销 |
+| POST | `/cancel-delete` | 无请求体 | MySQL 模式撤销申请 |
+| POST | `/confirm-delete` | `{"code":"..."}` | MySQL 模式确认注销 |
+
+注册请求：
+
 ```json
 {
-    "page": 1,
-    "page_size": 20,
-    "sort_by": "qso_date",
-    "sort_order": "desc"
+  "username": "radio_user",
+  "email": "radio@example.com",
+  "password": "replace-with-your-password",
+  "confirm_password": "replace-with-your-password",
+  "full_name": "Radio Operator",
+  "timezone": "Asia/Shanghai",
+  "language": "zh-CN"
 }
 ```
 
-## API端点设计
+用户名长度为 3～50，密码至少 8 个字符，邮箱须满足邮箱格式，两个密码须一致。`full_name` 可省略，时区和语言默认 `UTC`、`zh-CN`。
 
-### 一、用户认证模块 (`/api/v1/auth`)
+登录请求为 JSON，不是 OAuth 表单：
 
-#### 1.1 用户注册
+```json
+{"username":"radio_user","password":"replace-with-your-password","remember_me":false}
 ```
-POST /api/v1/auth/register
-Content-Type: application/json
 
+`remember_me` 不改变后端的令牌有效期。登录响应中的 `expires_in` 单位为秒；`user` 包含 `id`、`username`、`email`、`full_name`、`timezone`、`language`、`role`、`is_active`、`created_at`。
+
+PATCH 资料支持 `full_name`、`timezone`、`language`。改密请求支持 `old_password`、`new_password`、`confirm_password`。MySQL 改密会删除会话行，但认证不查询会话是否存在，不能据此认定旧 JWT 已撤销。
+
+注销申请记录 30 天冷却期；到期后还需验证码确认，不会自动删除账户。邮件发送尚未接入，验证码也不通过申请接口返回，因此该流程尚不能作为完整的用户自助注销功能。
+
+### 二、用户信息模块（`/api/v1/users`）
+
+`GET /me` 返回当前用户，与 `GET /auth/me` 使用同一认证依赖。资料修改使用 `PATCH /auth/me`。
+
+### 三、台站模块（`/api/v1/stations`）
+
+| 方法 | 路径 | 请求或返回 |
+| --- | --- | --- |
+| POST | 空路径 | `{"callsign":"BA7ABC"}`，201 返回台站 |
+| GET | 空路径 | 当前用户未删除台站数组 |
+| GET | `/{station_id}` | 单个台站 |
+| PATCH | `/{station_id}` | `{"callsign":"BA7XYZ"}` |
+| DELETE | `/{station_id}` | 204；关联日志进入回收站，位置和台站软删除 |
+
+此处空路径指 `/api/v1/stations`，不附加尾部 `/`，后文同理。创建呼号长度为 3～20；服务层去除首尾空格并转大写。同呼号的软删除台站优先恢复，位置和日志不会随之恢复。
+
+### 四、位置模块（`/api/v1/locations`）
+
+| 方法 | 路径 | 请求或返回 |
+| --- | --- | --- |
+| POST | 空路径 | JSON 位置；201 返回位置 |
+| GET | 空路径 | 位置数组，可用查询参数 `station_id` 筛选 |
+| GET | `/active/current` | 激活位置；没有时返回 404 |
+| POST | `/{location_id}/activate` | 激活目标并取消当前用户其他位置的激活状态 |
+| PATCH | `/{location_id}` | 更新位置字段 |
+| DELETE | `/{location_id}` | 204；软删除，日志中的位置外键保留 |
+
+创建示例：
+
+```json
 {
-    "username": "ba6zyx",
-    "email": "user@example.com",
-    "password": "password123",
-    "confirm_password": "password123"
-}
-
-响应 201:
-{
-    "id": 1,
-    "username": "ba6zyx",
-    "email": "user@example.com",
-    "role": "user",
-    "is_active": true,
-    "created_at": "2024-01-15T10:30:00"
+  "station_id": 1,
+  "name": "Home",
+  "grid_square": "OL63",
+  "radio_model": "IC-7300",
+  "antenna_model": "Dipole",
+  "antenna_height": 10,
+  "qth": "Home station"
 }
 ```
 
-#### 1.2 用户登录
-```
-POST /api/v1/auth/login
-Content-Type: application/json
-
-{
-    "username": "ba6zyx",
-    "password": "password123"
-}
-
-响应 200:
-{
-    "access_token": "eyJ0eXAiOiJKV1Qi...",
-    "refresh_token": "eyJ0eXAiOiJKV1Qi...",
-    "token_type": "Bearer",
-    "expires_in": 604800,
-    "user": { "id": 1, "username": "ba6zyx", ... }
-}
-```
-
-#### 1.3 获取当前用户 / 更新信息
-```
-GET /api/v1/auth/me
-PATCH /api/v1/auth/me
-Authorization: Bearer {token}
-
-PATCH body: { "timezone": "Asia/Shanghai", "language": "zh-CN" }
-```
-
-#### 1.4 修改密码
-```
-POST /api/v1/auth/change-password
-Authorization: Bearer {token}
-
-{
-    "old_password": "oldpass123",
-    "new_password": "newpass456",
-    "confirm_password": "newpass456"
-}
-```
-
----
-
-### 二、用户信息模块 (`/api/v1/users`)
-```
-GET /api/v1/users/me
-Authorization: Bearer {token}
-```
-
----
-
-### 三、台站模块 (`/api/v1/stations`)
-
-台站仅包含呼号标识，详细配置在位置模块中。
-
-#### 3.1 创建台站
-```
-POST /api/v1/stations
-Authorization: Bearer {token}
-Body: { "callsign": "BA7ABC" }
-
-响应 201:
-{ "id": 1, "user_id": 1, "callsign": "BA7ABC", ... }
-```
-
-#### 3.2 获取所有台站
-```
-GET /api/v1/stations
-Authorization: Bearer {token}
-```
-
-#### 3.3 更新/删除台站
-```
-PATCH /api/v1/stations/{id}   Body: { "callsign": "BH8XYZ" }
-DELETE /api/v1/stations/{id}
-```
-
----
-
-### 四、位置模块 (`/api/v1/locations`)
-
-**核心设计**：一个台站可以有多个位置，同一用户全局只能激活一个位置。
-
-#### 4.1 创建位置
-```
-POST /api/v1/locations
-Authorization: Bearer {token}
-Body: {
-    "station_id": 1,
-    "name": "Home",
-    "grid_square": "OL63",
-    "radio_model": "ICOM IC-7300",
-    "antenna_model": "Yagi"
-}
-
-响应 201:
-{
-    "id": 1,
-    "user_id": 1,
-    "station_id": 1,
-    "station_callsign": "BA7ABC",
-    "name": "Home",
-    "grid_square": "OL63",
-    "is_active": true,      // 首个位置自动激活
-    ...
-}
-```
-
-#### 4.2 获取位置列表
-```
-GET /api/v1/locations
-GET /api/v1/locations?station_id=1
-Authorization: Bearer {token}
-```
-
-#### 4.3 获取当前激活位置
-```
-GET /api/v1/locations/active/current
-Authorization: Bearer {token}
-```
-
-#### 4.4 激活位置
-```
-POST /api/v1/locations/{id}/activate
-Authorization: Bearer {token}
-// 同一用户其他位置自动取消激活
-```
-
-#### 4.5 更新/删除位置
-```
-PATCH /api/v1/locations/{id}  Body: { "name": "Mobile", "radio_model": "FT-991A" }
-DELETE /api/v1/locations/{id}
-```
-
----
-
-### 五、日志管理模块 (`/api/v1/logs`)
-
-#### 5.1 创建通联日志
-```
-POST /api/v1/logs
-Authorization: Bearer {token}
-Body: {
-    "station_id": 1,         // 可选，未指定时自动使用激活台站
-    "call_sign": "JA1ABC",
-    "qso_date": "2024-06-15",
-    "band": "20m",
-    "mode": "FT8",
-    "rst_sent": "-05",
-    "rst_rcvd": "-03"
-}
-
-响应 201:
-{
-    "id": 1,
-    "station_id": 1,
-    "station_callsign": "BA7ABC",
-    "call_sign": "JA1ABC",
-    ...
-}
-```
-
-#### 5.2 分页查询日志
-```
-GET /api/v1/logs?page=1&page_size=20&station_id=1&start_date=...&end_date=...&band=20m&mode=FT8&call_sign=JA1
-Authorization: Bearer {token}
-
-响应:
-{
-    "items": [ ... ],
-    "total": 1500,
-    "page": 1,
-    "page_size": 20,
-    "pages": 75
-}
-```
+`station_id` 和 `grid_square` 必填；`name` 默认 `Default`。PATCH 支持名称、网格、电台、天线、高度和 QTH，不支持通过 PATCH 更换所属台站。
 
-**说明**：默认展示所有台站的日志。前端可以传 `station_id` 参数过滤指定台站的日志。
-
-#### 5.3 单条日志操作
-```
-GET    /api/v1/logs/{id}      # 详情（含 station_callsign）
-PATCH  /api/v1/logs/{id}      # 更新
-DELETE /api/v1/logs/{id}      # 逻辑删除
-```
+### 五、日志管理模块（`/api/v1/logs`）
 
-#### 5.4 导入日志
-```
-POST /api/v1/logs/import
-Authorization: Bearer {token}
-Content-Type: multipart/form-data
-
-参数:
-- file: .adi/.adif 文件
-- station_id: 目标台站（可选，默认激活台站）
-
-响应:
-{
-    "file_id": 1,
-    "total_records": 150,
-    "imported": 145,
-    "skipped": 5,
-    "errors": [ { "line": 10, "error": "..." } ]
-}
-```
+| 方法 | 路径 | 用途 |
+| --- | --- | --- |
+| POST | 空路径 | 创建 QSO，201 返回日志对象 |
+| GET | 空路径 | 筛选、排序、分页查询 |
+| GET | `/{log_id}` | 单条日志 |
+| PATCH | `/{log_id}` | 修改日志 |
+| DELETE | `/{log_id}` | 204；备份到回收站并软删除 |
+| GET | `/stats/overview` | 当前用户全部日志概览，`{data: ...}` |
+| POST | `/import` | multipart 文件导入 |
+| GET | `/export` | 下载 ADI 文件 |
+| GET | `/recycle/list` | 回收站分页列表 |
+| POST | `/recycle/{deleted_id}/restore` | 恢复日志 |
+| POST | `/recycle/batch-delete` | `{"ids":[1,2]}`，返回 `{"deleted":2}` |
+| POST | `/recycle/clear-all` | 清空回收站条目，返回 `{deleted}` |
 
-#### 5.5 导出日志
-```
-GET /api/v1/logs/export?format=adi&station_id=1&start_date=...&end_date=...&band=20m
-Authorization: Bearer {token}
-
-响应: application/octet-stream
-Content-Disposition: attachment; filename="20260614_BA7ABC.adi"
-```
+#### 创建与修改
 
-**说明**：导出文件名格式为 `{日期}_{台站呼号}.adi`。`station_id` 可选，未指定时导出所有台站日志（文件名使用 `AllStations`）。
+有激活位置时，最小创建请求为：
 
-#### 5.6 统计概览
-```
-GET /api/v1/logs/stats/overview
-Authorization: Bearer {token}
-
-{
-    "data": {
-        "total_qso": 1500,
-        "total_dxcc": 120,
-        "qsl_sent": 1200,
-        "qsl_rcvd": 800,
-        "lotw_confirmed": 600,
-        "total_distance": 1500000
-    }
-}
+```json
+{"call_sign":"JA1ABC","band":"20m","mode":"FT8","freq":14.074}
 ```
 
-#### 5.7 回收站列表
-```
-GET /api/v1/logs/recycle/list?page=1&page_size=20
-Authorization: Bearer {token}
-
-响应:
-{
-    "items": [
-        {
-            "id": 1,
-            "log_id": 123,
-            "call_sign": "JA1ABC",
-            "qso_date": "2026-06-15",
-            "band": "20m",
-            "delete_reason": "Station #5 deleted",
-            "deleted_at": "2026-06-20T10:00:00",
-            "expires_at": "2026-06-27T10:00:00",
-            "days_remaining": 7
-        }
-    ],
-    "total": 1,
-    "page": 1,
-    "page_size": 20,
-    "pages": 1
-}
-```
+`call_sign` 必填，最长 20 个字符。可显式指定 `station_id`、`location_id`、`qso_date`、`time_on`；未指定台站时要求已有激活位置，否则返回 400。已指定台站且未指定位置时，服务尝试使用该台站的激活位置。
 
-#### 5.8 从回收站恢复日志
-```
-POST /api/v1/logs/recycle/{deleted_id}/restore
-Authorization: Bearer {token}
-
-响应 200:
-{
-    "id": 124,             // 新建的日志ID
-    "call_sign": "JA1ABC",
-    ...
-}
-```
+CRUD 支持的其余字段包括结束日期与时间、收发频率与波段、模式、RST、对方网格、操作员、QTH、QSL/eQSL/LoTW 状态、距离、DXCC、功率、本网格、台站呼号字段和备注。响应额外包含 `id`、`user_id`、时间戳及展示用的 `station_callsign`、`location_name`。
 
-**说明**：恢复时从备份 JSON 创建新的 QSO 记录，原回收站条目标记为已恢复。过期条目（超过 7 天）不可恢复，恢复时自动清理过期条目。
+普通 PATCH 不支持更换 `station_id`，也不执行创建时的 QSL 联动。纸质和 eQSL 状态允许 `Y/N/R/I`，LoTW 允许 `Y/N`。
 
----
+ORM 中的 `my_call`、`prop_mode`、`sat_name`、`srx`、`stx`、`contest_id` 未暴露在普通 CRUD Schema 中。字段与类型见[数据库文档](02_数据库设计说明.md)。
 
-### 六、统计分析模块 (`/api/v1/stats`)
+#### 列表筛选与排序
 
-```
-GET /api/v1/stats/overview
-Authorization: Bearer {token}
-```
+查询参数包括分页参数、`start_date`、`end_date`、`band`、`mode`、`call_sign`、`grid_square`、`dxcc`、`station_id`、`sort_by`、`sort_order`。
 
----
+- 呼号为包含匹配；网格按对方网格前 4 位匹配。
+- 不传 `station_id` 时查询当前用户全部未删除日志；前端可自行传入激活台站。
+- 默认按 `qso_date desc` 排序，`sort_order` 只允许 `asc/desc`。
+- 排序白名单为 `qso_date`、`call_sign`、`band`、`mode`、`freq`、`rst_sent`、`rst_rcvd`、`qsl_sent`、`qsl_rcvd`、`lotw_sent`、`lotw_rcvd`、`dxcc`、`distance`、`created_at`、`station_id`。其他符合参数格式的值回退到日期排序。
 
-### 七、呼号查询模块 (`/api/v1/callsigns`)
+#### 导入
 
-#### 7.1 查询单个呼号
+```bash
+curl -X POST 'http://localhost:8000/api/v1/logs/import?station_id=1' \
+  -H "Authorization: Bearer $RADIO_TOKEN" \
+  -F 'file=@contacts.adi'
 ```
-GET /api/v1/callsigns/{call_sign}
-Authorization: Bearer {token}
-
-响应:
-{
-    "call_sign": "JA1ABC",
-    "full_name": "Taro Yamada",
-    "country": "Japan",
-    "grid_square": "PM95",
-    "latitude": 35.6762,
-    "longitude": 139.6503,
-    "cached": true,        // 来自缓存标记
-    "offline": false,       // 是否来自离线DXCC推断
-    "qrz_url": "https://www.qrz.com/db/JA1ABC"
-}
-```
 
-**查询优先级**：本地缓存（30天内）→ QRZ.com API → 过期缓存 → 离线DXCC前缀推断
+`file` 为 multipart 字段，`station_id` 为查询参数。文件名须以小写 `.adi` 或 `.adif` 结尾，接口读取上限为 **50 MiB**，按 UTF-8 解码。此限制直接写在导入路由中，不由 `MAX_UPLOAD_SIZE` 控制。
 
-#### 7.2 批量查询 / 搜索
-```
-POST /api/v1/callsigns/batch-query
-Body: { "call_signs": ["JA1ABC", "JA2DEF"] }
+不传台站时使用当前激活位置所属台站。导入识别已有记录的键为 `(call_sign, qso_date, time_on, band, mode, freq)`，范围是当前用户全部未删除日志，台站不在键中。
 
-GET /api/v1/callsigns/search/{prefix}?country=Japan
-```
+命中已有记录时，服务只补充空的 RST、网格、本网格、备注、功率和结束日期/时间；收到确认的 QSL、LoTW、eQSL 状态可向 `Y` 更新，并同时设置相应发送状态。未命中时创建记录，每累计 500 条新记录提交一次。导入不保证整文件原子性，也不保证所有 ADIF 字段原样往返。
 
-#### 7.3 清除缓存
-```
-DELETE /api/v1/callsigns/cache/{call_sign}
-```
+返回字段为 `file_id`、`total_records`、`imported`、`skipped`、`duplicates`、`merged`、`updated`、`errors`。`updated` 是 `merged` 的兼容字段；`errors` 最多返回 10 条，包含 `line`、`record`、`error`，其中 `line` 为记录序号。
 
----
+#### 导出
 
-### 八、数据同步模块 (`/api/v1/sync`)
+查询参数为 `format=adi|adif`、日期范围、`band`、`station_id`、`location_id`。两种 `format` 值都生成 `.adi` 文件，文件名为 `{UTC日期}_{台站呼号或AllStations}.adi`。
 
-| 端点 | 说明 |
-|------|------|
-| `POST /sync/github/config` | 配置GitHub (预留) |
-| `POST /sync/github/push` | 手动推送 (预留) |
-| `POST /sync/github/pull` | 手动拉取 (预留) |
-| `GET /sync/history` | 同步历史 |
+传 `location_id` 时，实际按该位置网格的前 4 位筛选 `my_gridsquare`，不是直接按日志 `location_id` 筛选。文件名同时附加网格后缀。
 
----
+导出覆盖源码中明确输出的通联、收发频率/波段、RST、本台呼号与网格、功率、传播、卫星、比赛和备注字段。现有导出不包含 QSL/eQSL/LoTW 状态，不能作为数据库的无损完整备份。
 
-### 九、快捷链接模块 (`/api/v1/shortcuts`)
-```
-GET  /api/v1/shortcuts                  # 内置+自定义快捷链接
-POST /api/v1/shortcuts                  # 添加链接
-DELETE /api/v1/shortcuts/{id}           # 删除链接
-```
+#### 回收站
 
----
+`deleted_id` 是回收站条目 ID，不是原日志 ID。列表返回 `log_id`、呼号、日期、波段、模式、DXCC、删除原因、删除与到期时间及 `days_remaining`。后者按剩余整天数计算。
 
-### 十、DX Cluster 模块 (`/api/v1/dxcluster`)
+保留期为 7 天。恢复优先取消原日志的软删除；原日志不存在时才从快照重建。过期清理和“永久删除”操作只删除回收站备份，不物理删除 `qso_logs` 中的软删除行。
 
-连接公共 DX Cluster 节点，实时接收并推送 DX spot。
+### 六、统计分析模块（`/api/v1/stats`）
 
-#### 10.1 获取预设节点列表
-```
-GET /api/v1/dxcluster/nodes
-Authorization: Bearer {token}
-
-响应:
-[
-    { "host": "dxc.ve7cc.net", "port": 7373, "name": "VE7CC", "country": "Canada", "remark": "北美西海岸，老牌节点" },
-    { "host": "dxc.k1ttt.net", "port": 7373, "name": "K1TTT", "country": "USA", "remark": "美国东海岸" },
-    ...
-]
-```
+全部返回 `{data: ...}`。
 
-#### 10.2 获取连接状态
-```
-GET /api/v1/dxcluster/status
-Authorization: Bearer {token}
-
-响应:
-{
-    "connected": true,
-    "connecting": false,
-    "current_node": { "host": "...", "port": 7373, "name": "VE7CC", ... },
-    "callsign": "BA7ABC",
-    "spot_count": 42,
-    "uptime_seconds": 3600.5
-}
-```
+| 方法与路径 | 参数与返回 |
+| --- | --- |
+| `GET /overview` | 可选 `station_id`；QSO、DXCC、确认、本月、本年、台站数等概览 |
+| `GET /band-mode` | `{bands, modes}`；每项含波段或模式、`qso_count`、`percentage` |
+| `GET /dxcc` | `{total_dxcc, dxcc_list}`，每项含 `entity`、`count` |
+| `GET /dxcc-chart` | `bands`、`entities`、`band_confirmed`、`band_worked`、`total_entities` |
+| `GET /band-mode-matrix` | `{band, mode, count}` 数组 |
 
-#### 10.3 连接到节点
-```
-POST /api/v1/dxcluster/connect
-Authorization: Bearer {token}
-Body: { "node_host": "dxc.ve7cc.net", "node_port": 7373 }
-
-响应 200:
-{ "success": true, "message": "Connected to VE7CC", "status": { ... } }
-
-错误 502: 连接失败
-错误 409: 没有激活台站（无法登录 cluster）
-```
+只有概览接收台站参数，其余端点统计当前用户全部未删除日志。概览“已确认”使用 `qsl_rcvd=Y` 或 `lotw_rcvd=Y`；DXCC 图表使用 `lotw_rcvd=Y`，eQSL 不参与这两项判断。
 
-**说明**：使用当前用户激活台站的呼号登录 cluster。同一时间只能有一个连接，切换节点时自动断开旧连接。
+### 七、呼号查询模块（`/api/v1/callsigns`）
 
-#### 10.4 断开连接
-```
-POST /api/v1/dxcluster/disconnect
-Authorization: Bearer {token}
+| 方法 | 路径 | 参数或返回 |
+| --- | --- | --- |
+| GET | `/{call_sign}` | 呼号信息对象，可含 `cached`、`cached_at`、`offline` |
+| POST | `/batch-query` | JSON `{"call_signs":["BA7ABC","JA1ABC"]}` |
+| GET | `/search/{prefix}` | 搜索数据库缓存，可选查询参数 `country`，最多 20 条 |
+| DELETE | `/cache/{call_sign}` | 删除共享缓存；无论是否命中均返回 204 |
 
-响应: { "connected": false, ... }
-```
+查询顺序为新缓存、在线 QRZ、旧缓存、离线 DXCC 推断。离线结果不代表 QRZ 注册情况，详细身份信息可能为空。批量查询最多处理输入的前 50 个呼号。
 
-#### 10.5 获取历史 spot
-```
-GET /api/v1/dxcluster/spots?limit=50
-Authorization: Bearer {token}
-
-响应:
-[
-    {
-        "spotter": "VE7CC",
-        "freq": "14074",
-        "dx_callsign": "JA1ABC",
-        "mode": "FT8",
-        "comment": "CQ",
-        "time_utc": "1230Z",
-        "band": "20m",
-        "received_at": "2026-06-20T12:30:00Z",
-        "dxcc_entity": "Japan"
-    },
-    ...
-]
-```
+### 八、数据同步模块（`/api/v1/sync`，预留）
 
-#### 10.6 WebSocket 实时 spot
-```
-ws://host/api/v1/dxcluster/ws?token={jwt_token}
-
-消息格式:
-{ "type": "spot", "data": { "spotter": "VE7CC", "dx_callsign": "JA1ABC", ... } }
-{ "type": "disconnect", "message": "cluster disconnected" }
-```
+| 方法 | 路径 | 行为 |
+| --- | --- | --- |
+| POST | `/github/config` | 查询参数 `github_url`、`branch=main`、`auto_sync=false`；返回配置回显，不持久化 |
+| POST | `/github/push` | 要求配置 `GITHUB_TOKEN`；记录同步历史，不执行文件上传 |
+| POST | `/github/pull` | 返回 `not_implemented`，不下载数据 |
+| GET | `/history` | 当前用户的同步历史分页 |
 
-**说明**：浏览器原生 WebSocket 不支持自定义 header，通过 query param `?token=` 传递 JWT 认证。连接后先推送历史 spot（最多 100 条），后续实时推送新 spot。
+这些端点的成功响应不构成备份成功凭据。
 
----
+### 九、快捷链接模块（`/api/v1/shortcuts`）
 
-### 十一、梅登网格地图模块 (`/api/v1/map`)
+| 方法 | 路径 | 参数或返回 |
+| --- | --- | --- |
+| GET | 空路径 | 内置链接与当前用户自定义链接数组 |
+| POST | 空路径 | 查询参数 `name`、`url`、`description`；201 返回链接 |
+| DELETE | `/{shortcut_id}` | 删除自定义链接，204 |
 
-#### 11.1 获取网格聚合数据
-```
-GET /api/v1/map/grids?my_grid=OL63
-Authorization: Bearer {token}
-
-参数:
-  my_grid: 可选，按 my_gridsquare 前4位过滤（匹配激活台站网格）
-
-响应:
-{
-    "my_grid": "OL63",
-    "my_lat": 39.5,
-    "my_lon": 116.5,
-    "grids": [
-        { "grid": "PM95", "count": 12, "confirmed": 5, "lat": 35.5, "lon": 139.5 },
-        { "grid": "FN31", "count": 3, "confirmed": 1, "lat": 41.5, "lon": -73.5 }
-    ]
-}
-```
+自定义链接保存在进程内存中，不跨 worker 共享，重启后丢失。POST 的参数不是 JSON 请求体。
 
-**说明**：
-- `my_grid` / `my_lat` / `my_lon`：从用户激活位置获取
-- `grids`：按 `grid_square` 前 4 位分组聚合，包含 QSO 数、已确认数（`qsl_rcvd='Y' OR lotw_rcvd='Y'`）、网格中心经纬度
-- 传入 `my_grid` 时仅返回 `my_gridsquare` 匹配的 QSO 聚合
+### 十、DX Cluster 模块（`/api/v1/dxcluster`）
 
----
+| 方法 | 路径 | 参数或返回 |
+| --- | --- | --- |
+| GET | `/nodes` | 预设节点数组 |
+| GET | `/status` | 连接状态对象 |
+| GET | `/spots` | `limit=50`，范围 1～200；历史 spot 由新到旧 |
+| POST | `/connect` | JSON `{"node_host":"host.example","node_port":7300}` |
+| POST | `/disconnect` | 返回断开后的状态 |
+| WebSocket | `/ws?token=...` | 历史和实时消息 |
 
-### 十二、登出
-```
-POST /api/v1/auth/logout
-Authorization: Bearer {token}
+连接使用当前用户激活位置所属台站的呼号登录节点。管理器在进程内共享，切换和断开会影响该进程所有用户。后端没有自动重连 Telnet 节点的机制。
 
-响应: { "message": "Logout successful" }
-```
+WebSocket 连接后逐条发送最多 100 条历史，再发送实时数据：
 
-#### 1.6 申请注销账号（仅服务器模式）
+```json
+{"type":"spot","data":{"spotter":"BA7ABC","freq":"14074.0","freq_mhz":"14.074","dx_callsign":"JA1ABC","mode":"FT8","comment":"FT8 CQ","time_utc":"1200Z","band":"20m","received_at":"2026-01-01T12:00:00Z","dxcc_entity":"Japan"}}
 ```
-POST /api/v1/auth/delete-account
-Authorization: Bearer {token}
-Content-Type: application/json
-
-{
-    "password": "user_password"
-}
-
-响应 200:
-{
-    "message": "Account deletion scheduled. You have 30 days to cancel.",
-    "scheduled_at": "2024-02-15T10:30:00",
-    "cooldown_days": 30
-}
-```
-
-**说明**：账号不会立即删除，进入 30 天冷却期。冷却期内用户可取消。仅 MySQL 模式可用。
 
-#### 1.7 撤销注销申请
-```
-POST /api/v1/auth/cancel-delete
-Authorization: Bearer {token}
+节点断开通知为 `{"type":"disconnect","message":"cluster disconnected"}`。WebSocket 的 `freq` 为节点原始频率字符串，`freq_mhz` 为归一化后的 MHz 字符串，`dxcc_entity` 为推断实体。HTTP `/spots` 受 `SpotResponse` 限制，不返回后两项，`freq` 转为浮点数但保留原始量级，不能一律当作 MHz。后端历史缓冲为 100 条，前端显示缓冲为 200 条。连接状态包含 `connected`、`connecting`、`current_node`、`callsign`、`spot_count`、`uptime_seconds`。
 
-响应 200: { "message": "Account deletion cancelled" }
-```
+### 十一、梅登网格地图模块（`/api/v1/map`）
 
-#### 1.8 确认注销账号（需验证码）
-```
-POST /api/v1/auth/confirm-delete
-Authorization: Bearer {token}
-Content-Type: application/json
-
-{
-    "code": "123456"
-}
-
-响应 200: { "message": "Account deleted successfully" }
-```
+| 方法 | 路径 | 返回 |
+| --- | --- | --- |
+| GET | `/grids` | `{my_grid, my_lat, my_lon, grids}` |
 
-**说明**：需要邮箱验证码确认。验证码通过邮件发送（当前为占位实现）。
+每个网格项含 `grid`、`count`、`confirmed`、`lat`、`lon`。
 
----
+查询参数 `my_grid` 按本台网格前 4 位过滤；未传时默认使用激活位置网格，仅在两者都没有时统计全部本网格。后台按原始对方网格分组后输出 4 位网格，多个 6 位网格可能输出相同的 4 位网格标识。确认数按纸质 QSL 或 LoTW 收到确认计算。
 
-### 十三、管理员 API (`/api/v1/admin`)
+### 十二、登出与账号状态
 
-**访问条件**：仅 MySQL 模式挂载，需要 `role=admin` 角色。
+`POST /auth/logout` 在 MySQL 模式尝试将当前 JWT 的 JTI 加入黑名单，并删除会话记录。SQLite 模式返回登出成功，由客户端清除本地登录信息，不执行 HTTP 令牌撤销。
 
-#### 13.1 用户管理
-```
-GET    /api/v1/admin/users?page=1&page_size=20&keyword=&role=&is_active=
-GET    /api/v1/admin/users/{user_id}
-POST   /api/v1/admin/users/{user_id}/toggle          # 启用/禁用
-POST   /api/v1/admin/users/{user_id}/reset-password   # 重置密码
-DELETE /api/v1/admin/users/{user_id}                  # 删除用户
-GET    /api/v1/admin/users/{user_id}/stats            # 用户统计
-```
+禁用和软删除用户会阻止后续认证。改密或重置密码后的会话删除不等同于令牌撤销，详见下文黑名单机制。
 
-#### 13.2 系统状态与配置
-```
-GET    /api/v1/admin/system/status                    # 系统状态
-GET    /api/v1/admin/system/config                    # 获取所有配置
-PATCH  /api/v1/admin/system/config                    # 更新配置
-```
+### 十三、管理员 API（`/api/v1/admin`）
 
-#### 13.3 审计日志
-```
-GET    /api/v1/admin/audit-logs?page=1&page_size=50&action=LOGIN
-```
+仅服务器模式注册，要求管理员身份。
 
-**说明**：所有管理员操作均记录到审计日志，包含操作人、操作类型、时间、IP 地址。
+| 方法 | 路径 | 参数或行为 |
+| --- | --- | --- |
+| GET | `/users` | `page`、`page_size`、`keyword`、`role`、`is_active` |
+| GET | `/users/{user_id}` | 用户信息 |
+| POST | `/users/{user_id}/toggle` | 切换启用状态 |
+| POST | `/users/{user_id}/reset-password` | JSON `{"new_password":"..."}` |
+| DELETE | `/users/{user_id}` | 软删除用户 |
+| GET | `/users/{user_id}/stats` | `{qso_count, station_count}` |
+| GET | `/audit-logs` | 分页，可选 `user_id`、`action` |
+| GET | `/system/config` | 配置项数组，空表时初始化默认项 |
+| PATCH | `/system/config` | JSON `{"key":"...","value":"..."}`，修改已有项 |
+| GET | `/system/status` | 数据库模式、用户、日志、台站及在线会话统计 |
 
----
+系统配置表不等同于环境配置；存储开关值不会自动调整导入限制、限流或节点列表。
 
 ### 十四、Token 黑名单机制
 
-MySQL 模式下，系统实现 JWT Token 黑名单：
+JWT 使用 `sub`、`exp`、`jti`。HTTP 业务认证在 MySQL 模式检查黑名单；两个 WebSocket 入口均检查黑名单和用户状态。
 
-1. 用户登录时，生成包含 JTI（唯一令牌标识）的 JWT
-2. 用户登出时，JTI 加入 Redis 黑名单（TTL = token 剩余有效期）
-3. 每个请求检查 JTI 是否在黑名单中，命中则拒绝（401）
-4. SQLite 模式不启用黑名单，登出仅清除前端本地令牌
+MySQL 模式优先使用 Redis，键带剩余有效期 TTL；初始化时 Redis 不可用会回退进程内存。SQLite 可创建内存黑名单实例，但 HTTP 登出与认证不使用该撤销流程。会话表只用于追踪活动，认证没有“会话必须存在”的条件。
 
-| 组件 | 说明 |
-|------|------|
-| `security.py` | JWT 生成时注入 JTI |
-| `token_blacklist_service.py` | Redis/内存 黑名单读写 |
-| `dependencies.py` | 请求拦截检查黑名单 |
+### 十五、UDP 模块（`/api/v1/udp`）
 
----
+| 方法 | 路径 | 请求与返回 |
+| --- | --- | --- |
+| GET | `/status` | `{data: {running, wsjtx_port, n1mm_port, qso_count, last_qso, ws_clients}}` |
+| POST | `/start` | JSON `{"wsjtx_port":2237,"n1mm_port":12060}`，字段可省略 |
+| POST | `/stop` | `{data: {running:false}}` |
+| POST | `/save-to-log` | `QSOLogCreate` JSON；成功为 `{data:{id,call_sign}}` |
+| WebSocket | `/ws?token=...` | 接收 QSO 与保存确认 |
+
+收到广播的消息为 `{type:"qso_received", source:"wsjtx"或"n1mm", data:QSO字段, count:计数}`。接收事件不会自动持久化。客户端可调用保存端点，也可发送 `{"action":"save","data":{"call_sign":"JA1ABC"}}`；后者成功后收到 `{type:"qso_saved",data:{id,call_sign}}`。
+
+保存端点失败时可能返回 HTTP 200 和 `{"error":"Failed to save QSO"}`；WebSocket 保存失败返回 `{type:"error",message:...}`，调用方需检查内容。
+
+监听端口绑定在后端主机；运行状态和广播在进程内共享，不是每用户独立监听器。
 
 ## 错误处理
 
-### 标准错误响应
+### 错误响应格式
+
+FastAPI 处理的 HTTP 异常通常返回 `{"detail":"..."}`，请求校验错误的 `detail` 为数组。自定义业务异常、未处理异常和限流使用：
+
 ```json
-{
-    "code": 400,
-    "message": "Bad request",
-    "data": {
-        "error_code": "INVALID_INPUT",
-        "error_message": "Detail description"
-    }
-}
+{"code":429,"message":"Too many requests. Please try again later.","data":null}
 ```
 
-### 常见错误码
-| 错误码 | 说明 |
-|--------|------|
-| INVALID_INPUT | 输入参数无效 |
-| UNAUTHORIZED | 未授权 |
-| NOT_FOUND | 资源不存在 |
-| VALIDATION_ERROR | 数据验证失败 |
-| RATE_LIMITED | 请求过于频繁 |
-| INTERNAL_ERROR | 服务器内部错误 |
+客户端应同时识别 `detail`、`message` 及端点专用的错误字段，不能假定所有错误格式一致。
 
-## API文档访问
-- Swagger UI: `/docs`
-- ReDoc: `/redoc`
-- OpenAPI JSON: `/openapi.json`
+### 限流
+
+按客户端 IP 使用 60 秒窗口。普通请求上限 100；登录、注册、改密、确认注销共用更严格的 5 次窗口。状态存于单进程内存。`/health`、`/` 及 `/docs` 前缀跳过限流。
+
+## API 文档访问
+
+`DEBUG=true` 时开放 `/docs` 和 `/redoc`。`/openapi.json` 未随 `DEBUG=false` 关闭。服务器默认关闭交互文档；部署状态使用 `/health` 查询。
+
+`GET /health` 报告 `status`、`version`、`database`、`subsystems`，SQLite 额外返回 `db_path`、`db_dir`。数据库或 Redis 检查失败时 `status="degraded"`，HTTP 状态仍为 200。`GET /` 返回应用名、版本、文档路径和数据库模式。

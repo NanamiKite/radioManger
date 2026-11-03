@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import { storage } from '@/utils/storage'
 import type { User } from '@/types'
 import { authApi } from '@/api/auth'
-import type { HealthResponse } from '@/api/health'
 import { fetchHealth } from '@/api/health'
 
 interface RegisterData {

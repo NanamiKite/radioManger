@@ -1,0 +1,64 @@
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started parent process [8600]
+INFO:     Started server process [8612]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [8614]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [8615]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [8613]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Received SIGHUP, restarting processes.
+INFO:     Waiting for child process [8612]
+/usr/lib/python3.10/multiprocessing/resource_tracker.py:104: UserWarning: resource_tracker: process died unexpectedly, relaunching.  Some resources might leak.
+  warnings.warn('resource_tracker: process died unexpectedly, '
+INFO:     Waiting for child process [8613]
+INFO:     Waiting for child process [8614]
+INFO:     Waiting for child process [8615]
+INFO:     Started server process [8783]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [8782]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [8784]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [8785]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:37468 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37484 - "GET /api/v1/stats/dxcc-chart HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:37490 - "POST /api/v1/auth/login HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:57662 - "POST /api/v1/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57666 - "GET /api/v1/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57672 - "GET /api/v1/locations/active/current HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57684 - "GET /api/v1/stats/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57696 - "GET /api/v1/logs?page=1&page_size=10&sort_by=qso_date&sort_order=desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57694 - "GET /api/v1/stats/band-mode HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53886 - "GET /api/v1/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53894 - "GET /api/v1/locations/active/current HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:53910 - "GET /api/v1/logs?page=1&page_size=20&sort_by=qso_date&sort_order=desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53916 - "GET /api/v1/stats/dxcc-chart HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53922 - "GET /api/v1/udp/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53924 - "GET /api/v1/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53936 - "GET /api/v1/locations/active/current HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:53944 - "GET /api/v1/stats/band-mode HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53940 - "GET /api/v1/stats/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53954 - "GET /api/v1/logs?page=1&page_size=10&sort_by=qso_date&sort_order=desc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53962 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60126 - "PATCH /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60134 - "GET /api/v1/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60136 - "GET /api/v1/locations/active/current HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:60152 - "GET /api/v1/stats/band-mode HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60138 - "GET /api/v1/stats/overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60156 - "GET /api/v1/logs?page=1&page_size=10&sort_by=qso_date&sort_order=desc HTTP/1.1" 200 OK
+INFO:     Waiting for child process [8785]
+INFO:     Child process [8785] died
+INFO:     Started server process [306881]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
