@@ -1,6 +1,6 @@
 # RadioManager — 架构与实现索引
 
-本文用于从功能定位源码。使用步骤见 [README](README.md)，详细设计见 [doc/](doc/01_项目总文件说明.md)。
+本文用于从功能定位源码。使用步骤见 [README](README.md)，详细设计见 [doc/](doc/README.md)。
 
 ## 1. 项目概述
 
@@ -89,7 +89,7 @@ erDiagram
 
 常规模块前缀为 `/api/v1/{auth,users,logs,stations,locations,stats,callsigns,sync,shortcuts,dxcluster,map,udp}`。服务器模式另注册 `/api/v1/admin`。
 
-日志列表和资源对象直接返回，统计返回 `{data:...}`，导出返回文件，不存在统一成功包装。请求字段、全部端点和消息见 [API 文档](doc/03_API设计说明.md)。
+日志列表和资源对象直接返回，统计返回 `{data:...}`，导出返回文件，不存在统一成功包装。请求字段、全部端点和消息见 [API 端点说明](doc/04_API端点说明.md)。
 
 ## 9. 关键数据流
 
@@ -115,7 +115,7 @@ UDP 另走“数据报 → 字段转换 → `qso_received` 广播”；显式保
 
 Pinia 分为 `auth`、`logs`、`stats`、`dxcluster`。Axios 默认同源 `/api/v1`，普通超时 30 秒，导入 120 秒；健康检查为同源 `/health`，5 秒超时；文件导出用 `fetch`。
 
-页面使用 History 路由，部署需 SPA 回退。语言为 `zh-CN/en-US`；主题为 `light/dark/system`。详情见[前端设计](doc/04_前端架构设计.md)。
+页面使用 History 路由，部署需 SPA 回退。语言为 `zh-CN/en-US`；主题为 `light/dark/system`。详情见[前端设计](doc/05_前端架构设计.md)。
 
 ## 11. Electron 安全配置
 
@@ -148,4 +148,4 @@ Electron 优先加载构建文件，否则加载 5173 页面；不启动 Python�
 
 GitHub 未传输日志，邮件未发送；自定义快捷链接和验证码只存内存。Web App Manifest 不包含离线缓存实现；Electron 和 Android 构建配置不代表已包含完整本地后端。
 
-回收站优先恢复原记录，清空只删除快照；ADI 导出不包含 QSL 状态，不能替代数据库备份。部署与备份步骤集中在[部署说明](doc/06_部署说明.md)，完整流程图见[系统架构图](doc/07_系统架构图.md)。
+回收站优先恢复原记录，清空只删除快照；ADI 导出不包含 QSL 状态，不能替代数据库备份。部署与备份步骤见[部署文档](doc/README.md)，完整流程图见[系统架构图](doc/11_系统架构图.md)。

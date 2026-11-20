@@ -1,61 +1,8 @@
-# API 设计说明
+# API 端点说明
 
-## API 概述
+各模块端点的请求、返回与消息格式。响应包装、状态码、认证、分页和错误格式等共用规则见[API 通用规范](03_API通用规范.md)。
 
-REST API 默认前缀为 `/api/v1`，由 [`main.py`](../backend/app/main.py) 注册。本文路径与 [`api/v1/`](../backend/app/api/v1/) 和 [`schemas/`](../backend/app/schemas/) 一致。`/health`、`/` 和 OpenAPI 位于版本前缀之外。
-
-## API 基本规范
-
-### 响应格式
-
-成功响应按端点定义返回，没有统一的 `{code, message, data}` 包装：
-
-| 端点类型 | 响应 |
-| --- | --- |
-| 登录 | 顶层 `access_token`、`refresh_token`、`token_type`、`expires_in`、`user` |
-| 台站、位置、单条日志 | 对象 |
-| 台站、位置、DX 节点列表 | 数组 |
-| 日志列表、回收站、同步历史 | `{items, total, page, page_size, pages}` |
-| 统计 API | `{data: ...}` |
-| 日志导入 | 顶层计数、文件 ID 和错误数组 |
-| 日志导出 | 文件响应，`application/octet-stream` |
-| DELETE 成功 | 通常为 204，无响应体 |
-
-Axios 公共客户端只解包 HTTP 的 `response.data`，不会继续提取业务层的 `data`。
-
-### HTTP 状态码
-
-| 状态码 | 含义 |
-| --- | --- |
-| 200 / 201 / 204 | 成功 / 创建成功 / 无内容 |
-| 400 | 业务条件不满足、文件类型错误等 |
-| 401 / 403 | 认证失败 / 权限不足 |
-| 404 | 资源不存在 |
-| 409 | DX Cluster 缺少可用激活台站等冲突 |
-| 413 | 导入文件超过大小限制 |
-| 422 | 参数校验失败或注册信息冲突 |
-| 429 | 触发 IP 限流 |
-| 500 / 502 | 服务端异常 / DX 节点连接失败 |
-
-### 认证方式
-
-除注册、登录及公共状态接口外，REST 业务端点要求：
-
-```http
-Authorization: Bearer <access_token>
-```
-
-WebSocket 使用 `?token=<access_token>`。令牌有效期默认分别为 7 天和 30 天，但没有 `/auth/refresh` 接口，也没有前端自动续期流程。MySQL 管理接口另要求 `role="admin"`。
-
-### 分页参数
-
-普通分页默认 `page=1`、`page_size=20`，页码从 1 开始，页大小上限 100。管理审计列表默认 50、上限 200；管理员用户列表与审计列表不返回 `pages`。
-
-日期使用 `YYYY-MM-DD`，时间使用 `HH:MM:SS`。QSO 日期和时间按 UTC 使用，频率单位为 MHz，功率单位为瓦，天线高度单位为米。
-
-## API 端点设计
-
-### 一、用户认证模块（`/api/v1/auth`）
+## 一、用户认证模块（`/api/v1/auth`）
 
 | 方法 | 路径 | 请求 | 返回或条件 |
 | --- | --- | --- | --- |
@@ -97,11 +44,11 @@ PATCH 资料支持 `full_name`、`timezone`、`language`。改密请求支持 `o
 
 注销申请记录 30 天冷却期；到期后还需验证码确认，不会自动删除账户。邮件发送尚未接入，验证码也不通过申请接口返回，因此该流程尚不能作为完整的用户自助注销功能。
 
-### 二、用户信息模块（`/api/v1/users`）
+## 二、用户信息模块（`/api/v1/users`）
 
 `GET /me` 返回当前用户，与 `GET /auth/me` 使用同一认证依赖。资料修改使用 `PATCH /auth/me`。
 
-### 三、台站模块（`/api/v1/stations`）
+## 三、台站模块（`/api/v1/stations`）
 
 | 方法 | 路径 | 请求或返回 |
 | --- | --- | --- |
@@ -111,9 +58,9 @@ PATCH 资料支持 `full_name`、`timezone`、`language`。改密请求支持 `o
 | PATCH | `/{station_id}` | `{"callsign":"BA7XYZ"}` |
 | DELETE | `/{station_id}` | 204；关联日志进入回收站，位置和台站软删除 |
 
-此处空路径指 `/api/v1/stations`，不附加尾部 `/`，后文同理。创建呼号长度为 3～20；服务层去除首尾空格并转大写。同呼号的软删除台站优先恢复，位置和日志不会随之恢复。
+空路径指 `/api/v1/stations`，不附加尾部 `/`，下文同理。创建呼号长度为 3～20；服务层去除首尾空格并转大写。同呼号的软删除台站优先恢复，位置和日志不会随之恢复。
 
-### 四、位置模块（`/api/v1/locations`）
+## 四、位置模块（`/api/v1/locations`）
 
 | 方法 | 路径 | 请求或返回 |
 | --- | --- | --- |
@@ -140,7 +87,7 @@ PATCH 资料支持 `full_name`、`timezone`、`language`。改密请求支持 `o
 
 `station_id` 和 `grid_square` 必填；`name` 默认 `Default`。PATCH 支持名称、网格、电台、天线、高度和 QTH，不支持通过 PATCH 更换所属台站。
 
-### 五、日志管理模块（`/api/v1/logs`）
+## 五、日志管理模块（`/api/v1/logs`）
 
 | 方法 | 路径 | 用途 |
 | --- | --- | --- |
@@ -157,7 +104,7 @@ PATCH 资料支持 `full_name`、`timezone`、`language`。改密请求支持 `o
 | POST | `/recycle/batch-delete` | `{"ids":[1,2]}`，返回 `{"deleted":2}` |
 | POST | `/recycle/clear-all` | 清空回收站条目，返回 `{deleted}` |
 
-#### 创建与修改
+### 创建与修改
 
 有激活位置时，最小创建请求为：
 
@@ -173,7 +120,7 @@ CRUD 支持的其余字段包括结束日期与时间、收发频率与波段、
 
 ORM 中的 `my_call`、`prop_mode`、`sat_name`、`srx`、`stx`、`contest_id` 未暴露在普通 CRUD Schema 中。字段与类型见[数据库文档](02_数据库设计说明.md)。
 
-#### 列表筛选与排序
+### 列表筛选与排序
 
 查询参数包括分页参数、`start_date`、`end_date`、`band`、`mode`、`call_sign`、`grid_square`、`dxcc`、`station_id`、`sort_by`、`sort_order`。
 
@@ -182,7 +129,7 @@ ORM 中的 `my_call`、`prop_mode`、`sat_name`、`srx`、`stx`、`contest_id` �
 - 默认按 `qso_date desc` 排序，`sort_order` 只允许 `asc/desc`。
 - 排序白名单为 `qso_date`、`call_sign`、`band`、`mode`、`freq`、`rst_sent`、`rst_rcvd`、`qsl_sent`、`qsl_rcvd`、`lotw_sent`、`lotw_rcvd`、`dxcc`、`distance`、`created_at`、`station_id`。其他符合参数格式的值回退到日期排序。
 
-#### 导入
+### 导入
 
 ```bash
 curl -X POST 'http://localhost:8000/api/v1/logs/import?station_id=1' \
@@ -198,7 +145,7 @@ curl -X POST 'http://localhost:8000/api/v1/logs/import?station_id=1' \
 
 返回字段为 `file_id`、`total_records`、`imported`、`skipped`、`duplicates`、`merged`、`updated`、`errors`。`updated` 是 `merged` 的兼容字段；`errors` 最多返回 10 条，包含 `line`、`record`、`error`，其中 `line` 为记录序号。
 
-#### 导出
+### 导出
 
 查询参数为 `format=adi|adif`、日期范围、`band`、`station_id`、`location_id`。两种 `format` 值都生成 `.adi` 文件，文件名为 `{UTC日期}_{台站呼号或AllStations}.adi`。
 
@@ -206,13 +153,13 @@ curl -X POST 'http://localhost:8000/api/v1/logs/import?station_id=1' \
 
 导出覆盖源码中明确输出的通联、收发频率/波段、RST、本台呼号与网格、功率、传播、卫星、比赛和备注字段。现有导出不包含 QSL/eQSL/LoTW 状态，不能作为数据库的无损完整备份。
 
-#### 回收站
+### 回收站
 
 `deleted_id` 是回收站条目 ID，不是原日志 ID。列表返回 `log_id`、呼号、日期、波段、模式、DXCC、删除原因、删除与到期时间及 `days_remaining`。后者按剩余整天数计算。
 
 保留期为 7 天。恢复优先取消原日志的软删除；原日志不存在时才从快照重建。过期清理和“永久删除”操作只删除回收站备份，不物理删除 `qso_logs` 中的软删除行。
 
-### 六、统计分析模块（`/api/v1/stats`）
+## 六、统计分析模块（`/api/v1/stats`）
 
 全部返回 `{data: ...}`。
 
@@ -226,7 +173,7 @@ curl -X POST 'http://localhost:8000/api/v1/logs/import?station_id=1' \
 
 只有概览接收台站参数，其余端点统计当前用户全部未删除日志。概览“已确认”使用 `qsl_rcvd=Y` 或 `lotw_rcvd=Y`；DXCC 图表使用 `lotw_rcvd=Y`，eQSL 不参与这两项判断。
 
-### 七、呼号查询模块（`/api/v1/callsigns`）
+## 七、呼号查询模块（`/api/v1/callsigns`）
 
 | 方法 | 路径 | 参数或返回 |
 | --- | --- | --- |
@@ -237,7 +184,7 @@ curl -X POST 'http://localhost:8000/api/v1/logs/import?station_id=1' \
 
 查询顺序为新缓存、在线 QRZ、旧缓存、离线 DXCC 推断。离线结果不代表 QRZ 注册情况，详细身份信息可能为空。批量查询最多处理输入的前 50 个呼号。
 
-### 八、数据同步模块（`/api/v1/sync`，预留）
+## 八、数据同步模块（`/api/v1/sync`，预留）
 
 | 方法 | 路径 | 行为 |
 | --- | --- | --- |
@@ -248,7 +195,7 @@ curl -X POST 'http://localhost:8000/api/v1/logs/import?station_id=1' \
 
 这些端点的成功响应不构成备份成功凭据。
 
-### 九、快捷链接模块（`/api/v1/shortcuts`）
+## 九、快捷链接模块（`/api/v1/shortcuts`）
 
 | 方法 | 路径 | 参数或返回 |
 | --- | --- | --- |
@@ -258,7 +205,7 @@ curl -X POST 'http://localhost:8000/api/v1/logs/import?station_id=1' \
 
 自定义链接保存在进程内存中，不跨 worker 共享，重启后丢失。POST 的参数不是 JSON 请求体。
 
-### 十、DX Cluster 模块（`/api/v1/dxcluster`）
+## 十、DX Cluster 模块（`/api/v1/dxcluster`）
 
 | 方法 | 路径 | 参数或返回 |
 | --- | --- | --- |
@@ -269,7 +216,7 @@ curl -X POST 'http://localhost:8000/api/v1/logs/import?station_id=1' \
 | POST | `/disconnect` | 返回断开后的状态 |
 | WebSocket | `/ws?token=...` | 历史和实时消息 |
 
-连接使用当前用户激活位置所属台站的呼号登录节点。管理器在进程内共享，切换和断开会影响该进程所有用户。后端没有自动重连 Telnet 节点的机制。
+连接使用当前用户激活位置所属台站的呼号登录节点。管理器在进程内共享，切换和断开影响该进程的所有用户。后端没有自动重连 Telnet 节点的机制。
 
 WebSocket 连接后逐条发送最多 100 条历史，再发送实时数据：
 
@@ -279,7 +226,7 @@ WebSocket 连接后逐条发送最多 100 条历史，再发送实时数据：
 
 节点断开通知为 `{"type":"disconnect","message":"cluster disconnected"}`。WebSocket 的 `freq` 为节点原始频率字符串，`freq_mhz` 为归一化后的 MHz 字符串，`dxcc_entity` 为推断实体。HTTP `/spots` 受 `SpotResponse` 限制，不返回后两项，`freq` 转为浮点数但保留原始量级，不能一律当作 MHz。后端历史缓冲为 100 条，前端显示缓冲为 200 条。连接状态包含 `connected`、`connecting`、`current_node`、`callsign`、`spot_count`、`uptime_seconds`。
 
-### 十一、梅登网格地图模块（`/api/v1/map`）
+## 十一、梅登网格地图模块（`/api/v1/map`）
 
 | 方法 | 路径 | 返回 |
 | --- | --- | --- |
@@ -289,13 +236,13 @@ WebSocket 连接后逐条发送最多 100 条历史，再发送实时数据：
 
 查询参数 `my_grid` 按本台网格前 4 位过滤；未传时默认使用激活位置网格，仅在两者都没有时统计全部本网格。后台按原始对方网格分组后输出 4 位网格，多个 6 位网格可能输出相同的 4 位网格标识。确认数按纸质 QSL 或 LoTW 收到确认计算。
 
-### 十二、登出与账号状态
+## 十二、登出与账号状态
 
-`POST /auth/logout` 在 MySQL 模式尝试将当前 JWT 的 JTI 加入黑名单，并删除会话记录。SQLite 模式返回登出成功，由客户端清除本地登录信息，不执行 HTTP 令牌撤销。
+`POST /auth/logout` 在 MySQL 模式尝试把当前 JWT 的 JTI 加入黑名单，并删除会话记录。SQLite 模式返回登出成功，由客户端清除本地登录信息，不执行 HTTP 令牌撤销。
 
 禁用和软删除用户会阻止后续认证。改密或重置密码后的会话删除不等同于令牌撤销，详见下文黑名单机制。
 
-### 十三、管理员 API（`/api/v1/admin`）
+## 十三、管理员 API（`/api/v1/admin`）
 
 仅服务器模式注册，要求管理员身份。
 
@@ -314,13 +261,13 @@ WebSocket 连接后逐条发送最多 100 条历史，再发送实时数据：
 
 系统配置表不等同于环境配置；存储开关值不会自动调整导入限制、限流或节点列表。
 
-### 十四、Token 黑名单机制
+## 十四、Token 黑名单机制
 
 JWT 使用 `sub`、`exp`、`jti`。HTTP 业务认证在 MySQL 模式检查黑名单；两个 WebSocket 入口均检查黑名单和用户状态。
 
-MySQL 模式优先使用 Redis，键带剩余有效期 TTL；初始化时 Redis 不可用会回退进程内存。SQLite 可创建内存黑名单实例，但 HTTP 登出与认证不使用该撤销流程。会话表只用于追踪活动，认证没有“会话必须存在”的条件。
+MySQL 模式优先使用 Redis，键带剩余有效期 TTL；初始化时 Redis 不可用则回退进程内存。SQLite 可创建内存黑名单实例，但 HTTP 登出与认证不使用该撤销流程。会话表只用于追踪活动，认证没有“会话必须存在”的条件。
 
-### 十五、UDP 模块（`/api/v1/udp`）
+## 十五、UDP 模块（`/api/v1/udp`）
 
 | 方法 | 路径 | 请求与返回 |
 | --- | --- | --- |
@@ -330,30 +277,8 @@ MySQL 模式优先使用 Redis，键带剩余有效期 TTL；初始化时 Redis 
 | POST | `/save-to-log` | `QSOLogCreate` JSON；成功为 `{data:{id,call_sign}}` |
 | WebSocket | `/ws?token=...` | 接收 QSO 与保存确认 |
 
-收到广播的消息为 `{type:"qso_received", source:"wsjtx"或"n1mm", data:QSO字段, count:计数}`。接收事件不会自动持久化。客户端可调用保存端点，也可发送 `{"action":"save","data":{"call_sign":"JA1ABC"}}`；后者成功后收到 `{type:"qso_saved",data:{id,call_sign}}`。
+广播消息为 `{type:"qso_received", source:"wsjtx"或"n1mm", data:QSO字段, count:计数}`。接收事件不会自动持久化。客户端可调用保存端点，也可发送 `{"action":"save","data":{"call_sign":"JA1ABC"}}`；后者成功后收到 `{type:"qso_saved",data:{id,call_sign}}`。
 
 保存端点失败时可能返回 HTTP 200 和 `{"error":"Failed to save QSO"}`；WebSocket 保存失败返回 `{type:"error",message:...}`，调用方需检查内容。
 
 监听端口绑定在后端主机；运行状态和广播在进程内共享，不是每用户独立监听器。
-
-## 错误处理
-
-### 错误响应格式
-
-FastAPI 处理的 HTTP 异常通常返回 `{"detail":"..."}`，请求校验错误的 `detail` 为数组。自定义业务异常、未处理异常和限流使用：
-
-```json
-{"code":429,"message":"Too many requests. Please try again later.","data":null}
-```
-
-客户端应同时识别 `detail`、`message` 及端点专用的错误字段，不能假定所有错误格式一致。
-
-### 限流
-
-按客户端 IP 使用 60 秒窗口。普通请求上限 100；登录、注册、改密、确认注销共用更严格的 5 次窗口。状态存于单进程内存。`/health`、`/` 及 `/docs` 前缀跳过限流。
-
-## API 文档访问
-
-`DEBUG=true` 时开放 `/docs` 和 `/redoc`。`/openapi.json` 未随 `DEBUG=false` 关闭。服务器默认关闭交互文档；部署状态使用 `/health` 查询。
-
-`GET /health` 报告 `status`、`version`、`database`、`subsystems`，SQLite 额外返回 `db_path`、`db_dir`。数据库或 Redis 检查失败时 `status="degraded"`，HTTP 状态仍为 200。`GET /` 返回应用名、版本、文档路径和数据库模式。
