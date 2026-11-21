@@ -36,7 +36,6 @@
           <el-option :label="$t('tools.radialQuarter')" value="quarter" />
           <el-option :label="$t('tools.radialHalf')" value="half" />
         </el-select>
-        <div class="field-hint">{{ $t('tools.radialHint') }}</div>
       </el-form-item>
       <el-form-item :label="$t('tools.numRadials')">
         <el-select v-model.number="numRadials" style="width:120px">
@@ -57,11 +56,12 @@
       <el-table-column prop="vertM" :label="$t('tools.vertical') + ' (m)'" width="110" />
       <el-table-column prop="radFt" :label="$t('tools.radial') + ' (ft)'" />
     </el-table>
-    <div class="formula-note">
+    <details class="formula-note">
+      <summary>{{ $t('tools.formula') }}</summary>
       <strong>{{ $t('tools.vertical') }}：</strong> L(ft) = 234 × VF / f(MHz) &nbsp; {{ $t('tools.or') }} &nbsp; L(m) = 71.25 × VF / f(MHz)<br>
       <strong>{{ $t('tools.radials') }}：</strong> λ/4 = {{ $t('tools.sameAsVertical') }}; λ/2 = 468 × VF / f(MHz)<br>
       <em>{{ $t('tools.source') }}：ARRL Antenna Book — Ground Plane Antenna. Radials at 45° downward for ~50Ω impedance.</em>
-    </div>
+    </details>
   </div>
 </template>
 

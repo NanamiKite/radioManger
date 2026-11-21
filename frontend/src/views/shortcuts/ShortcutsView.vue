@@ -3,7 +3,6 @@
     <div class="page-header">
       <div>
         <h1>{{ $t('shortcuts.title') }}</h1>
-        <p>{{ $t('shortcuts.subtitle') }}</p>
       </div>
     </div>
 
@@ -42,7 +41,7 @@ const openUrl = (url: string) => {
 
 <style scoped lang="scss">
 .shortcuts-container {
-  .page-header { margin-bottom: 20px; h1 { margin-bottom: 5px; } p { color: #909399; } }
+  .page-header { margin-bottom: 20px; h1 { margin-bottom: 5px; } }
   .shortcut-col { margin-bottom: 16px; }
   .shortcut-card {
     cursor: pointer; transition: transform 0.15s;

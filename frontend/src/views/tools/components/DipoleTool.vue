@@ -39,10 +39,11 @@
       <el-table-column prop="totalM" label="Total (m)" width="100" />
       <el-table-column prop="legFt" label="Leg (ft)" />
     </el-table>
-    <div class="formula-note">
-      <strong>{{ $t('tools.formula') }}：</strong> L(ft) = 468 × VF / f(MHz) &nbsp; {{ $t('tools.or') }} &nbsp; L(m) = 142.5 × VF / f(MHz)<br>
+    <details class="formula-note">
+      <summary>{{ $t('tools.formula') }}</summary>
+      L(ft) = 468 × VF / f(MHz) &nbsp; {{ $t('tools.or') }} &nbsp; L(m) = 142.5 × VF / f(MHz)<br>
       <em>{{ $t('tools.source') }}：ARRL Antenna Book — 468 factor accounts for ~5% end effect (VF ≈ 0.95 for bare copper)</em>
-    </div>
+    </details>
   </div>
 </template>
 

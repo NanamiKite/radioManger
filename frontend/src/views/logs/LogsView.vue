@@ -3,17 +3,13 @@
     <div class="page-header">
       <div>
         <h1>{{ $t('logs.title') }}</h1>
-        <p>
-          {{ $t('nav.logs') }}
-          <span v-if="logsStore.activeStation" style="margin-left:12px;color:var(--color-accent);">
-             | {{ $t('logs.active') }}: <strong>{{ logsStore.activeStation.callsign }}</strong>
-          </span>
-        </p>
+        <el-tag v-if="logsStore.activeStation" type="info" size="small">{{ logsStore.activeStation.callsign }}</el-tag>
       </div>
       <div class="header-actions">
         <el-button @click="showImportDialog = true">{{ $t('common.import') }}</el-button>
         <el-button @click="showExportDialog = true">{{ $t('common.export') }}</el-button>
-        <el-button type="primary" @click="showCreateDialog = true">{{ $t('logs.newLog') }}</el-button>
+        <el-button v-if="logsStore.stations.length" type="primary" @click="showCreateDialog = true">{{ $t('logs.newLog') }}</el-button>
+        <el-button v-else type="primary" @click="router.push({ name: 'Stations' })">{{ $t('stations.newStation') }}</el-button>
       </div>
     </div>
 
@@ -136,6 +132,14 @@
 
     <!-- 导入对话框 -->
     <el-dialog v-model="showImportDialog" :title="$t('logs.importLogs')" width="500px">
+      <el-form label-width="120px">
+        <el-form-item :label="$t('logs.stationId')">
+          <el-select v-if="logsStore.stations.length" v-model="importStationId" style="width:100%">
+            <el-option v-for="station in logsStore.stations" :key="station.id" :label="station.callsign" :value="station.id" />
+          </el-select>
+          <el-button v-else type="primary" @click="router.push({ name: 'Stations' })">{{ $t('stations.newStation') }}</el-button>
+        </el-form-item>
+      </el-form>
       <el-upload drag accept=".adi,.adif" :auto-upload="false" :limit="1"
         :on-change="handleFileChange" :file-list="importFileList"
         :on-remove="() => { importFile = null; importFileList = [] }">
@@ -144,9 +148,11 @@
       </el-upload>
       <div v-if="importResult" style="margin-top:12px">
         <el-alert
-          :title="$t('logs.importResult', { imported: importResult.imported, duplicates: importResult.duplicates || 0, updated: importResult.updated || 0, errors: importResult.skipped })"
+          :title="importResult.database_failed ? $t('logs.importCommitted') : $t('logs.importResult', { imported: importResult.imported, duplicates: importResult.duplicates || 0, updated: importResult.updated || 0, errors: importResult.skipped })"
           :type="importResult.database_failed ? 'error' : importResult.errors?.length ? 'warning' : 'success'" show-icon />
-        <p v-if="importResult.database_failed">{{ $t('logs.importCommitted') }}</p>
+        <div v-if="importResult.database_failed" style="margin-top:8px">
+          {{ $t('logs.importResult', { imported: importResult.imported, duplicates: importResult.duplicates || 0, updated: importResult.updated || 0, errors: importResult.skipped }) }}
+        </div>
         <el-table v-if="importResult.errors?.length" :data="importResult.errors" size="small" style="margin-top:8px" max-height="200">
           <el-table-column prop="line" :label="$t('logs.line')" width="60" />
           <el-table-column prop="error" :label="$t('logs.error')" />
@@ -154,7 +160,7 @@
       </div>
       <template #footer>
         <el-button @click="showImportDialog = false; importFile=null; importFileList=[]; importResult=null">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" @click="handleImport" :loading="importing" :disabled="!importFile">{{ $t('common.import') }}</el-button>
+        <el-button type="primary" @click="handleImport" :loading="importing" :disabled="!importFile || !importStationId || importResult?.database_failed">{{ $t('common.import') }}</el-button>
       </template>
     </el-dialog>
 
@@ -168,15 +174,12 @@
             <el-option v-for="s in logsStore.stations" :key="s.id" :label="s.callsign" :value="s.id" />
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('logs.location')" v-if="exportStationId">
+        <el-form-item :label="$t('logs.stationGrid')" v-if="exportStationId">
           <el-select v-model="exportLocationId" clearable :placeholder="$t('logs.allLocations')" style="width:100%">
             <el-option :label="$t('logs.allLocations')" :value="null" />
             <el-option v-for="l in exportLocations" :key="l.id"
-              :label="l.name + ' (' + (l.grid_square || '-') + ')'" :value="l.id" />
+              :label="(l.grid_square?.slice(0, 4) || '-') + ' · ' + l.name" :value="l.id" />
           </el-select>
-          <div v-if="exportLocationId" style="font-size:12px;color:var(--text-color-secondary);margin-top:4px">
-            {{ $t('logs.exportGridFilter') }}
-          </div>
         </el-form-item>
         <el-form-item :label="$t('logs.qsoDate')">
           <el-date-picker v-model="exportRange" type="daterange" range-separator="~"
@@ -196,16 +199,6 @@
             <el-radio value="adif">ADIF</el-radio>
           </el-radio-group>
         </el-form-item>
-        <p v-if="logsStore.activeStation && !exportStationId" style="font-size:12px;color:var(--text-color-secondary);text-align:center;">
-          {{ $t('logs.exportNoStation') }}
-        </p>
-        <p v-else-if="exportStationId && !exportLocationId" style="font-size:12px;color:var(--color-accent);text-align:center;">
-          {{ $t('logs.exportStation') }}: <strong>{{ logsStore.stations.find(s=>s.id===exportStationId)?.callsign }}</strong>
-        </p>
-        <p v-else-if="exportLocationId" style="font-size:12px;color:var(--color-success);text-align:center;">
-          {{ $t('logs.exportLocation') }}: <strong>{{ exportLocations.find(l=>l.id===exportLocationId)?.name }}</strong>
-          ({{ exportLocations.find(l=>l.id===exportLocationId)?.grid_square }})
-        </p>
       </el-form>
       <template #footer>
         <el-button @click="showExportDialog = false">{{ $t('common.cancel') }}</el-button>
@@ -325,6 +318,10 @@ const handleBandChange = (val: string) => {
 // 导入
 const showImportDialog = ref(false)
 const importing = ref(false)
+const importStationId = ref<number | null>(null)
+watch(showImportDialog, (visible) => {
+  if (visible) importStationId.value = logsStore.activeStation?.id || logsStore.stations[0]?.id || null
+})
 const importFile = ref<File | null>(null)
 const importFileList = ref<any[]>([])
 const importResult = ref<any>(null)
@@ -333,6 +330,7 @@ const handleFileChange = (uploadFile: any) => {
   if (uploadFile.raw) {
     importFile.value = uploadFile.raw
     importFileList.value = [uploadFile]
+    importResult.value = null
   }
   return false
 }
@@ -341,7 +339,7 @@ const handleImport = async () => {
   if (!importFile.value) { ElMessage.warning($t('common.selectFile')); return }
   importing.value = true; importResult.value = null
   try {
-    const res = await logsApi.importLogs(importFile.value, logsStore.activeStation?.id)
+    const res = await logsApi.importLogs(importFile.value, importStationId.value || undefined)
     importResult.value = res
     if (res.status === 'partial') ElMessage.warning($t('logs.importPartial'))
     else ElMessage.success(`${$t('common.imported')} ${res.imported} ${$t('common.records')}`)
@@ -574,7 +572,7 @@ const handleDelete = async (log: any) => {
 <style scoped lang="scss">
 .logs-container {
   .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;
-    h1 { margin-bottom:5px; } p { color:var(--text-color-secondary); } .header-actions { display:flex; gap:8px; } }
+    h1 { margin-bottom:5px; } .header-actions { display:flex; gap:8px; } }
   .filter-card { margin-bottom:16px; }
   .table-card { margin-bottom:16px; }
   .callsign-link { font-weight: 600; color: var(--color-accent); font-family: monospace; cursor: pointer; &:hover { text-decoration: underline; } }

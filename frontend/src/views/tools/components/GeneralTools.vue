@@ -15,10 +15,11 @@
         <div class="result-box" v-if="dbPwrIn > 0 && dbPwrOut > 0">
           <div class="result-row"><span>dB：</span><strong>{{ dbResult }}</strong></div>
         </div>
-        <div class="formula-note">
-          <strong>{{ $t('tools.formula') }}：</strong> dB = 10 × log₁₀(P<sub>out</sub> / P<sub>in</sub>)<br>
+        <details class="formula-note">
+          <summary>{{ $t('tools.formula') }}</summary>
+          dB = 10 × log₁₀(P<sub>out</sub> / P<sub>in</sub>)<br>
           <em>{{ $t('tools.source') }}：Standard decibel definition (ITU-R)</em>
-        </div>
+        </details>
       </el-tab-pane>
       <!-- 线规 -->
       <el-tab-pane :label="$t('tools.wireGauge')" name="wire">
@@ -35,10 +36,11 @@
           <div class="result-row"><span>{{ $t('tools.resistance') }}：</span><strong>{{ awgData.ohm_km }} Ω/km</strong></div>
           <div class="result-row"><span>{{ $t('tools.maxAmps') }}：</span><strong>{{ awgData.amps }} A</strong></div>
         </div>
-        <div class="formula-note">
-          <strong>{{ $t('tools.formula') }}：</strong> D(in) = 0.005 × 92^((36-AWG)/39)<br>
+        <details class="formula-note">
+          <summary>{{ $t('tools.formula') }}</summary>
+          D(in) = 0.005 × 92^((36-AWG)/39)<br>
           <em>{{ $t('tools.source') }}：AWG standard (ASTM B258)</em>
-        </div>
+        </details>
       </el-tab-pane>
     </el-tabs>
   </div>

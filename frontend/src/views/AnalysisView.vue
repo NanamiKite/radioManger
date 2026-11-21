@@ -3,7 +3,6 @@
     <div class="page-header">
       <div>
         <h1>{{ $t('analysis.title') }}</h1>
-        <p>{{ $t('analysis.statistics') }}</p>
       </div>
       <el-button @click="refreshAll" :loading="loading">{{ $t('analysis.refreshStats') }}</el-button>
     </div>
@@ -372,7 +371,6 @@ onMounted(async () => {
     align-items: center;
     margin-bottom: 20px;
     h1 { margin-bottom: 4px; font-size: 20px; font-weight: 600; color: var(--text-color-primary); }
-    p { color: var(--text-color-secondary); font-size: 14px; margin: 0; }
   }
 
   .stats-grid {

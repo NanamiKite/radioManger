@@ -3,11 +3,10 @@
     <div class="page-header">
       <div>
         <h1>{{ $t('stations.title') }}</h1>
-        <p>{{ $t('stations.manageStations') }}</p>
       </div>
       <div class="header-actions">
-        <el-button @click="showStationDialog = true">{{ $t('stations.newStation') }}</el-button>
-        <el-button type="primary" @click="showLocationDialog = true" :disabled="stations.length === 0">
+        <el-button v-if="stations.length" @click="showStationDialog = true">{{ $t('stations.newStation') }}</el-button>
+        <el-button v-if="stations.length" type="primary" @click="showLocationDialog = true">
           + {{ $t('stations.newLocation') }}
         </el-button>
       </div>
@@ -53,7 +52,9 @@
         </template>
       </el-tree>
 
-      <el-empty v-if="treeData.length === 0" :description="t('stations.noStations')" />
+      <el-empty v-if="treeData.length === 0" :description="t('stations.noStations')">
+        <el-button type="primary" @click="showStationDialog = true">{{ $t('stations.newStation') }}</el-button>
+      </el-empty>
     </el-card>
 
     <!-- 新建 Station 对话框 -->
@@ -319,7 +320,7 @@ onMounted(async () => {
 <style scoped lang="scss">
 .stations-container {
   .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;
-    h1 { margin-bottom:5px; } p { color:var(--text-color-secondary); } .header-actions { display:flex; gap:8px; } }
+    h1 { margin-bottom:5px; } .header-actions { display:flex; gap:8px; } }
 }
 .tree-station {
   display:flex; align-items:center; gap:8px; padding:4px 0; width:100%;

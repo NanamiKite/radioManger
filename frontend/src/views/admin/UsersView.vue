@@ -2,7 +2,6 @@
   <div class="admin-users">
     <div class="page-header">
       <h1>{{ $t('admin.userManagement') }}</h1>
-      <p>{{ $t('admin.userManagementDesc') }}</p>
     </div>
 
     <!-- 搜索和筛选 -->
@@ -152,7 +151,6 @@ onMounted(fetchUsers)
   .page-header {
     margin-bottom: 20px;
     h1 { margin-bottom: 4px; font-size: 20px; font-weight: 600; color: var(--text-color-primary); }
-    p { color: var(--text-color-secondary); font-size: 14px; margin: 0; }
   }
   .filter-card { margin-bottom: 16px; }
   .pagination-wrapper { margin-top: 16px; display: flex; justify-content: flex-end; }

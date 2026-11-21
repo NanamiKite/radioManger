@@ -3,7 +3,6 @@
     <div class="page-header">
       <div>
         <h1>{{ $t('auth.searchCallsign') }}</h1>
-        <p>{{ $t('auth.searchCallsignHint') }}</p>
       </div>
     </div>
 
@@ -30,16 +29,13 @@
         <div class="result-header">
           <div class="header-left">
             <span class="callsign-display">{{ result.call_sign }}</span>
-            <el-tag v-if="result.offline" type="info" size="small">Offline</el-tag>
+            <el-tag v-if="result.offline" type="info" size="small">{{ $t('auth.inferredDxcc') }}</el-tag>
             <el-tag v-else-if="result.cached" type="warning" size="small">{{ $t('auth.cached') }}</el-tag>
             <el-tag v-else type="success" size="small">{{ $t('auth.live') }}</el-tag>
           </div>
           <el-button v-if="result.qrz_url" link type="primary" size="small" @click="openQRZ(result.qrz_url!)">
             QRZ.com →
           </el-button>
-        </div>
-        <div v-if="result.offline" style="margin-top: 6px; font-size: 12px; color: #909399;">
-          {{ $t('auth.offlineHint') }}
         </div>
       </template>
 
@@ -101,7 +97,7 @@ const openQRZ = (url: string) => {
 
 <style scoped lang="scss">
 .callsign-container {
-  .page-header { margin-bottom: 20px; h1 { margin-bottom: 5px; } p { color: #909399; } }
+  .page-header { margin-bottom: 20px; h1 { margin-bottom: 5px; } }
   .search-card { margin-bottom: 16px; }
   .result-card {
     .result-header {

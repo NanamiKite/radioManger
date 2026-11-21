@@ -1,7 +1,6 @@
 <template>
   <div class="tools-container">
     <h1>{{ $t('tools.title') }}</h1>
-    <p class="subtitle">{{ $t('tools.subtitle') }}</p>
 
     <el-tabs v-model="activeTab" type="border-card" tab-position="top">
       <el-tab-pane :label="$t('tools.freqWavelength')" name="freq">
@@ -41,8 +40,7 @@ const activeTab = ref('freq')
 <style scoped lang="scss">
 .tools-container {
   max-width: 1100px; margin: 0 auto;
-  h1 { margin-bottom: 4px; }
-  .subtitle { color: var(--text-color-secondary); margin-bottom: 20px; }
+  h1 { margin-bottom: 20px; }
 }
 
 // 子组件共享样式通过 :deep() 注入
@@ -63,10 +61,10 @@ const activeTab = ref('freq')
   font-size: 13px; color: var(--text-color-secondary); line-height: 1.8;
   strong { color: var(--text-color-regular); }
   em { font-style: normal; color: var(--text-color-placeholder); }
+  summary { cursor: pointer; color: var(--text-color-regular); }
 }
 :deep(.diagram-box) {
   text-align: center; margin-bottom: 16px; padding: 12px; background: var(--bg-color); border-radius: 6px; border: 1px solid var(--border-color-lighter);
   .antenna-svg { max-width: 500px; width: 100%; height: auto; }
 }
-:deep(.field-hint) { font-size: 12px; color: var(--text-color-secondary); margin-top: 4px; }
 </style>

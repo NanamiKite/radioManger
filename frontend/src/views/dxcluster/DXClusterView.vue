@@ -16,10 +16,10 @@
 
     <!-- ================= CONTROL ================= -->
     <el-card class="control-card" shadow="never">
-      <el-alert v-if="!canControlRealtime && authStore.dbMode === 'mysql'" :title="$t('dxcluster.sharedControl')" type="info" :closable="false" />
+      <el-tag v-if="!canControlRealtime && authStore.dbMode === 'mysql'" type="info" size="small">{{ $t('dxcluster.readOnly') }}</el-tag>
       <el-row :gutter="16" align="middle">
 
-        <el-col :span="10">
+        <el-col v-if="canControlRealtime" :span="10">
           <span class="control-label">{{ $t('dxcluster.nodes') }}:</span>
           <el-select
             v-model="store.selectedNode"
@@ -37,7 +37,7 @@
           </el-select>
         </el-col>
 
-        <el-col :span="14" style="text-align: right">
+        <el-col v-if="canControlRealtime" :span="14" style="text-align: right">
           <el-button
             v-if="!store.isConnected"
             type="primary"

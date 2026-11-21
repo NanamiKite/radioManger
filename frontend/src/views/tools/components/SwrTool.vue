@@ -56,13 +56,13 @@
       <el-table-column prop="rl" :label="$t('tools.returnLoss') + ' (dB)'" />
       <el-table-column prop="status" :label="$t('tools.status')" />
     </el-table>
-    <div class="formula-note">
-      <strong>{{ $t('tools.formula') }}：</strong><br>
+    <details class="formula-note">
+      <summary>{{ $t('tools.formula') }}</summary>
       Γ = (Z<sub>L</sub> - Z<sub>0</sub>) / (Z<sub>L</sub> + Z<sub>0</sub>)<br>
       SWR = (1 + |Γ|) / (1 - |Γ|) &nbsp;&nbsp; P<sub>ref</sub> = |Γ|² × 100%<br>
       RL = -20 × log₁₀(|Γ|) dB &nbsp;&nbsp; ML = -10 × log₁₀(1 - |Γ|²) dB<br>
       <em>{{ $t('tools.source') }}：ARRL Handbook, Transmission Line Theory</em>
-    </div>
+    </details>
   </div>
 </template>
 

@@ -44,10 +44,11 @@
       <el-table-column prop="freq" :label="$t('tools.frequency') + ' (MHz)'" width="160" />
       <el-table-column prop="wavelength" :label="$t('tools.wavelength') + ' (m)'" />
     </el-table>
-    <div class="formula-note">
-      <strong>{{ $t('tools.formula') }}：</strong> λ = c / f &nbsp; (c = 299,792,458 m/s, ITU-R standard)<br>
+    <details class="formula-note">
+      <summary>{{ $t('tools.formula') }}</summary>
+      λ = c / f &nbsp; (c = 299,792,458 m/s, ITU-R standard)<br>
       <em>{{ $t('tools.source') }}：Maxwell's Equations / ITU-R Recommendations</em>
-    </div>
+    </details>
   </div>
 </template>
 

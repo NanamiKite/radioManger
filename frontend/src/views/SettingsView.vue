@@ -2,7 +2,6 @@
   <div class="settings-container">
     <div class="page-header">
       <h1>{{ $t('settings.title') }}</h1>
-      <p>{{ $t('settings.manageAccount') }}</p>
     </div>
 
     <el-tabs v-model="activeTab">
@@ -71,13 +70,10 @@
             <el-divider />
             <div class="danger-zone">
               <h4>{{ $t('admin.deleteAccount') }}</h4>
-              <p class="danger-desc">{{ $t('admin.deleteAccountDesc') }}</p>
 
               <!-- 已申请注销：显示倒计时 + 撤销按钮 -->
               <div v-if="deletionScheduled" class="deletion-pending">
-                <el-alert type="warning" :closable="false" show-icon>
-                  {{ $t('admin.deleteAccountCooldown') }}
-                </el-alert>
+                <el-tag type="warning">{{ $t('admin.deleteAccountCooldown') }}</el-tag>
                 <div style="margin-top: 12px;">
                   <el-button type="primary" @click="cancelDeletion" :loading="cancellingDeletion">
                     {{ $t('admin.cancelDelete') }}
@@ -100,21 +96,16 @@
         <el-card>
           <el-form label-width="160px">
             <el-form-item :label="$t('udp.wsjtxPort')">
-              <el-input v-model.number="udpForm.wsjtx_port" type="number" min="1024" max="65535" />
-              <div class="field-hint">WSJT-X / JTDX / MSHV {{ $t('udp.defaultPort') }}: 2237</div>
+              <el-input-number v-model="udpForm.wsjtx_port" :min="1024" :max="65535" :precision="0" controls-position="right" />
             </el-form-item>
-            <el-form-item :label="$t('udp.n1mmPort')">
-              <el-input v-model.number="udpForm.n1mm_port" type="number" min="1024" max="65535" />
-              <div class="field-hint">N1MM Logger+ {{ $t('udp.defaultPort') }}: 12060</div>
+            <el-form-item :label="$t('udp.n1mmPort')" :error="udpPortsConflict ? $t('udp.distinctPorts') : ''">
+              <el-input-number v-model="udpForm.n1mm_port" :min="1024" :max="65535" :precision="0" controls-position="right" />
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" @click="saveUdpSettings" :loading="savingUdp">{{ $t('settings.saveSettings') }}</el-button>
+              <el-button type="primary" @click="saveUdpSettings" :loading="savingUdp" :disabled="!udpPortsValid">{{ $t('udp.applyAndStart') }}</el-button>
             </el-form-item>
           </el-form>
-          <el-divider />
-          <p style="font-size:13px;color:var(--text-color-secondary)">
-            {{ $t('udp.settingsHint') }}
-          </p>
+          <el-link href="https://github.com/NanamiKite/radioManger/blob/main/doc/08_服务器部署.md" target="_blank" rel="noopener noreferrer">{{ $t('udp.networkConfig') }}</el-link>
         </el-card>
       </el-tab-pane>
 
@@ -122,7 +113,6 @@
         <el-card class="about-card">
           <div class="about-header">
             <h2>{{ $t('settings.appName') }}</h2>
-            <p class="about-desc">{{ $t('settings.description') }}</p>
             <span class="version-badge">{{ $t('settings.version') }} {{ appVersion || '...' }}</span>
           </div>
 
@@ -204,7 +194,9 @@ const dbDir = ref('')
 const apiBase = ref('/api/v1')
 const appVersion = ref('')
 
-const udpForm = ref({ wsjtx_port: 2237, n1mm_port: 12060 })
+const udpForm = ref<{ wsjtx_port: number | undefined; n1mm_port: number | undefined }>({ wsjtx_port: 2237, n1mm_port: 12060 })
+const udpPortsConflict = computed(() => udpForm.value.wsjtx_port !== undefined && udpForm.value.wsjtx_port === udpForm.value.n1mm_port)
+const udpPortsValid = computed(() => !udpPortsConflict.value && [udpForm.value.wsjtx_port, udpForm.value.n1mm_port].every(port => typeof port === 'number' && Number.isInteger(port) && port >= 1024 && port <= 65535))
 const isServerMode = ref(false)
 const canControlRealtime = computed(() => authStore.dbMode === 'sqlite' || (authStore.dbMode === 'mysql' && currentUser.value?.role === 'admin'))
 const deletionScheduled = ref(false)
@@ -215,10 +207,7 @@ const cancellingDeletion = ref(false)
 
 const saveUdpSettings = async () => {
   const { wsjtx_port, n1mm_port } = udpForm.value
-  if (![wsjtx_port, n1mm_port].every(port => Number.isInteger(port) && port >= 1024 && port <= 65535) || wsjtx_port === n1mm_port) {
-    ElMessage.error(t('udp.invalidPorts'))
-    return
-  }
+  if (!udpPortsValid.value) return
   savingUdp.value = true
   try {
     const result = await udpApi.start(wsjtx_port, n1mm_port)
@@ -360,7 +349,6 @@ const cancelDeletion = async () => {
       font-size: var(--font-size-xxl);
       font-weight: var(--font-weight-semibold);
     }
-    p { color: var(--text-color-secondary); }
   }
 
     .el-card { max-width: 600px; }
@@ -372,18 +360,8 @@ const cancelDeletion = async () => {
         font-weight: 600;
         color: var(--color-danger, #f56c6c);
       }
-      .danger-desc {
-        font-size: 13px;
-        color: var(--text-color-secondary);
-        margin: 0 0 12px;
-      }
     }
 
-    .field-hint {
-    font-size: var(--font-size-small);
-    color: var(--text-color-secondary);
-    margin-top: 4px;
-  }
 
   // ── 关于页面样式 ──
   .about-card {
@@ -397,11 +375,6 @@ const cancelDeletion = async () => {
         color: var(--text-color-primary);
       }
 
-      .about-desc {
-        margin: 0 0 12px;
-        color: var(--text-color-secondary);
-        font-size: var(--font-size-base);
-      }
 
       .version-badge {
         display: inline-block;

@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <h1>{{ t('recycleBin.title') }}</h1>
-        <p>{{ t('recycleBin.recycleBinTip') }}</p>
+        <el-tag type="info" size="small">{{ t('recycleBin.retention') }}</el-tag>
       </div>
       <div class="header-actions">
         <el-button type="danger" plain :disabled="selectedIds.length === 0" @click="handleBatchDelete">
@@ -126,19 +126,12 @@ const handleClearAll = async () => {
   if (total.value === 0) return
 
   try {
-    // 第一次确认
     await ElMessageBox.confirm(
       t('recycleBin.clearAllConfirm', { count: total.value }),
       t('recycleBin.clearAllTitle'),
-      { type: 'error', confirmButtonText: t('recycleBin.continue'), cancelButtonText: t('common.cancel') }
+      { type: 'warning', confirmButtonText: t('recycleBin.clearAll'), cancelButtonText: t('common.cancel') }
     )
 
-    // 第二次确认
-    await ElMessageBox.confirm(
-      t('recycleBin.finalConfirm', { count: total.value }),
-      t('recycleBin.finalConfirmTitle'),
-      { type: 'error', confirmButtonText: t('recycleBin.yesDeleteAll'), cancelButtonText: t('common.cancel') }
-    )
 
     const res = await recycleApi.clearAll()
     ElMessage.success(t('recycleBin.cleared', { count: res.deleted }))
@@ -162,7 +155,6 @@ onMounted(fetchItems)
     align-items: flex-start;
     margin-bottom: 20px;
     h1 { margin-bottom: 5px; font-size: 20px; font-weight: 600; color: var(--text-color-primary); }
-    p { color: var(--text-color-secondary); font-size: 14px; margin: 0; }
     .header-actions { display: flex; gap: 8px; }
   }
   .pagination-wrapper { margin-top: 16px; display: flex; justify-content: flex-end; }

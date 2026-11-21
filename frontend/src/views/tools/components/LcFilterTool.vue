@@ -69,12 +69,13 @@
         <span>{{ val.name }}：</span><strong>{{ val.value }}</strong>
       </div>
     </div>
-    <div class="formula-note">
+    <details class="formula-note">
+      <summary>{{ $t('tools.formula') }}</summary>
       <strong>Butterworth：</strong> g<sub>k</sub> = 2 × sin((2k-1)π / 2N), k = 1..N<br>
       <strong>Chebyshev：</strong> β = ln(coth(R<sub>dB</sub>/17.37)), γ = sinh(β/2N)<br>
       L<sub>k</sub> = g<sub>k</sub> × Z / (2π×f<sub>c</sub>) &nbsp;&nbsp; C<sub>k</sub> = g<sub>k</sub> / (2π×f<sub>c</sub>×Z)<br>
       <em>{{ $t('tools.source') }}：ARRL Handbook, LC Filter Design — Standard filter tables</em>
-    </div>
+    </details>
   </div>
 </template>
 

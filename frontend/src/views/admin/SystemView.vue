@@ -2,7 +2,6 @@
   <div class="admin-system">
     <div class="page-header">
       <h1>{{ $t('admin.systemStatus') }}</h1>
-      <p>{{ $t('admin.systemStatusDesc') }}</p>
     </div>
 
     <!-- 系统状态卡片 -->
@@ -114,7 +113,6 @@ onMounted(() => {
   .page-header {
     margin-bottom: 20px;
     h1 { margin-bottom: 4px; font-size: 20px; font-weight: 600; color: var(--text-color-primary); }
-    p { color: var(--text-color-secondary); font-size: 14px; margin: 0; }
   }
 
   .status-grid {
