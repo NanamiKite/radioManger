@@ -23,7 +23,7 @@ fi
 
 echo ""
 echo "1. 构建Docker镜像..."
-docker compose build
+docker compose build --pull
 
 echo ""
 echo "2. 启动容器..."

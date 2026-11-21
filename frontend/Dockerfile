@@ -8,7 +8,8 @@ COPY . .
 RUN npm run build
 
 # ── 阶段 2: Nginx 托管 ──
-FROM nginx:alpine
+# 1.31.9 includes the November 2026 HTTP/2, resolver and TLS security fixes.
+FROM nginx:1.31.9-alpine
 
 # 移除默认配置
 RUN rm /etc/nginx/conf.d/default.conf
