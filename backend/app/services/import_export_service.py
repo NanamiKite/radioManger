@@ -17,6 +17,7 @@ from app.schemas.qso_log import QSOLogBase
 from app.services.station_service import StationService
 from app.services.location_service import LocationService
 from app.exceptions import ValidationException
+from app.config import settings
 
 logger = logging.getLogger("radiomanager.import_export")
 
@@ -258,7 +259,8 @@ class ImportExportService:
                  Station.is_deleted == False).all()} if location_ids else {}
 
         # ADIF 3.1.0 标准头部
-        content = "<ADIF_VER:5>3.1.0 <PROGRAMID:12>RadioManager <PROGRAMVERSION:5>2.5.0 <EOH>\n"
+        version = settings.VERSION
+        content = f"<ADIF_VER:5>3.1.0 <PROGRAMID:12>RadioManager <PROGRAMVERSION:{len(version)}>{version} <EOH>\n"
         for log in logs:
             parts = []
             parts.append(f"<call:{len(log.call_sign)}>{log.call_sign}")

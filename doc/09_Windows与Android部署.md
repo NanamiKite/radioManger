@@ -23,7 +23,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
 bash build-win64-v2.6.0.sh
 ```
 
-脚本需要下载运行时和 Windows wheels，并使用 `pip`、`wget`、`unzip` 等工具；它会重建同名输出目录。版本名与输出目录以脚本为准。
+脚本需要下载运行时和 Windows wheels，并使用 `pip`、`wget`、`unzip` 等工具；它会重建同名输出目录。四套打包脚本统一读取 `frontend/package.json` 的版本（当前 `2.6.0`），包名、生成的启动提示和 README 使用同一值，不再分别硬编码版本。
 
 使用包时从解压目录运行 `start.bat`，浏览器访问 `http://localhost:8000`。`release_server.py` 只监听本机，挂载 `backend/frontend_dist`，先执行数据库迁移。首次缺少 JWT 密钥时在包根目录 `.env` 生成并保存随机密钥，不覆盖已有值；不再创建默认管理员，首次使用在网页注册账户。旧包升级先备份并按[迁移说明](10_初始化备份与常见问题.md#1-数据库初始化)接管无版本旧库，旧默认密码须由用户自行修改。
 
@@ -33,7 +33,7 @@ bash build-win64-v2.6.0.sh
 
 从本次图标更新后的源码构建的 Windows 包，首次运行 `start.bat` 或桌面启动器时会在解压目录创建带应用图标的 `RadioManager.lnk`。可将快捷方式复制到桌面；移动解压目录后，删除旧快捷方式并重新运行启动器生成。也可在包根目录手动运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\create-shortcut.ps1`。GitHub 上已有的发布包不会自动更新，需重新构建并发布。
 
-`build-win64-web.sh`、`build_release.sh` 是其他版本的包装脚本，不能仅凭文件名认定与当前包行为一致。
+`build-win64-web.sh`、`build-win64-desktop.sh`、`build_release.sh` 使用相同项目版本，但包内容与启动方式仍有差异；版本号统一不代表它们已经合并为一个打包流程。
 
 ## 3. 桌面窗口与 Electron
 

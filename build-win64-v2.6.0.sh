@@ -1,12 +1,12 @@
 #!/bin/bash
-# RadioManager v2.6.0 Win64 Web 本地部署包构建脚本
+# RadioManager Win64 Web 本地部署包构建脚本
 # 用法: ./build-win64-v2.6.0.sh
 # 不修改任何项目源码，仅在 releases/ 输出打包文件
 
 set -e
 
-VERSION="2.6.0"
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+VERSION="$(node -p 'require(process.argv[1]).version' "$PROJECT_DIR/frontend/package.json")"
 RELEASES_DIR="$PROJECT_DIR/releases"
 BUILD_NAME="RadioManager-${VERSION}-win64"
 BUILD_DIR="$RELEASES_DIR/$BUILD_NAME"
@@ -49,8 +49,8 @@ echo "  ✅ 后端代码已复制"
 # ── 3. 写入 release .env ──
 echo ""
 echo "[3/7] 写入配置文件..."
-cat > "$BUILD_DIR/.env" << 'ENVEOF'
-# RadioManager v2.6.0 Release Configuration
+cat > "$BUILD_DIR/.env" << ENVEOF
+# RadioManager v${VERSION} Release Configuration
 DATABASE_MODE=sqlite
 SQLITE_URL=sqlite:///./radiomanager.db
 SECRET_KEY=
@@ -120,15 +120,15 @@ echo ""
 echo "[7/7] 创建启动脚本..."
 
 # start.bat - 生产模式（后端内嵌前端）
-cat > "$BUILD_DIR/start.bat" << 'BATEOF'
+cat > "$BUILD_DIR/start.bat" << BATEOF
 @echo off
 chcp 65001 >nul 2>&1
-title RadioManager v2.6.0
+title RadioManager v${VERSION}
 cd /d "%~dp0"
 if not exist "RadioManager.lnk" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0create-shortcut.ps1"
 
 echo ==================================================
-echo   RadioManager v2.6.0 - Amateur Radio QSO Log
+echo   RadioManager v${VERSION} - Amateur Radio QSO Log
 echo ==================================================
 echo.
 echo   Web UI:  http://localhost:8000
@@ -152,20 +152,20 @@ pause
 BATEOF
 
 # start-dev.bat - 开发模式（前端热更新）
-cat > "$BUILD_DIR/start-dev.bat" << 'BATEOF'
+cat > "$BUILD_DIR/start-dev.bat" << BATEOF
 @echo off
 chcp 65001 >nul 2>&1
-title RadioManager v2.6.0 [DEV]
+title RadioManager v${VERSION} [DEV]
 cd /d "%~dp0"
 
 echo ==================================================
-echo   RadioManager v2.6.0 - Development Mode
+echo   RadioManager v${VERSION} - Development Mode
 echo ==================================================
 echo.
 echo   Frontend: http://localhost:5173
 echo   Backend:  http://localhost:8000
 echo.
-echo   Default: admin / admin123
+echo   Register an account on first use. No default password.
 echo   Press Ctrl+C to stop both
 echo ==================================================
 echo.
@@ -190,15 +190,15 @@ pause
 BATEOF
 
 # README.txt
-cat > "$BUILD_DIR/README.txt" << 'READEOF'
-RadioManager v2.6.0 - Windows 64-bit 本地部署版
+cat > "$BUILD_DIR/README.txt" << READEOF
+RadioManager v${VERSION} - Windows 64-bit 本地部署版
 ================================================
 
 快速启动（推荐）:
   1. 解压到任意目录
   2. 双击 start.bat
   3. 浏览器打开 http://localhost:8000
-  4. 默认账号: admin / admin123
+  4. 首次使用请注册账号；不提供默认密码。
 
 开发模式（前端热更新）:
   1. 双击 start-dev.bat
@@ -231,7 +231,7 @@ RadioManager v2.6.0 - Windows 64-bit 本地部署版
 版本信息:
   - Python: 3.12.10 (embeddable)
   - Node.js: 22.16.0 (portable)
-  - RadioManager: v2.6.0
+  - RadioManager: v${VERSION}
 READEOF
 
 echo "  ✅ 启动脚本和文档已创建"

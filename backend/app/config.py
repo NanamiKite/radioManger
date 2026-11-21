@@ -6,13 +6,14 @@ from urllib.parse import urlsplit
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from app import __version__
 
 class Settings(BaseSettings):
     """应用配置"""
 
     # 应用基本设置
     APP_NAME: str = "RadioManager"
-    VERSION: str = "2.6.0"
+    VERSION: str = __version__
     DEBUG: bool = False
     API_V1_STR: str = "/api/v1"
     WORKERS: int = Field(default=1, ge=1, le=1)

@@ -1,5 +1,5 @@
 """
-RadioManager Desktop Launcher v2.5.0
+RadioManager Desktop Launcher
 启动后端服务 + 打开原生桌面窗口（pywebview + Edge WebView2）
 """
 import os
@@ -10,7 +10,8 @@ import subprocess
 import threading
 import traceback
 
-VERSION = '2.5.0'
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from app import __version__ as VERSION
 PORT = 8000
 
 _backend_error = None

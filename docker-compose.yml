@@ -1,4 +1,4 @@
-# RadioManager v2.4.0 Docker Compose (服务器部署)
+# RadioManager Docker Compose (服务器部署)
 # 用法: docker compose up -d
 
 services:

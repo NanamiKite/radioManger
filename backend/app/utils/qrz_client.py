@@ -37,7 +37,7 @@ class QRZClient:
             params={
                 "username": settings.QRZ_USERNAME,
                 "password": settings.QRZ_PASSWORD,
-                "agent": "radiomanager.1.0",
+                "agent": f"radiomanager.{settings.VERSION}",
             },
             timeout=15,
         )

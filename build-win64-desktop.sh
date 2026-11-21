@@ -1,12 +1,12 @@
 #!/bin/bash
-# RadioManager v2.5.0 Win64 Desktop 构建脚本
+# RadioManager Win64 Desktop 构建脚本
 # 使用 pywebview + Edge WebView2 原生窗口，不是浏览器
 # 用法: ./build-win64-desktop.sh
 
 set -e
 
-VERSION="2.5.0"
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+VERSION="$(node -p 'require(process.argv[1]).version' "$PROJECT_DIR/frontend/package.json")"
 RELEASES_DIR="$PROJECT_DIR/releases"
 BUILD_NAME="RadioManager-${VERSION}-win64-desktop"
 BUILD_DIR="$RELEASES_DIR/$BUILD_NAME"
@@ -54,7 +54,6 @@ MAX_UPLOAD_SIZE=52428800
 EOF
 find "$BUILD_DIR" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null
 find "$BUILD_DIR" -name "*.pyc" -delete 2>/dev/null
-sed -i 's/v2\.4\.1/v2.5.0/g' "$BUILD_DIR/backend/release_server.py"
 echo "  ✅ 后端代码就绪"
 
 # ── 3. 下载 Python embeddable ──

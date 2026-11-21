@@ -1,10 +1,10 @@
 #!/bin/bash
-# RadioManager v2.4.1 Release Builder
+# RadioManager Release Builder
 # 构建 Windows 和 macOS 本地部署包
 set -e
 
-VERSION="2.4.1"
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+VERSION="$(node -p 'require(process.argv[1]).version' "$PROJECT_DIR/frontend/package.json")"
 PYTHON_VERSION="3.12.10"
 
 echo "================================================"
@@ -80,14 +80,14 @@ build_windows() {
     rm -rf "$WIN_DIR/wheels"
 
     # 启动脚本
-    cat > "$WIN_DIR/start.bat" << 'BATEOF'
+    cat > "$WIN_DIR/start.bat" << BATEOF
 @echo off
 chcp 65001 >nul 2>&1
-title RadioManager v2.4.1
+title RadioManager v${VERSION}
 cd /d "%~dp0"
 if not exist "RadioManager.lnk" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0create-shortcut.ps1"
 echo ==================================================
-echo   RadioManager v2.4.1 - Amateur Radio QSO Log
+echo   RadioManager v${VERSION} - Amateur Radio QSO Log
 echo ==================================================
 echo   http://localhost:8000
 echo   Press Ctrl+C to stop
@@ -105,8 +105,8 @@ pause
 BATEOF
 
     # README
-    cat > "$WIN_DIR/README.txt" << 'READEOF'
-RadioManager v2.4.1 - Windows 本地部署版
+    cat > "$WIN_DIR/README.txt" << READEOF
+RadioManager v${VERSION} - Windows 本地部署版
 ==========================================
 1. 解压到任意目录
 2. 双击 start.bat 启动
@@ -138,14 +138,14 @@ build_macos() {
     prepare_backend "$MAC_DIR"
 
     # macOS 启动脚本（自动检测/安装 Python，创建 venv）
-    cat > "$MAC_DIR/start.sh" << 'SHEOF'
-#!/bin/bash
-# RadioManager v2.4.1 macOS 启动脚本
+    printf '#!/bin/bash\nVERSION="%s"\n' "$VERSION" > "$MAC_DIR/start.sh"
+    cat >> "$MAC_DIR/start.sh" << 'SHEOF'
+# RadioManager macOS 启动脚本
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "=================================================="
-echo "  RadioManager v2.4.1 - Amateur Radio QSO Log"
+echo "  RadioManager v${VERSION} - Amateur Radio QSO Log"
 echo "=================================================="
 echo "  http://localhost:8000"
 echo "  Press Ctrl+C to stop"
@@ -197,8 +197,8 @@ SHEOF
     chmod +x "$MAC_DIR/start.sh"
 
     # README
-    cat > "$MAC_DIR/README.txt" << 'READEOF'
-RadioManager v2.4.1 - macOS 本地部署版
+    cat > "$MAC_DIR/README.txt" << READEOF
+RadioManager v${VERSION} - macOS 本地部署版
 ======================================
 1. 解压到任意目录
 2. 终端执行: ./start.sh
