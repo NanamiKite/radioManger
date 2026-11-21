@@ -39,6 +39,7 @@ cp "$PROJECT_DIR/backend/release_server.py" "$BUILD_DIR/backend/"
 cp "$PROJECT_DIR/backend/desktop_launcher.py" "$BUILD_DIR/backend/"
 cp "$PROJECT_DIR/backend/requirements.txt" "$BUILD_DIR/backend/"
 cp -r "$PROJECT_DIR/frontend/dist" "$BUILD_DIR/backend/frontend_dist"
+cp "$PROJECT_DIR/scripts/create-windows-shortcut.ps1" "$BUILD_DIR/create-shortcut.ps1"
 cat > "$BUILD_DIR/backend/.env" << 'EOF'
 DATABASE_MODE=sqlite
 SQLITE_URL=sqlite:///./radiomanager.db
@@ -140,6 +141,7 @@ cat > "$BUILD_DIR/RadioManager.bat" << 'BATEOF'
 @echo off
 chcp 65001 >nul 2>&1
 cd /d "%~dp0"
+if not exist "RadioManager.lnk" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0create-shortcut.ps1"
 start "" python\pythonw.exe backend\desktop_launcher.py
 BATEOF
 
@@ -148,6 +150,9 @@ cat > "$BUILD_DIR/RadioManager.vbs" << 'VBSEOF'
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set WshShell = CreateObject("WScript.Shell")
 WshShell.CurrentDirectory = fso.GetParentFolderName(WScript.ScriptFullName)
+If Not fso.FileExists(fso.BuildPath(WshShell.CurrentDirectory, "RadioManager.lnk")) Then
+    WshShell.Run "powershell.exe -NoProfile -ExecutionPolicy Bypass -File " & Chr(34) & fso.BuildPath(WshShell.CurrentDirectory, "create-shortcut.ps1") & Chr(34), 0, True
+End If
 WshShell.Run fso.BuildPath(WshShell.CurrentDirectory, "python\pythonw.exe") & " backend\desktop_launcher.py", 0, False
 VBSEOF
 

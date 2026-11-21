@@ -8,6 +8,7 @@
     </div>
 
     <div class="register-box">
+      <img src="/icon.svg" alt="" class="brand-icon" width="72" height="72" />
       <h1>{{ $t('common.appName') }}</h1>
       <p>{{ $t('auth.register') }}</p>
       
@@ -135,6 +136,11 @@ const handleRegister = async (): Promise<void> => {
     width: 100%;
     max-width: 400px;
     box-shadow: 0 4px 20px var(--box-shadow-dark, rgba(0, 0, 0, 0.2));
+
+    .brand-icon {
+      display: block;
+      margin: 0 auto 16px;
+    }
 
     h1 {
       text-align: center;

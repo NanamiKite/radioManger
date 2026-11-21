@@ -22,10 +22,11 @@
     "electron:win-portable": "vite build && electron-builder --win portable",
     "electron:linux": "vite build && electron-builder --linux",
     "electron:mac": "vite build && electron-builder --mac",
-    "android:init": "npx cap init RadioManager com.radiomanager.app && npx cap add android",
-    "android:sync": "npx cap sync android",
+    "android:init": "npx cap init RadioManager com.radiomanager.app && npx cap add android && npm run android:icons",
+    "android:icons": "node scripts/sync-android-icons.mjs",
+    "android:sync": "npx cap sync android && npm run android:icons",
     "android:open": "npx cap open android",
-    "android:build": "vite build && npx cap sync android && cd android && ./gradlew assembleDebug"
+    "android:build": "vite build && npm run android:sync && cd android && ./gradlew assembleDebug"
   },
   "build": {
     "appId": "com.radiomanager.app",
@@ -40,6 +41,7 @@
     ],
     "extraResources": [],
     "win": {
+      "icon": "public/favicon.ico",
       "target": [
         {
           "target": "nsis",
@@ -65,6 +67,7 @@
       "artifactName": "RadioManager-${version}-portable.exe"
     },
     "linux": {
+      "icon": "public/icon-512.png",
       "target": [
         "AppImage",
         "deb"
@@ -72,6 +75,7 @@
       "category": "HamRadio"
     },
     "mac": {
+      "icon": "public/icon.icns",
       "target": [
         "dmg"
       ]

@@ -1,8 +1,22 @@
+<div align="center">
+
+<img src="frontend/public/icon.svg" alt="RadioManager 应用图标" width="120" height="120" />
+
 # RadioManager
 
-业余无线电 QSO 日志管理工具。导入 `.adi` / `.adif` 文件，按台站整理通联记录，查看 DXCC 和波段统计，也可以在地图上查看已通联的梅登网格。
+**把每一次通联，记进自己的日志。**
 
-前端 Vue 3，后端 FastAPI。个人使用可以把数据放在本机 SQLite；多人使用部署 MySQL 后端，通过浏览器访问。
+导入 ADI / ADIF，按台站整理 QSO，查看 DXCC、波段统计与梅登网格地图。
+
+[![Release](https://img.shields.io/github/v/release/NanamiKite/radioManger?style=flat&sort=date&display_name=release)](https://github.com/NanamiKite/radioManger/releases/latest)
+[![GitHub stars](https://img.shields.io/github/stars/NanamiKite/radioManger?style=flat)](https://github.com/NanamiKite/radioManger/stargazers)
+[![Downloads](https://img.shields.io/github/downloads/NanamiKite/radioManger/total?style=flat)](https://github.com/NanamiKite/radioManger/releases)
+
+[下载应用](https://github.com/NanamiKite/radioManger/releases/latest) · [使用文档](doc/README.md) · [源码运行](doc/07_本地部署.md) · [反馈问题](https://github.com/NanamiKite/radioManger/issues)
+
+</div>
+
+RadioManager 是业余无线电 QSO 日志管理工具。个人使用时，日志保存在本机 SQLite；多人访问时，可以部署 MySQL 后端，通过浏览器使用。
 
 ## 功能
 
@@ -12,36 +26,18 @@
 - DX Cluster 实时 spot、梅登网格地图和常用天线计算工具
 - 中英文界面，浅色 / 深色主题
 
-第一次使用：注册账户 → 创建台站 → 创建并激活操作位置。之后新日志和导入默认使用激活位置所属的台站。
+## 开始使用
 
-## 快速开始
+**Windows 用户**：从 [Releases](https://github.com/NanamiKite/radioManger/releases/latest) 下载 Windows 64 位 ZIP 包，解压后运行 `start.bat`，在浏览器打开 <http://localhost:8000>。详细说明见 [Windows 部署](doc/09_Windows与Android部署.md)。
 
-源码运行需要 Python 3.12 和 Node.js 22。先按[本地部署](doc/07_本地部署.md)配置 `backend/.env`，然后：
+**从源码运行**：准备 Python 3.12 和 Node.js 22，按[本地部署指南](doc/07_本地部署.md)配置并启动前后端。局域网或云服务器部署见[服务器部署指南](doc/08_服务器部署.md)。
 
-```bash
-cd backend
-python3 -m venv venv && source venv/bin/activate
-python -m pip install -r requirements.txt
-python -m app.scripts.init_db
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-
-另开一个终端：
-
-```bash
-cd frontend
-npm ci
-npm run dev
-```
-
-打开 <http://localhost:5173> 注册账户即可。
-
-其他部署方式：[Docker 服务器](doc/08_服务器部署.md) · [Windows 本地包 / Android](doc/09_Windows与Android部署.md)
+首次使用：注册或登录账户 → 创建台站 → 创建并激活操作位置。未指定台站的新日志和导入操作会使用激活位置所属的台站。
 
 ## 文档
 
-- [文档索引](doc/README.md)
-- [PROJECT.md](PROJECT.md) —— 架构索引，从功能定位源码
+- [文档索引](doc/README.md) —— 部署、接口和架构说明
+- [PROJECT.md](PROJECT.md) —— 从功能定位源码
 
 ## 限制
 

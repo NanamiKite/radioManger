@@ -43,6 +43,7 @@ build_windows() {
 
     # 后端文件
     prepare_backend "$WIN_DIR"
+    cp "$PROJECT_DIR/scripts/create-windows-shortcut.ps1" "$WIN_DIR/create-shortcut.ps1"
 
     # Python embeddable
     local PYTHON_ZIP="python-${PYTHON_VERSION}-embed-amd64.zip"
@@ -82,6 +83,7 @@ build_windows() {
 chcp 65001 >nul 2>&1
 title RadioManager v2.4.1
 cd /d "%~dp0"
+if not exist "RadioManager.lnk" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0create-shortcut.ps1"
 echo ==================================================
 echo   RadioManager v2.4.1 - Amateur Radio QSO Log
 echo ==================================================

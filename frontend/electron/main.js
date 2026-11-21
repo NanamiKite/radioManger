@@ -33,6 +33,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: `RadioManager [${getModeName()}]`,
+    icon: path.join(app.getAppPath(), app.isPackaged ? 'dist' : 'public', 'icon-256.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

@@ -38,6 +38,7 @@ cp -r "$PROJECT_DIR/backend/app" "$BUILD_DIR/backend/"
 cp "$PROJECT_DIR/backend/release_server.py" "$BUILD_DIR/backend/"
 cp "$PROJECT_DIR/backend/requirements.txt" "$BUILD_DIR/backend/"
 cp -r "$PROJECT_DIR/frontend/dist" "$BUILD_DIR/backend/frontend_dist"
+cp "$PROJECT_DIR/scripts/create-windows-shortcut.ps1" "$BUILD_DIR/create-shortcut.ps1"
 # 清理缓存
 find "$BUILD_DIR" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null
 find "$BUILD_DIR" -name "*.pyc" -delete 2>/dev/null
@@ -128,6 +129,7 @@ cat > "$BUILD_DIR/start.bat" << 'BATEOF'
 chcp 65001 >nul 2>&1
 title RadioManager v2.6.0
 cd /d "%~dp0"
+if not exist "RadioManager.lnk" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0create-shortcut.ps1"
 
 echo ==================================================
 echo   RadioManager v2.6.0 - Amateur Radio QSO Log

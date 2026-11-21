@@ -5,6 +5,7 @@
         <div class="header-content">
           <!-- 左侧：Logo -->
           <div class="header-left">
+            <img src="/icon.svg" alt="" class="brand-icon" width="32" height="32" />
             <h1 class="logo-text">{{ $t('common.appName') }}</h1>
           </div>
 
@@ -261,6 +262,9 @@ watch(searchType, () => {
 
     // 左侧 Logo
     .header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
       flex-shrink: 0;
 
       .logo-text {

@@ -8,6 +8,7 @@
     </div>
 
     <div class="login-box">
+      <img src="/icon.svg" alt="" class="brand-icon" width="72" height="72" />
       <h1>{{ $t('common.appName') }}</h1>
       <p>{{ $t('auth.login') }}</p>
 
@@ -119,6 +120,11 @@ const handleLogin = async () => {
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
+    }
+
+    .brand-icon {
+      display: block;
+      margin: 0 auto 16px;
     }
 
     h1 {

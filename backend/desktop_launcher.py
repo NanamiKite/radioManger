@@ -129,7 +129,10 @@ def main():
             min_size=(900, 600),
             text_select=True,
         )
-        webview.start(gui='edgechromium', debug=False)
+        webview.start(
+            gui='edgechromium', debug=False,
+            icon=os.path.join(backend_dir, 'frontend_dist', 'favicon.ico'),
+        )
 
         # 窗口关闭后终止后端
         proc.terminate()

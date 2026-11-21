@@ -29,6 +29,8 @@ bash build-win64-v2.6.0.sh
 
 该包的 SQLite 默认位于解压目录根部，配置文件也是包根目录 `.env`。它与源码运行的 `backend/.env` 不是同一个运行入口。
 
+从本次图标更新后的源码构建的 Windows 包，首次运行 `start.bat` 或桌面启动器时会在解压目录创建带应用图标的 `RadioManager.lnk`。可将快捷方式复制到桌面；移动解压目录后，删除旧快捷方式并重新运行启动器生成。也可在包根目录手动运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\create-shortcut.ps1`。GitHub 上已有的发布包不会自动更新，需重新构建并发布。
+
 `build-win64-web.sh`、`build_release.sh` 是其他版本的包装脚本，不能仅凭文件名认定与当前包行为一致。
 
 ## 3. 桌面窗口与 Electron
@@ -74,6 +76,20 @@ npm run android:build
 
 脚本执行 `assembleDebug`，产物为 `frontend/android/app/build/outputs/apk/debug/app-debug.apk`，不是签名发布包。
 
+`android:sync` 和 `android:build` 会把 `resources/android/` 中各密度的启动图标、圆形图标和自适应图标复制到 Android 工程。单独更新已有工程中的图标可运行 `npm run android:icons`。
+
 ## 6. 网络配置
 
 Capacitor 配置使用 `webDir=dist`、HTTPS scheme，并关闭明文流量。页面仍使用同源 `/api/v1` 和 `/health`，仅设置允许导航的主机不会指定 API 后端；需要为容器明确配置网页服务器或适配请求地址后再使用。Android 包不包含 Python 后端或本地数据库服务。
+
+## 7. 应用图标
+
+图标源文件为 [`frontend/public/icon.svg`](../frontend/public/icon.svg)，采用短波电台面板与通联日志卡片。网页标签、登录与注册页、应用顶栏共用该设计；Electron 打包配置指定 Windows ICO、macOS ICNS 和 Linux PNG，pywebview 使用发布包中的 `favicon.ico`。
+
+图标修改后，在安装了 ImageMagick 7 和 Pillow 的 Python 工具环境中，从仓库根目录运行：
+
+```bash
+python scripts/generate-icons.py
+```
+
+脚本重新生成网页 PNG、多尺寸 ICO、ICNS、maskable 图标和 `frontend/resources/android/` 下的位图；之后重新构建前端。资源已提交到仓库，普通构建不需要安装图像处理工具。Android 自适应图标 XML 与背景色定义也保存在 `frontend/resources/android/` 中。
