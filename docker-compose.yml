@@ -6,12 +6,10 @@ services:
     image: mysql:8.0
     container_name: radiomanager_mysql
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: radiomanager
       MYSQL_USER: radiomanager
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-password123}
-    ports:
-      - "3306:3306"
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
@@ -23,17 +21,6 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: radiomanager_redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - radiomanager
-    restart: unless-stopped
-
   backend:
     build:
       context: ./backend
@@ -41,23 +28,19 @@ services:
     container_name: radiomanager_backend
     environment:
       DATABASE_MODE: mysql
-      DATABASE_URL: mysql+pymysql://radiomanager:${MYSQL_PASSWORD:-password123}@mysql:3306/radiomanager
-      REDIS_URL: redis://redis:6379
-      SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
-      ENABLE_TEST_ACCOUNT: "false"
+      DATABASE_URL: mysql+pymysql://radiomanager:${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}@mysql:3306/radiomanager
+      SECRET_KEY: ${SECRET_KEY:?Set a random SECRET_KEY of at least 32 characters}
       DEBUG: "false"
       ENVIRONMENT: production
-      # 管理员账号（首次启动自动创建）
+      WORKERS: "1"
+      FORWARDED_ALLOW_IPS: "*"
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@radiomanager.local}
-    ports:
-      - "8000:8000"
+    command: ["sh", "-c", "python -m app.scripts.init_db && if [ -n \"$$ADMIN_PASSWORD\" ]; then python -m app.scripts.create_admin; fi && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --proxy-headers"]
     depends_on:
       mysql:
         condition: service_healthy
-      redis:
-        condition: service_started
     networks:
       - radiomanager
     restart: unless-stopped
@@ -78,7 +61,6 @@ services:
 
 volumes:
   mysql_data:
-  redis_data:
 
 networks:
   radiomanager:

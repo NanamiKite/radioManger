@@ -13,7 +13,7 @@ export const shortcutsApi = {
   },
 
   create(data: { name: string; url: string; description?: string }): Promise<Shortcut> {
-    return api.post('/shortcuts', data)
+    return api.post('/shortcuts', null, { params: data })
   },
 
   delete(id: number): Promise<void> {

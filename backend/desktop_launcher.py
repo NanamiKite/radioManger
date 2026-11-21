@@ -94,7 +94,7 @@ def main():
         env['DATABASE_MODE'] = 'sqlite'
         env['SQLITE_URL'] = 'sqlite:///./radiomanager.db'
 
-        # 用 subprocess 启动 release_server.py（包含前端 SPA 挂载 + 管理员创建）
+        # 发布入口迁移数据库并挂载前端，不创建默认管理员。
         proc = subprocess.Popen(
             [python_exe, release_server],
             cwd=base,  # 包根目录，与 web 版一致

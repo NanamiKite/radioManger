@@ -1,4 +1,4 @@
-"""用户会话模型 - 用于在线用户统计"""
+"""Persistent access-token sessions: the revocation authority in every DB mode."""
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from datetime import datetime, timezone
 from app.database.base import Base

@@ -33,7 +33,7 @@ export function useDxccEntities(dxccChart: Ref<DxccChartData | null>) {
 
   const workedCount = computed(() => fullDxccEntities.value.filter(e => e.total > 0).length)
   const confirmedCount = computed(() => fullDxccEntities.value.filter(e =>
-    Object.values(e.bands).some(b => b?.confirmed && b.confirmed > 0)
+    Object.values(e.bands).some(b => b?.confirmed === true)
   ).length)
 
   return { fullDxccEntities, workedCount, confirmedCount }

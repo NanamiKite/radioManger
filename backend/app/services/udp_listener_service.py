@@ -1,173 +1,136 @@
-"""
-UDP 监听服务 - 接收 WSJT-X/JTDX/MSHV/N1MM 的 QSO 日志广播
-通过 WebSocket 实时推送给前端
-
-协议:
-- WSJT-X/JTDX/MSHV: QDataStream header + JSON (默认端口 2237)
-- N1MM Logger+: XML over UDP (默认端口 12060)
-"""
+"""One host-level UDP listener; QSO messages belong to its initiating user."""
 
 import asyncio
-import json
 import logging
 import struct
-from datetime import datetime, timezone, date, time
-from decimal import Decimal
-from typing import Optional, Set
+from contextlib import AsyncExitStack
+from datetime import datetime, timezone, timedelta
+from typing import Optional
 from xml.etree import ElementTree
 
 from app.config import settings
+from app.exceptions import PermissionException
+from app.services.dxcluster_parser import freq_to_band
+from decimal import Decimal
 
 logger = logging.getLogger("radiomanager.udp")
 
 
 class UDPListenerService:
-    """UDP 监听服务（单例）"""
-
-    _instance: Optional["UDPListenerService"] = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-
     def __init__(self):
-        if self._initialized:
-            return
-        self._initialized = True
-        self._running = False
-        self._wsjtx_task: Optional[asyncio.Task] = None
-        self._n1mm_task: Optional[asyncio.Task] = None
+        self._owner_id: Optional[int] = None
+        self._transports = []
+        self._closed = []
+        self._lock = asyncio.Lock()
         self._wsjtx_port = settings.UDP_WSJTX_PORT
         self._n1mm_port = settings.UDP_N1MM_PORT
         self._qso_count = 0
-        self._ws_clients: Set = set()  # WebSocket 连接集合
         self._last_qso = None
+        self._subscribers: dict[asyncio.Queue, int] = {}
 
     @property
     def is_running(self) -> bool:
-        return self._running
+        return bool(self._transports)
 
-    @property
-    def status(self) -> dict:
+    def status_for(self, user_id: int) -> dict:
+        receiving = self.is_running and user_id == self._owner_id
         return {
-            "running": self._running,
+            "running": self.is_running,
+            "receiving": receiving,
             "wsjtx_port": self._wsjtx_port,
             "n1mm_port": self._n1mm_port,
-            "qso_count": self._qso_count,
-            "last_qso": self._last_qso,
-            "ws_clients": len(self._ws_clients),
+            "qso_count": self._qso_count if receiving else 0,
+            "last_qso": self._last_qso if receiving else None,
+            "ws_clients": sum(owner == user_id for owner in self._subscribers.values()),
         }
 
-    async def start(self, wsjtx_port: Optional[int] = None, n1mm_port: Optional[int] = None):
-        if self._running:
+    async def start(self, user_id: int, wsjtx_port: Optional[int] = None, n1mm_port: Optional[int] = None):
+        ports = (wsjtx_port if wsjtx_port is not None else settings.UDP_WSJTX_PORT,
+                 n1mm_port if n1mm_port is not None else settings.UDP_N1MM_PORT)
+        if any(not 1024 <= port <= 65535 for port in ports) or ports[0] == ports[1]:
+            raise ValueError("UDP ports must be distinct and between 1024 and 65535")
+        async with self._lock:
+            if self.is_running and self._owner_id != user_id:
+                raise PermissionException("UDP listener belongs to another user")
+            if self.is_running and ports == (self._wsjtx_port, self._n1mm_port):
+                return
+            await self._stop()
+            loop = asyncio.get_running_loop()
+            async def close_transport(transport, done):
+                transport.close()
+                await done
+            transports, closed = [], []
+            # Close the first socket too if binding the second socket fails.
+            async with AsyncExitStack() as cleanup:
+                for protocol_type, source, port in ((WSJTXProtocol, "wsjtx", ports[0]), (N1MMProtocol, "n1mm", ports[1])):
+                    done = loop.create_future()
+                    transport, _ = await loop.create_datagram_endpoint(
+                        lambda protocol_type=protocol_type, source=source, done=done: protocol_type(
+                            lambda data: self._process_qso(source, data), done),
+                        local_addr=(settings.UDP_BIND_HOST, port),
+                    )
+                    cleanup.push_async_callback(close_transport, transport, done)
+                    transports.append(transport)
+                    closed.append(done)
+                self._transports, self._closed = transports, closed
+                self._wsjtx_port, self._n1mm_port = ports
+                self._owner_id = user_id
+                self._qso_count, self._last_qso = 0, None
+                cleanup.pop_all()
+            logger.info("UDP listening on %s:%s/%s", settings.UDP_BIND_HOST, *ports)
+
+    async def _stop(self):
+        transports, closed = self._transports, self._closed
+        self._transports, self._closed = [], []
+        for transport in transports:
+            transport.close()
+        if closed:
+            await asyncio.gather(*closed)
+        self._owner_id = None
+        self._last_qso, self._qso_count = None, 0
+
+    async def stop(self, user_id: Optional[int] = None):
+        async with self._lock:
+            if user_id is not None and self.is_running and user_id != self._owner_id:
+                raise PermissionException("UDP listener belongs to another user")
+            await self._stop()
+
+    def subscribe(self, user_id: int) -> asyncio.Queue:
+        queue = asyncio.Queue(maxsize=100)
+        self._subscribers[queue] = user_id
+        return queue
+
+    def unsubscribe(self, queue: asyncio.Queue):
+        self._subscribers.pop(queue, None)
+
+    def _process_qso(self, source: str, data: dict):
+        if not self.is_running:
             return
-        self._wsjtx_port = wsjtx_port or settings.UDP_WSJTX_PORT
-        self._n1mm_port = n1mm_port or settings.UDP_N1MM_PORT
-        self._running = True
-        self._qso_count = 0
-
-        # 短暂延迟确保旧 socket 释放（TIME_WAIT）
-        await asyncio.sleep(0.2)
-
-        self._wsjtx_task = asyncio.create_task(self._listen_wsjtx())
-        self._n1mm_task = asyncio.create_task(self._listen_n1mm())
-        logger.info(f"UDP listener started: WSJT-X={self._wsjtx_port}, N1MM={self._n1mm_port}")
-
-    async def stop(self):
-        self._running = False
-        if self._wsjtx_task:
-            self._wsjtx_task.cancel()
-            self._wsjtx_task = None
-        if self._n1mm_task:
-            self._n1mm_task.cancel()
-            self._n1mm_task = None
-        logger.info("UDP listener stopped")
-
-    def register_ws(self, ws):
-        self._ws_clients.add(ws)
-
-    def unregister_ws(self, ws):
-        self._ws_clients.discard(ws)
-
-    async def _broadcast(self, data: dict):
-        """广播 QSO 数据到所有 WebSocket 客户端"""
-        dead = set()
-        for ws in self._ws_clients:
-            try:
-                await ws.send_json(data)
-            except Exception:
-                dead.add(ws)
-        self._ws_clients -= dead
-
-    # ── WSJT-X / JTDX / MSHV 监听 ──
-    async def _listen_wsjtx(self):
-        try:
-            loop = asyncio.get_event_loop()
-            transport, protocol = await loop.create_datagram_endpoint(
-                lambda: WSJTXProtocol(self._on_wsjtx_qso),
-                local_addr=("0.0.0.0", self._wsjtx_port),
-            )
-            logger.info(f"WSJT-X UDP listening on :{self._wsjtx_port}")
-            while self._running:
-                await asyncio.sleep(1)
-            transport.close()
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            logger.error(f"WSJT-X listener error: {e}")
-            self._running = False
-
-    def _on_wsjtx_qso(self, data: dict):
-        """WSJT-X QSO Logged 回调"""
-        asyncio.get_event_loop().create_task(self._process_qso("wsjtx", data))
-
-    # ── N1MM 监听 ──
-    async def _listen_n1mm(self):
-        try:
-            loop = asyncio.get_event_loop()
-            transport, protocol = await loop.create_datagram_endpoint(
-                lambda: N1MMProtocol(self._on_n1mm_qso),
-                local_addr=("0.0.0.0", self._n1mm_port),
-            )
-            logger.info(f"N1MM UDP listening on :{self._n1mm_port}")
-            while self._running:
-                await asyncio.sleep(1)
-            transport.close()
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            logger.error(f"N1MM listener error: {e}")
-            self._running = False
-
-    def _on_n1mm_qso(self, data: dict):
-        """N1MM contactinfo 回调"""
-        asyncio.get_event_loop().create_task(self._process_qso("n1mm", data))
-
-    # ── 统一处理 ──
-    async def _process_qso(self, source: str, data: dict):
-        """解析 QSO 数据并通过 WebSocket 广播"""
         try:
             qso = self._map_fields(source, data)
-            self._qso_count += 1
-            self._last_qso = {
-                "source": source,
-                "call_sign": qso.get("call_sign"),
-                "band": qso.get("band"),
-                "mode": qso.get("mode"),
-                "time": datetime.now(timezone.utc).isoformat(),
-            }
-            # 广播给前端
-            await self._broadcast({
-                "type": "qso_received",
-                "source": source,
-                "data": qso,
-                "count": self._qso_count,
-            })
-            logger.info(f"[{source.upper()}] QSO received: {qso.get('call_sign')} {qso.get('band')} {qso.get('mode')}")
-        except Exception as e:
-            logger.error(f"Process QSO error: {e}")
+        except (ValueError, TypeError, OverflowError) as exc:
+            logger.debug("Invalid UDP QSO: %s", exc)
+            return
+        if not qso.get("call_sign"):
+            return
+        from app.schemas.qso_log import QSOLogCreate
+        try:
+            qso = QSOLogCreate.model_validate(qso).model_dump(mode="json", exclude_none=True)
+        except ValueError as exc:
+            logger.debug("Invalid UDP fields: %s", exc)
+            return
+        self._qso_count += 1
+        self._last_qso = {
+            "source": source, "call_sign": qso["call_sign"], "band": qso.get("band"),
+            "mode": qso.get("mode"), "time": datetime.now(timezone.utc).isoformat(),
+        }
+        message = {"type": "qso_received", "source": source, "data": qso, "count": self._qso_count}
+        for queue, owner in self._subscribers.items():
+            if owner != self._owner_id:
+                continue
+            if queue.full():
+                queue.get_nowait()
+            queue.put_nowait(message)
 
     def _map_fields(self, source: str, data: dict) -> dict:
         """将不同来源的字段映射为统一的 QSO 日志格式"""
@@ -206,6 +169,7 @@ class UDPListenerService:
             "call_sign": (d.get("dxCall") or "").upper(),
             "qso_date": qso_date,
             "time_on": time_on,
+            "band": freq_to_band(Decimal(str(freq_mhz))) if freq_mhz else None,
             "freq": freq_mhz,
             "mode": d.get("mode"),
             "rst_sent": d.get("reportSent"),
@@ -230,12 +194,9 @@ class UDPListenerService:
         time_on = None
         ts = d.get("timestamp")
         if ts:
-            try:
-                dt = datetime.strptime(str(ts), "%Y-%m-%d %H:%M:%S")
-                qso_date = dt.date().isoformat()
-                time_on = dt.time().isoformat()
-            except ValueError:
-                pass
+            dt = datetime.strptime(str(ts), "%Y-%m-%d %H:%M:%S")
+            qso_date = dt.date().isoformat()
+            time_on = dt.time().isoformat()
 
         # 功率
         tx_pwr = None
@@ -249,6 +210,7 @@ class UDPListenerService:
             "call_sign": (d.get("call") or "").upper(),
             "qso_date": qso_date,
             "time_on": time_on,
+            "band": freq_to_band(Decimal(str(freq_mhz))) if freq_mhz else None,
             "freq": freq_mhz,
             "mode": d.get("mode"),
             "rst_sent": d.get("snt"),
@@ -263,54 +225,85 @@ class UDPListenerService:
 # ── 协议处理器 ──
 
 class WSJTXProtocol(asyncio.DatagramProtocol):
-    """WSJT-X QDataStream 协议解析"""
+    """WSJT-X QSO Logged type 5, QDataStream schema 2/3 (big endian)."""
 
-    # QDataStream header: magic 0xADBCCBDA + schema + type
     MAGIC = 0xADBCCBDA
-    QSO_LOGGED = 3
+    QSO_LOGGED = 5
 
-    def __init__(self, on_qso):
+    def __init__(self, on_qso, closed=None):
         self.on_qso = on_qso
+        self.closed = closed
 
-    def connection_made(self, transport):
-        pass
+    def connection_lost(self, exc):
+        if self.closed is not None and not self.closed.done():
+            self.closed.set_result(None)
+
+    @staticmethod
+    def _utf8(data: bytes, offset: int):
+        length = struct.unpack_from(">I", data, offset)[0]
+        offset += 4
+        if length == 0xFFFFFFFF:
+            return "", offset
+        end = offset + length
+        if end > len(data):
+            raise ValueError("Truncated QDataStream string")
+        return data[offset:end].decode("utf-8"), end
+
+    @staticmethod
+    def _datetime(data: bytes, offset: int):
+        julian, milliseconds, spec = struct.unpack_from(">qIB", data, offset)
+        offset += 13
+        if spec not in (1, 2) or milliseconds >= 86400000:
+            raise ValueError("Expected UTC or fixed-offset QDateTime")
+        instant = datetime.fromordinal(julian - 1721425).replace(tzinfo=timezone.utc) + timedelta(milliseconds=milliseconds)
+        if spec == 2:
+            seconds = struct.unpack_from(">i", data, offset)[0]
+            offset += 4
+            instant -= timedelta(seconds=seconds)
+        return int(instant.timestamp() * 1000), offset
 
     def datagram_received(self, data: bytes, addr):
+        if addr[0] not in settings.UDP_ALLOWED_SOURCES or len(data) > 16384:
+            return
         try:
-            if len(data) < 16:
+            magic, schema, kind = struct.unpack_from(">III", data)
+            if magic != self.MAGIC or schema not in (2, 3) or kind != self.QSO_LOGGED:
                 return
-            # 解析 QDataStream 头
-            magic = struct.unpack(">I", data[0:4])[0]
-            if magic != self.MAGIC:
-                return
-            msg_type = struct.unpack(">I", data[8:12])[0]
-            if msg_type != self.QSO_LOGGED:
-                return
-            # JSON payload 从第 12 字节开始
-            json_bytes = data[12:]
-            # QDataStream 字符串: 4字节长度 + UTF-8
-            if len(json_bytes) < 4:
-                return
-            str_len = struct.unpack(">I", json_bytes[0:4])[0]
-            json_str = json_bytes[4:4 + str_len].decode("utf-8")
-            payload = json.loads(json_str)
+            _, offset = self._utf8(data, 12)
+            end, offset = self._datetime(data, offset)
+            payload = {"timeOff": end}
+            for name in ("dxCall", "dxGrid"):
+                payload[name], offset = self._utf8(data, offset)
+            payload["txFrequency"] = struct.unpack_from(">Q", data, offset)[0]
+            offset += 8
+            for name in ("mode", "reportSent", "reportReceived", "txPower", "comments", "name"):
+                payload[name], offset = self._utf8(data, offset)
+            payload["timeOn"], offset = self._datetime(data, offset)
+            for name in ("operatorCall", "myCall", "myGrid"):
+                payload[name], offset = self._utf8(data, offset)
             self.on_qso(payload)
-        except Exception as e:
-            logger.debug(f"WSJT-X parse error: {e}")
+        except (ValueError, UnicodeDecodeError, struct.error, OverflowError) as exc:
+            logger.debug("WSJT-X parse error: %s", exc)
 
 
 class N1MMProtocol(asyncio.DatagramProtocol):
     """N1MM XML 协议解析"""
 
-    def __init__(self, on_qso):
+    def __init__(self, on_qso, closed=None):
         self.on_qso = on_qso
+        self.closed = closed
 
-    def connection_made(self, transport):
-        pass
+    def connection_lost(self, exc):
+        if self.closed is not None and not self.closed.done():
+            self.closed.set_result(None)
 
     def datagram_received(self, data: bytes, addr):
+        if addr[0] not in settings.UDP_ALLOWED_SOURCES or len(data) > 16384:
+            return
         try:
-            xml_str = data.decode("utf-8", errors="ignore")
+            xml_str = data.decode("utf-8")
+            if "<!" in xml_str:
+                return
             if "<contactinfo>" not in xml_str:
                 return
             root = ElementTree.fromstring(xml_str)
@@ -320,8 +313,8 @@ class N1MMProtocol(asyncio.DatagramProtocol):
             for child in root:
                 fields[child.tag.lower()] = child.text or ""
             self.on_qso(fields)
-        except Exception as e:
-            logger.debug(f"N1MM parse error: {e}")
+        except (ElementTree.ParseError, UnicodeDecodeError) as exc:
+            logger.debug("N1MM parse error: %s", exc)
 
 
 # 全局单例

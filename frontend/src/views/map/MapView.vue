@@ -41,7 +41,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { getPosition as getSunPosition } from 'suncalc'
@@ -49,7 +48,6 @@ import { mapApi, type GridData, type MapGridsResponse } from '@/api/map'
 import { gridBounds, gridToLatLon } from '@/utils/grid'
 
 const router = useRouter()
-const { t } = useI18n()
 
 const mapContainer = ref<HTMLElement>()
 const displayMode = ref<'grid' | 'radial'>('grid')

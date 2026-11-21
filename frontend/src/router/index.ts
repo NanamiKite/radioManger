@@ -139,12 +139,12 @@ router.beforeEach(async (to, _from, next) => {
   // Admin 路由守卫：仅服务器模式 + admin 角色可访问
   if (to.meta.requiresAdmin) {
     // 确保 dbMode 已获取
-    if (authStore.dbMode === 'sqlite' && authStore.isAuthenticated) {
+    if (authStore.dbMode === 'unknown' && authStore.isAuthenticated) {
       await authStore.fetchDbMode()
     }
     const dbMode = authStore.dbMode
     const isAdmin = authStore.user?.role === 'admin'
-    if (dbMode === 'sqlite' || !isAdmin) {
+    if (dbMode !== 'mysql' || !isAdmin) {
       next({ name: 'Dashboard' })
       return
     }

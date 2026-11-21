@@ -25,10 +25,10 @@ EXPOSE 8000
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+    CMD python -c "import json, urllib.request; r=urllib.request.urlopen('http://localhost:8000/health'); assert r.status == 200 and json.load(r)['status'] == 'ok'" || exit 1
 
 # 切换到非 root 用户
 USER appuser
 
 # 启动
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["sh", "-c", "python -m app.scripts.init_db && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"]

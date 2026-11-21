@@ -1,6 +1,10 @@
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
-from typing import Optional, Literal
+from typing import Annotated, Optional, Literal
 from datetime import datetime
+from pydantic import AfterValidator
+from app.utils.security import validate_password
+
+Password = Annotated[str, AfterValidator(validate_password)]
 
 class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
@@ -10,8 +14,8 @@ class UserBase(BaseModel):
     language: str = "zh-CN"
 
 class UserRegister(UserBase):
-    password: str = Field(..., min_length=8)
-    confirm_password: str
+    password: Password
+    confirm_password: Password
 
 class UserLogin(BaseModel):
     username: str
@@ -36,7 +40,6 @@ class UserDetail(UserResponse):
 
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: str
     token_type: str = "Bearer"
     expires_in: int
     user: "UserResponse"

@@ -6,7 +6,6 @@
 #
 # 用法:
 #   ./start-local.sh          # 启动开发环境
-#   ./start-local.sh --build  # 先安装依赖再启动
 #
 
 set -e
@@ -36,8 +35,6 @@ else
   source backend/venv/bin/activate
 fi
 
-# 安装 aiofiles（如果缺失）
-pip install aiofiles -q 2>/dev/null || true
 
 echo ""
 echo "2. 初始化数据库 (SQLite)..."
@@ -50,7 +47,7 @@ echo "3. 启动后端服务 (FastAPI + Uvicorn)..."
 cd backend
 PYTHONPATH="$SCRIPT_DIR/backend" uvicorn app.main:app \
   --reload \
-  --host 0.0.0.0 \
+  --host 127.0.0.1 \
   --port 8000 &
 BACKEND_PID=$!
 cd ..
@@ -75,7 +72,7 @@ echo "  前端应用:  http://localhost:5173"
 echo "  后端 API:   http://localhost:8000"
 echo "  API 文档:   http://localhost:8000/docs"
 echo ""
-echo "  测试账号:   admin / admin123"
+echo "  首次使用请注册账号；不提供默认密码。"
 echo ""
 echo "  按 Ctrl+C 停止所有服务"
 echo "================================================"

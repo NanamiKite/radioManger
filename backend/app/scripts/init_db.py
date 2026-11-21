@@ -1,123 +1,111 @@
-"""
-数据库初始化脚本
-用法: python -m app.scripts.init_db
+"""Explicit deployment migrations; legacy adoption never repairs or guesses schema."""
+import argparse
+from contextlib import contextmanager
+from pathlib import Path
 
-初始化所有数据库表并创建默认管理员账户。
-支持 SQLite（本地开发）和 MySQL（生产部署）。
-使用 Alembic 管理数据库迁移。
-"""
+from alembic import command
+from alembic.autogenerate import compare_metadata
+from alembic.config import Config
+from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
+from sqlalchemy import inspect, text
 
-import sys
-import os
+from app.database.base import engine
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-
-from app.database.base import Base, engine, SessionLocal
-from app.config import settings
-from app.models import (  # noqa: F401 - register all models
-    User, Station, QSOLog, CallsignCache, Statistics,
-    LogFile, SyncHistory, DeletedLog,
-    AuditLog, UserSession, SystemConfig,
-)
+BASELINE = "000000000001"
+ORIGINAL_HEAD = "5eed5637c7eb"
 
 
-def _has_tables():
-    """检查数据库中是否已有表"""
-    from sqlalchemy import inspect
-    try:
-        inspector = inspect(engine)
-        tables = inspector.get_table_names()
-        return len(tables) > 0
-    except Exception:
-        return False
+def _get_alembic_config(connection=None):
+    backend = Path(__file__).resolve().parents[2]
+    cfg = Config(str(backend / "alembic.ini"))
+    cfg.set_main_option("script_location", str(backend / "alembic"))
+    cfg.attributes.update(configure_loggers=False, use_settings_url=False)
+    if connection is not None:
+        cfg.attributes["connection"] = connection
+    return cfg
 
 
-def _get_alembic_config():
-    """获取 Alembic 配置"""
-    from alembic.config import Config
-    # alembic.ini 在 backend/ 目录下
-    backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    ini_path = os.path.join(backend_dir, "alembic.ini")
-    alembic_cfg = Config(ini_path, attributes={"configure_loggers": False})
-    # 设置绝对路径
-    alembic_cfg.set_main_option("script_location", os.path.join(backend_dir, "alembic"))
-    alembic_cfg.set_main_option("sqlalchemy.url", settings.ACTIVE_DATABASE_URL)
-    return alembic_cfg
+def _schema_differences(connection, metadata):
+    context = MigrationContext.configure(connection, opts={"compare_type": True})
+    differences = compare_metadata(context, metadata)
+    inspector = inspect(connection)
+    for table in metadata.sorted_tables:
+        if not inspector.has_table(table.name):
+            continue
+        actual = inspector.get_pk_constraint(table.name).get("constrained_columns", [])
+        expected = [column.name for column in table.primary_key]
+        if actual != expected:
+            differences.append(("primary_key", table.name, actual, expected))
+        actual_checks = {item["sqltext"].strip() for item in inspector.get_check_constraints(table.name)}
+        expected_checks = {str(item.sqltext).strip() for item in table.constraints if hasattr(item, "sqltext")}
+        if actual_checks != expected_checks:
+            differences.append(("check_constraints", table.name, actual_checks, expected_checks))
+    return differences
 
 
-def _run_alembic_upgrade():
-    """运行 Alembic 迁移"""
-    from alembic import command
-    alembic_cfg = _get_alembic_config()
-    command.upgrade(alembic_cfg, "head")
-    print("  ✅ Alembic migrations applied")
+def _report_cross_owner_rows(connection):
+    queries = {
+        "locations.station_owner": "SELECT count(*) FROM locations l JOIN stations s ON l.station_id=s.id WHERE l.user_id<>s.user_id",
+        "qso_logs.station_owner": "SELECT count(*) FROM qso_logs q JOIN stations s ON q.station_id=s.id WHERE q.user_id<>s.user_id",
+        "qso_logs.location_owner": "SELECT count(*) FROM qso_logs q JOIN locations l ON q.location_id=l.id WHERE q.user_id<>l.user_id OR q.station_id<>l.station_id",
+    }
+    for label, query in queries.items():
+        count = connection.execute(text(query)).scalar_one()
+        print(f"Integrity report: {label}={count} (no data changed)")
 
 
-def _stamp_alembic():
-    """标记当前数据库版本为最新（用于全新安装）"""
-    from alembic import command
-    alembic_cfg = _get_alembic_config()
-    command.stamp(alembic_cfg, "head")
-    print("  ✅ Alembic stamped at head")
-
-
-def init_database():
-    """初始化数据库"""
-    print(f"🔧 RadioManager Database Initialization")
-    print(f"   Mode: {settings.DATABASE_MODE}")
-    print(f"   URL: {settings.ACTIVE_DATABASE_URL}")
-
-    if _has_tables():
-        # 已有表：尝试运行 Alembic 迁移
-        print("   Existing database detected, running migrations...")
+@contextmanager
+def _migration_connection(target):
+    # SQLite batch migrations must replace referenced tables with FK checks disabled.
+    # This is connection-local, restored even on failure; it never repairs application rows.
+    with target.connect() as connection:
+        foreign_keys = None
+        if connection.dialect.name == "sqlite":
+            foreign_keys = connection.exec_driver_sql("PRAGMA foreign_keys").scalar_one()
+            connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+            connection.commit()
         try:
-            _run_alembic_upgrade()
-        except Exception as e:
-            print(f"  ⚠️  Alembic migration failed: {e}")
-            print("     This is expected if tables were created before Alembic was configured.")
-            print("     Stamping current version...")
-            try:
-                _stamp_alembic()
-            except Exception:
-                pass
-    else:
-        # 全新数据库：create_all + stamp
-        print("   Fresh database, creating all tables...")
-        Base.metadata.create_all(bind=engine)
-        print("  ✅ All database tables created.")
-        try:
-            _stamp_alembic()
-        except Exception as e:
-            print(f"  ⚠️  Alembic stamp failed: {e}")
+            with connection.begin():
+                yield connection
+        finally:
+            if foreign_keys is not None:
+                connection.exec_driver_sql(f"PRAGMA foreign_keys={int(foreign_keys)}")
+                connection.commit()
 
-    # 创建管理员
-    if settings.DATABASE_MODE == "mysql":
-        admin_user = settings.ADMIN_USERNAME
-        admin_pass = settings.ADMIN_PASSWORD
-        admin_email = settings.ADMIN_EMAIL
-        if admin_user and admin_pass:
-            from app.scripts.create_admin import create_admin
-            create_admin(
-                username=admin_user,
-                password=admin_pass,
-                email=admin_email,
-            )
-        else:
-            print("⚠️  ADMIN_USERNAME / ADMIN_PASSWORD not set, skipping admin creation.")
-    else:
-        if settings.ENABLE_TEST_ACCOUNT:
-            from app.scripts.create_admin import create_admin
-            create_admin(
-                username=settings.TEST_ACCOUNT_USERNAME,
-                password=settings.TEST_ACCOUNT_PASSWORD,
-                email=settings.TEST_ACCOUNT_EMAIL,
-            )
 
-    print("✅ Database initialization complete.")
-    print(f"   Tables: {list(Base.metadata.tables.keys())}")
+def init_database(*, adopt_legacy=False, database_engine=None):
+    """Upgrade an empty/versioned database, or explicitly adopt a proven legacy schema."""
+    target = database_engine if database_engine is not None else engine
+    with _migration_connection(target) as connection:
+        cfg = _get_alembic_config(connection)
+        scripts = ScriptDirectory.from_config(cfg)
+        frozen = scripts.get_revision(BASELINE).module.schema_metadata
+        tables = set(inspect(connection).get_table_names()) - {"alembic_version"}
+        current = MigrationContext.configure(connection).get_current_revision()
+        if tables and current is None:
+            if not adopt_legacy:
+                raise RuntimeError("Unversioned database: back up your database, then run python -m app.scripts.init_db --adopt-legacy to verify and adopt it")
+            head_diff = _schema_differences(connection, frozen(role_length=20))
+            baseline_diff = _schema_differences(connection, frozen())
+            if not head_diff:
+                revision = ORIGINAL_HEAD
+            elif not baseline_diff:
+                revision = BASELINE
+            else:
+                raise RuntimeError(f"Legacy schema does not match head: {head_diff!r}; baseline: {baseline_diff!r}. Restore/migrate the schema explicitly before adoption; nothing was stamped")
+            _report_cross_owner_rows(connection)
+            command.stamp(cfg, revision)
+        elif current in (BASELINE, ORIGINAL_HEAD):
+            differences = _schema_differences(connection, frozen(role_length=5 if current == BASELINE else 20))
+            if differences:
+                raise RuntimeError(f"Versioned database schema mismatch: {differences!r}; repair through an explicit reviewed migration")
+            _report_cross_owner_rows(connection)
+        command.upgrade(cfg, "head")
+    print("Database migrations complete. Register an account on first use, or explicitly run app.scripts.create_admin.")
 
 
 if __name__ == "__main__":
-    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    os.chdir(backend_dir)
-    init_database()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--adopt-legacy", action="store_true")
+    init_database(adopt_legacy=parser.parse_args().adopt_legacy)

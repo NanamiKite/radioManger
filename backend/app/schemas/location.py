@@ -5,27 +5,27 @@ from decimal import Decimal
 
 
 class LocationBase(BaseModel):
-    station_id: int
+    station_id: int = Field(..., gt=0)
     name: str = Field(..., min_length=1, max_length=100)
-    grid_square: Optional[str] = None
-    radio_model: Optional[str] = None
-    antenna_model: Optional[str] = None
-    antenna_height: Optional[Decimal] = None
-    qth: Optional[str] = None
+    grid_square: Optional[str] = Field(None, max_length=6)
+    radio_model: Optional[str] = Field(None, max_length=100)
+    antenna_model: Optional[str] = Field(None, max_length=100)
+    antenna_height: Optional[Decimal] = Field(None, max_digits=5, decimal_places=2)
+    qth: Optional[str] = Field(None, max_length=200)
 
 
 class LocationCreate(LocationBase):
-    grid_square: str = Field(...)
+    grid_square: str = Field(..., min_length=1, max_length=6)
     name: str = Field("Default", min_length=1, max_length=100)
 
 
 class LocationUpdate(BaseModel):
-    name: Optional[str] = None
-    grid_square: Optional[str] = None
-    radio_model: Optional[str] = None
-    antenna_model: Optional[str] = None
-    antenna_height: Optional[Decimal] = None
-    qth: Optional[str] = None
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    grid_square: Optional[str] = Field(None, min_length=1, max_length=6)
+    radio_model: Optional[str] = Field(None, max_length=100)
+    antenna_model: Optional[str] = Field(None, max_length=100)
+    antenna_height: Optional[Decimal] = Field(None, max_digits=5, decimal_places=2)
+    qth: Optional[str] = Field(None, max_length=200)
 
 
 class LocationResponse(LocationBase):

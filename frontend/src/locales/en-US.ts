@@ -146,7 +146,8 @@ export default {
     n1mmPort: 'N1MM Port',
     defaultPort: 'default',
     toggleFailed: 'UDP toggle failed',
-    settingsHint: 'In WSJT-X Settings → Reporting, set UDP Server address to this machine IP with matching port. For N1MM, configure in Config → Config Ports → Broadcast Data.'
+    invalidPorts: 'Use two distinct integer ports between 1024 and 65535',
+    settingsHint: 'UDP data is delivered only to the account that starts the listener. Only local senders are allowed by default; configure the backend bind address and source allowlist for other devices. Match these ports in WSJT-X / N1MM.'
   },
   map: {
     title: 'Maidenhead Grid Map',
@@ -289,6 +290,8 @@ export default {
     dropFile: 'Drop .adi/.adif file here or',
     clickToBrowse: 'click to browse',
     importResult: 'Imported: {imported} | Duplicates: {duplicates} | QSL Updated: {updated} | Errors: {errors}',
+    importPartial: 'Some records were skipped. Review the import result and errors.',
+    importCommitted: 'These counts include committed data. The failed batch was rolled back; earlier batches remain saved. Review the error before importing again.',
     line: 'Line',
     error: 'Error',
     format: 'Format',
@@ -318,6 +321,7 @@ export default {
     selectNode: 'Select Node',
     connecting: 'Connecting',
     connectFailed: 'Connect failed',
+    sharedControl: 'Shared server connection: only administrators can switch or disconnect nodes. All signed-in users can view spots.',
   },
   stations: {
     title: 'Stations',

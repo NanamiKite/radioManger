@@ -2,7 +2,10 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.models.location import Location
 from app.models.station import Station
-from app.schemas.location import LocationCreate, LocationUpdate
+from app.schemas.location import LocationBase, LocationCreate, LocationUpdate
+from app.services.station_service import StationService
+from app.exceptions import NotFoundException, ValidationException
+from pydantic import ValidationError
 
 
 class LocationService:
@@ -18,6 +21,7 @@ class LocationService:
     @staticmethod
     def create_location(db: Session, user_id: int, data: LocationCreate) -> Location:
         """创建位置。如果是用户的第一个位置则自动激活（全局），否则不激活。"""
+        StationService.get_station(db, data.station_id, user_id)
         total_existing = (
             db.query(Location)
             .filter(Location.user_id == user_id, Location.is_deleted == False)
@@ -48,10 +52,12 @@ class LocationService:
     @staticmethod
     def get_locations(db: Session, user_id: int, station_id: Optional[int] = None) -> List[Location]:
         """获取用户的位置列表，可按台站过滤"""
-        query = db.query(Location).filter(
-            Location.user_id == user_id, Location.is_deleted == False
+        query = db.query(Location).join(Station, Location.station_id == Station.id).filter(
+            Location.user_id == user_id, Location.is_deleted == False,
+            Station.user_id == user_id, Station.is_deleted == False,
         )
-        if station_id:
+        if station_id is not None:
+            StationService.get_station(db, station_id, user_id)
             query = query.filter(Location.station_id == station_id)
         return query.order_by(Location.station_id, Location.created_at).all()
 
@@ -67,13 +73,19 @@ class LocationService:
             .first()
         )
         if not loc:
-            raise ValueError("Location not found")
+            raise NotFoundException("Location not found")
+        StationService.get_station(db, loc.station_id, user_id)
         return loc
 
     @staticmethod
     def update_location(db: Session, location_id: int, user_id: int, data: LocationUpdate) -> Location:
         db_loc = LocationService.get_location(db, location_id, user_id)
         update_data = data.model_dump(exclude_unset=True)
+        try:
+            current = LocationBase.model_validate(db_loc, from_attributes=True).model_dump()
+            LocationCreate.model_validate({**current, **update_data})
+        except ValidationError as exc:
+            raise ValidationException(str(exc)) from exc
         for key, value in update_data.items():
             setattr(db_loc, key, value)
         db.commit()
@@ -101,10 +113,13 @@ class LocationService:
         """获取用户当前激活的位置"""
         return (
             db.query(Location)
+            .join(Station, Location.station_id == Station.id)
             .filter(
                 Location.user_id == user_id,
                 Location.is_active == True,
                 Location.is_deleted == False,
+                Station.user_id == user_id,
+                Station.is_deleted == False,
             )
             .first()
         )
@@ -118,6 +133,7 @@ class LocationService:
             .filter(
                 Location.user_id == user_id,
                 Location.is_deleted == False,
+                Station.user_id == user_id,
                 Station.is_deleted == False,
             )
             .order_by(Station.callsign, Location.created_at)

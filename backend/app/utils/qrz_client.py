@@ -41,6 +41,7 @@ class QRZClient:
             },
             timeout=15,
         )
+        r.raise_for_status()
 
         key = _extract_tag(r.text, "Key")
         err = _extract_tag(r.text, "Error")
@@ -62,9 +63,10 @@ class QRZClient:
                 params={"s": session, "callsign": callsign},
                 timeout=15,
             )
+            r.raise_for_status()
             return self._parse_response(r.text, callsign)
-        except Exception as e:
-            logger.warning(f"QRZ lookup failed for {callsign}: {e}")
+        except (requests.RequestException, ConnectionError) as exc:
+            logger.warning("QRZ lookup failed for %s (%s)", callsign, type(exc).__name__)
             return None
 
     def _parse_response(self, xml_text: str, callsign: str) -> Optional[Dict]:
@@ -135,5 +137,3 @@ class QRZClient:
             "image": t("image"),
         }
 
-    def close(self):
-        pass

@@ -24,7 +24,9 @@ prepare_backend() {
     mkdir -p "$target/backend"
     cp -r "$PROJECT_DIR/backend/app" "$target/backend/"
     cp "$PROJECT_DIR/backend/release_server.py" "$target/backend/"
-    cp "$PROJECT_DIR/backend/.env.release" "$target/backend/.env"
+    cp -r "$PROJECT_DIR/backend/alembic" "$target/backend/"
+    cp "$PROJECT_DIR/backend/alembic.ini" "$target/backend/"
+    cp "$PROJECT_DIR/backend/.env.release" "$target/.env"
     cp "$PROJECT_DIR/backend/requirements.txt" "$target/backend/"
     cp -r "$PROJECT_DIR/frontend/dist" "$target/backend/frontend_dist"
     find "$target" -name "__pycache__" -exec rm -rf {} + 2>/dev/null
@@ -58,7 +60,7 @@ build_windows() {
     # 下载 Windows wheels
     echo "  Downloading Windows dependencies..."
     local TEMP_REQ=$(mktemp)
-    grep -v -E "pytest|coverage|uvloop|alembic|redis|mysql-connector|PyMySQL" \
+    grep -v -E "pytest|coverage|uvloop|redis|mysql-connector|PyMySQL" \
         "$PROJECT_DIR/backend/requirements.txt" > "$TEMP_REQ"
     echo "uvicorn==0.49.0" >> "$TEMP_REQ"
 
@@ -109,10 +111,10 @@ RadioManager v2.4.1 - Windows 本地部署版
 1. 解压到任意目录
 2. 双击 start.bat 启动
 3. 浏览器打开 http://localhost:8000
-4. 默认账号: admin / admin123
+4. 首次使用请注册账号；不提供默认密码。
 
 数据库文件: radiomanager.db (自动创建)
-配置文件: backend/.env
+配置文件: .env
 READEOF
 
     # 打包
@@ -201,13 +203,13 @@ RadioManager v2.4.1 - macOS 本地部署版
 1. 解压到任意目录
 2. 终端执行: ./start.sh
 3. 浏览器打开 http://localhost:8000
-4. 默认账号: admin / admin123
+4. 首次使用请注册账号；不提供默认密码。
 
 前置要求: Python 3.10+ (brew install python@3.12)
 首次运行会自动创建 venv 并安装依赖
 
 数据库文件: radiomanager.db (自动创建)
-配置文件: backend/.env
+配置文件: .env
 READEOF
 
     # 打包

@@ -77,8 +77,9 @@ export const logsApi = {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (!res.ok) {
+      if (res.status === 401) authStore.clearSession()
       const err = await res.json().catch(() => ({ detail: `Export failed (${res.status})` }))
-      throw new Error(err.detail || `Export failed (${res.status})`)
+      throw new Error(err.detail || err.message || `Export failed (${res.status})`)
     }
     const disposition = res.headers.get('Content-Disposition') || ''
     const match = disposition.match(/filename="?(.+?)"?$/)

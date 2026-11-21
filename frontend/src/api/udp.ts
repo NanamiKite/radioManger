@@ -2,6 +2,7 @@ import api from './index'
 
 export interface UDPStatus {
   running: boolean
+  receiving: boolean
   wsjtx_port: number
   n1mm_port: number
   qso_count: number
@@ -32,6 +33,8 @@ export const udpApi = {
   createWebSocket(token: string): WebSocket {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
-    return new WebSocket(`${protocol}//${host}/api/v1/udp/ws?token=${token}`)
+    const socket = new WebSocket(`${protocol}//${host}/api/v1/udp/ws`)
+    socket.addEventListener('open', () => socket.send(JSON.stringify({ token })), { once: true })
+    return socket
   }
 }

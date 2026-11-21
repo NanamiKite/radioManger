@@ -12,7 +12,7 @@ REST API 默认前缀为 `/api/v1`，由 [`main.py`](../backend/app/main.py) 注
 
 | 端点类型 | 响应 |
 | --- | --- |
-| 登录 | 顶层 `access_token`、`refresh_token`、`token_type`、`expires_in`、`user` |
+| 登录 | 顶层 `access_token`、`token_type`、`expires_in`、`user`；不签发 refresh token |
 | 台站、位置、单条日志 | 对象 |
 | 台站、位置、DX 节点列表 | 数组 |
 | 日志列表、回收站、同步历史 | `{items, total, page, page_size, pages}` |
@@ -31,11 +31,12 @@ Axios 公共客户端只解包 HTTP 的 `response.data`，不会继续提取业�
 | 400 | 业务条件不满足、文件类型错误等 |
 | 401 / 403 | 认证失败 / 权限不足 |
 | 404 | 资源不存在 |
-| 409 | DX Cluster 缺少可用激活台站等冲突 |
+| 409 | 注册信息冲突、UDP 端口占用、DX Cluster 缺少激活位置等 |
 | 413 | 导入文件超过大小限制 |
-| 422 | 参数校验失败或注册信息冲突 |
+| 422 | 参数校验失败、对象关联不一致、节点未配置 |
 | 429 | 触发 IP 限流 |
 | 500 / 502 | 服务端异常 / DX 节点连接失败 |
+| 503 | 数据库不可用；导入失败时同时报告此前已提交的计数 |
 
 ## 认证方式
 
@@ -45,7 +46,9 @@ Axios 公共客户端只解包 HTTP 的 `response.data`，不会继续提取业�
 Authorization: Bearer <access_token>
 ```
 
-WebSocket 使用 `?token=<access_token>`。令牌有效期默认分别为 7 天和 30 天，但没有 `/auth/refresh` 接口，也没有前端自动续期流程。MySQL 管理接口另要求 `role="admin"`。
+JWT 仅签发 `token_type=access` 的访问令牌，默认有效期 7 天，没有刷新接口。SQLite 与 MySQL 都要求有效的 `user_sessions` 记录；登出撤销当前会话，改密和管理员重置密码撤销该用户全部会话。旧版令牌需要重新登录。
+
+WebSocket URL 不含令牌。连接建立后 5 秒内发送首条消息 `{"token":"<access_token>"}`，否则以 4401 关闭。后续每 10 秒重新验证会话，保存 QSO 前再次验证。MySQL 模式的管理员接口、DX 节点切换和 UDP 启停要求 `role="admin"`；UDP 数据只发给启动监听的用户。
 
 ## 分页参数
 
@@ -73,4 +76,4 @@ FastAPI 处理的 HTTP 异常通常返回 `{"detail":"..."}`，请求校验错�
 
 `DEBUG=true` 时开放 `/docs` 和 `/redoc`。`/openapi.json` 未随 `DEBUG=false` 关闭。服务器默认关闭交互文档；部署状态使用 `/health` 查询。
 
-`GET /health` 报告 `status`、`version`、`database`、`subsystems`，SQLite 额外返回 `db_path`、`db_dir`。数据库或 Redis 检查失败时 `status="degraded"`，HTTP 状态仍为 200。`GET /` 返回应用名、版本、文档路径和数据库模式。
+`GET /health` 报告 `status`、`version`、`database`、`subsystems`，SQLite 额外返回 `db_path`、`db_dir`。数据库检查失败时返回 HTTP 503 和 `status="degraded"`；正常返回 HTTP 200 和 `status="ok"`。`GET /` 返回应用名、版本、文档路径和数据库模式。

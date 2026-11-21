@@ -40,18 +40,29 @@ def _enrich_log(log, station_cache: dict, location_cache: dict = None) -> dict:
     return data
 
 
-def _build_station_cache(db: Session) -> dict:
-    stations = db.query(Station.id, Station.callsign).filter(Station.is_deleted == False).all()
+def _build_station_cache(db: Session, user_id: int, logs) -> dict:
+    ids = {log.station_id for log in logs if log.user_id == user_id}
+    if not ids:
+        return {}
+    stations = db.query(Station.id, Station.callsign).filter(
+        Station.user_id == user_id, Station.id.in_(ids), Station.is_deleted == False
+    ).all()
     return {s.id: s.callsign for s in stations}
 
 
-def _build_location_cache(db: Session) -> dict:
+def _build_location_cache(db: Session, user_id: int, logs) -> dict:
     from app.models.location import Location
-    locs = db.query(Location.id, Location.name).filter(Location.is_deleted == False).all()
-    return {l.id: l.name for l in locs}
+    ids = {log.location_id for log in logs if log.user_id == user_id and log.location_id is not None}
+    if not ids:
+        return {}
+    locs = db.query(Location.id, Location.name).join(Station, Location.station_id == Station.id).filter(
+        Location.user_id == user_id, Location.id.in_(ids), Location.is_deleted == False,
+        Station.user_id == user_id, Station.is_deleted == False,
+    ).all()
+    return {loc.id: loc.name for loc in locs}
 
 @router.post("", response_model=QSOLogResponse, status_code=status.HTTP_201_CREATED)
-async def create_log(
+def create_log(
     log_data: QSOLogCreate,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -59,14 +70,14 @@ async def create_log(
     """创建日志。未指定 station_id 时自动使用激活台站"""
     try:
         log = LogService.create_log(db, current_user.id, log_data)
-        cache = _build_station_cache(db)
-        lcache = _build_location_cache(db)
+        cache = _build_station_cache(db, current_user.id, [log])
+        lcache = _build_location_cache(db, current_user.id, [log])
         return _enrich_log(log, cache, lcache)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @router.get("", response_model=dict)
-async def get_logs(
+def get_logs(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     sort_by: str = Query("qso_date", pattern="^[a-z_]+$"),
@@ -93,8 +104,8 @@ async def get_logs(
         station_id=station_id,
         sort_by=sort_by, sort_order=sort_order,
     )
-    cache = _build_station_cache(db)
-    lcache = _build_location_cache(db)
+    cache = _build_station_cache(db, current_user.id, logs)
+    lcache = _build_location_cache(db, current_user.id, logs)
     items = [_enrich_log(log, cache, lcache) for log in logs]
     return {
         "items": items,
@@ -104,7 +115,7 @@ async def get_logs(
 
 # 固定路径路由必须放在 /{log_id} 参数路径之前
 @router.get("/stats/overview")
-async def get_stats_overview(
+def get_stats_overview(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -114,7 +125,7 @@ async def get_stats_overview(
 
 
 @router.get("/export")
-async def export_logs(
+def export_logs(
     format: str = Query("adi", pattern="^(adi|adif)$"),
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
@@ -124,7 +135,7 @@ async def export_logs(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    """导出日志为ADI格式。location_id 时仅导出 my_gridsquare 匹配该位置的日志。"""
+    """导出日志为ADI格式。location_id 按位置的 my_gridsquare 前缀过滤。"""
     content, callsign = ImportExportService.export_adi(
         db, current_user.id, start_date, end_date, band, station_id, location_id
     )
@@ -147,19 +158,13 @@ async def import_logs(
     current_user = Depends(get_current_user),
 ):
     """导入ADI文件"""
-    if not file.filename or not (file.filename.endswith(".adi") or file.filename.endswith(".adif")):
+    if not file.filename or not file.filename.lower().endswith((".adi", ".adif")):
         raise HTTPException(status_code=400, detail="Only .adi / .adif files are supported")
 
-    # 文件大小限制（50MB）
-    MAX_IMPORT_SIZE = 50 * 1024 * 1024
-    content = b""
-    while True:
-        chunk = await file.read(1024 * 1024)  # 每次读 1MB
-        if not chunk:
-            break
-        content += chunk
-        if len(content) > MAX_IMPORT_SIZE:
-            raise HTTPException(status_code=413, detail="File too large (max 50MB)")
+    from app.config import settings
+    content = await file.read(settings.MAX_UPLOAD_SIZE + 1)
+    if len(content) > settings.MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="File too large (max 50MiB)")
     content = content.decode("utf-8", errors="replace")
 
     if not station_id:
@@ -170,12 +175,18 @@ async def import_logs(
         else:
             raise HTTPException(status_code=400, detail="No active location. Create and activate a location first.")
 
-    result = ImportExportService.import_adi(db, current_user.id, content, file.filename, station_id)
+    from starlette.concurrency import run_in_threadpool
+    result = await run_in_threadpool(
+        ImportExportService.import_adi, db, current_user.id, content, file.filename, station_id
+    )
+    if result["database_failed"]:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=503, content=result)
     return result
 
 
 @router.get("/{log_id}", response_model=QSOLogResponse)
-async def get_log(
+def get_log(
     log_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -183,14 +194,14 @@ async def get_log(
     """获取单条日志"""
     try:
         log = LogService.get_log(db, log_id, current_user.id)
-        cache = _build_station_cache(db)
-        lcache = _build_location_cache(db)
+        cache = _build_station_cache(db, current_user.id, [log])
+        lcache = _build_location_cache(db, current_user.id, [log])
         return _enrich_log(log, cache, lcache)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 @router.patch("/{log_id}", response_model=QSOLogResponse)
-async def update_log(
+def update_log(
     log_id: int,
     log_data: QSOLogUpdate,
     db: Session = Depends(get_db),
@@ -199,13 +210,14 @@ async def update_log(
     """更新日志"""
     try:
         log = LogService.update_log(db, log_id, current_user.id, log_data)
-        cache = _build_station_cache(db)
-        return _enrich_log(log, cache)
+        cache = _build_station_cache(db, current_user.id, [log])
+        lcache = _build_location_cache(db, current_user.id, [log])
+        return _enrich_log(log, cache, lcache)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 @router.delete("/{log_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_log(
+def delete_log(
     log_id: int,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
@@ -223,7 +235,7 @@ async def delete_log(
 # ── 回收站端点 ──
 
 @router.get("/recycle/list")
-async def list_deleted_logs(
+def list_deleted_logs(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -265,7 +277,7 @@ async def list_deleted_logs(
 
 
 @router.post("/recycle/{deleted_id}/restore", response_model=QSOLogResponse)
-async def restore_deleted_log(
+def restore_deleted_log(
     deleted_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -273,10 +285,8 @@ async def restore_deleted_log(
     """从回收站恢复日志"""
     try:
         new_log = DeletedLogService.restore_log(db, deleted_id, current_user.id)
-        # 自动清理过期条目
-        DeletedLogService.cleanup_expired(db, current_user.id)
-        cache = _build_station_cache(db)
-        lcache = _build_location_cache(db)
+        cache = _build_station_cache(db, current_user.id, [new_log])
+        lcache = _build_location_cache(db, current_user.id, [new_log])
         return _enrich_log(new_log, cache, lcache)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -287,7 +297,7 @@ class BatchDeleteRequest(BaseModel):
 
 
 @router.post("/recycle/batch-delete")
-async def batch_delete_recycle_items(
+def batch_delete_recycle_items(
     request: BatchDeleteRequest,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -297,13 +307,11 @@ async def batch_delete_recycle_items(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No IDs provided")
 
     deleted_count = DeletedLogService.batch_permanent_delete(db, request.ids, current_user.id)
-    # 自动清理过期条目
-    DeletedLogService.cleanup_expired(db, current_user.id)
     return {"deleted": deleted_count}
 
 
 @router.post("/recycle/clear-all")
-async def clear_recycle_bin(
+def clear_recycle_bin(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):

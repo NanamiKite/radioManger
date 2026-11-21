@@ -146,7 +146,8 @@ export default {
     n1mmPort: 'N1MM 端口',
     defaultPort: '默认端口',
     toggleFailed: 'UDP 操作失败',
-    settingsHint: '在 WSJT-X 设置 → Reporting 中配置 UDP Server 地址为本机 IP，端口与上方一致。N1MM 在 Config → Config Ports → Broadcast Data 中设置。'
+    invalidPorts: '端口必须是 1024～65535 之间的整数，且不能相同',
+    settingsHint: 'UDP 数据仅发送给启动监听的账户。默认只接收本机数据；接收其他设备前需配置后端监听地址和来源白名单。WSJT-X / N1MM 的目标端口需与上方一致。'
   },
   map: {
     title: '梅登网格地图',
@@ -289,6 +290,8 @@ export default {
     dropFile: '拖放 .adi/.adif 文件到此处或',
     clickToBrowse: '点击浏览',
     importResult: '已导入: {imported} | 重复: {duplicates} | QSL更新: {updated} | 错误: {errors}',
+    importPartial: '部分记录未导入，请查看结果与错误明细',
+    importCommitted: '以上计数为已提交的数据。失败批次已回滚，之前批次仍保留；请先查看错误，不要直接重复导入。',
     line: '行号',
     error: '错误',
     format: '格式',
@@ -318,6 +321,7 @@ export default {
     selectNode: '选择节点',
     connecting: '连接中',
     connectFailed: '连接失败',
+    sharedControl: '服务器共享 DX 连接：仅管理员可切换或断开节点，普通用户可以查看 spot。',
   },
   stations: {
     title: '台站管理',

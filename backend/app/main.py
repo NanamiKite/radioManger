@@ -1,7 +1,8 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from app.config import settings
 from app.api.v1 import (
     auth_router,
@@ -18,24 +19,25 @@ from app.api.v1 import (
     udp_router,
 )
 from app.api.v1.admin import router as admin_router
-from app.database.base import engine, Base
+from app.database.base import engine
 from app.middleware.logging import LoggingMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.services.dxcluster_manager import dxcluster_manager
+from app.services.udp_listener_service import udp_listener
+from app.exceptions import RadioManagerException, exception_handler
 
-import app.models
-
-# 自动创建数据库表（首次启动时）
-Base.metadata.create_all(bind=engine)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期钩子：startup 时不做主动连接（等用户触发），
-    shutdown 时确保 DX Cluster telnet 连接被干净关闭。"""
-    yield
-    await dxcluster_manager.disconnect()
+    """Network resources belong to this process and must close on shutdown."""
+    try:
+        yield
+    finally:
+        await udp_listener.stop()
+        await dxcluster_manager.disconnect()
+        engine.dispose()
 
 
 app = FastAPI(
@@ -46,6 +48,7 @@ app = FastAPI(
     redoc_url="/redoc" if settings.DEBUG else None,
     lifespan=lifespan,
 )
+app.add_exception_handler(RadioManagerException, exception_handler)
 
 app.add_middleware(CORSMiddleware, allow_origins=settings.CORS_ORIGINS, allow_credentials=True, allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"], allow_headers=["Authorization", "Content-Type", "Accept"])
 # 中间件顺序：后添加的先执行请求。执行顺序：RateLimit → Logging → ErrorHandler → CORS
@@ -68,11 +71,11 @@ app.include_router(map_router, prefix=f"{settings.API_V1_STR}/map", tags=["map"]
 app.include_router(udp_router, prefix=f"{settings.API_V1_STR}/udp", tags=["udp"])
 
 # Admin 路由 - 仅服务器模式（MySQL）启用
-if settings.DATABASE_MODE != "sqlite":
+if settings.DATABASE_MODE == "mysql":
     app.include_router(admin_router, prefix=f"{settings.API_V1_STR}/admin", tags=["admin"])
 
 @app.get("/health")
-async def health_check():
+def health_check(response: Response):
     result = {
         "status": "ok",
         "version": settings.VERSION,
@@ -89,20 +92,11 @@ async def health_check():
             result["subsystems"]["database"] = "ok"
         finally:
             db.close()
-    except Exception:
+    except SQLAlchemyError:
         result["subsystems"]["database"] = "error"
         result["status"] = "degraded"
+        response.status_code = 503
 
-    # Redis 连接检查（MySQL 模式）
-    if settings.DATABASE_MODE == "mysql":
-        try:
-            import redis
-            r = redis.from_url(settings.REDIS_URL, socket_timeout=2)
-            r.ping()
-            result["subsystems"]["redis"] = "ok"
-        except Exception:
-            result["subsystems"]["redis"] = "error"
-            result["status"] = "degraded"
 
     # SQLite 路径信息（前端设置页需要）
     if settings.DATABASE_MODE == "sqlite":

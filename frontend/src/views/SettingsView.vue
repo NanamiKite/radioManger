@@ -44,7 +44,7 @@
             </el-form-item>
           </el-form>
           <div v-if="prefResult" style="margin-top:8px">
-            <el-alert :title="prefResult" :type="prefResult.includes('Error') ? 'error' : 'success'" show-icon />
+            <el-alert :title="prefResult" :type="prefFailed ? 'error' : 'success'" show-icon />
           </div>
         </el-card>
       </el-tab-pane>
@@ -96,7 +96,7 @@
         </el-card>
       </el-tab-pane>
 
-      <el-tab-pane :label="$t('settings.udpSettings')" name="udp">
+      <el-tab-pane v-if="canControlRealtime" :label="$t('settings.udpSettings')" name="udp">
         <el-card>
           <el-form label-width="160px">
             <el-form-item :label="$t('udp.wsjtxPort')">
@@ -108,7 +108,7 @@
               <div class="field-hint">N1MM Logger+ {{ $t('udp.defaultPort') }}: 12060</div>
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" @click="saveUdpSettings">{{ $t('settings.saveSettings') }}</el-button>
+              <el-button type="primary" @click="saveUdpSettings" :loading="savingUdp">{{ $t('settings.saveSettings') }}</el-button>
             </el-form-item>
           </el-form>
           <el-divider />
@@ -195,6 +195,8 @@ const language = ref(getLanguage())
 const timezone = ref('UTC')
 const savingPrefs = ref(false)
 const prefResult = ref('')
+const prefFailed = ref(false)
+const savingUdp = ref(false)
 const changingPassword = ref(false)
 const dbMode = ref('loading...')
 const dbPath = ref('')
@@ -204,6 +206,7 @@ const appVersion = ref('')
 
 const udpForm = ref({ wsjtx_port: 2237, n1mm_port: 12060 })
 const isServerMode = ref(false)
+const canControlRealtime = computed(() => authStore.dbMode === 'sqlite' || (authStore.dbMode === 'mysql' && currentUser.value?.role === 'admin'))
 const deletionScheduled = ref(false)
 const showDeleteDialog = ref(false)
 const deletePassword = ref('')
@@ -211,11 +214,21 @@ const requestingDeletion = ref(false)
 const cancellingDeletion = ref(false)
 
 const saveUdpSettings = async () => {
+  const { wsjtx_port, n1mm_port } = udpForm.value
+  if (![wsjtx_port, n1mm_port].every(port => Number.isInteger(port) && port >= 1024 && port <= 65535) || wsjtx_port === n1mm_port) {
+    ElMessage.error(t('udp.invalidPorts'))
+    return
+  }
+  savingUdp.value = true
   try {
-    await udpApi.stop()
-    await udpApi.start()
+    const result = await udpApi.start(wsjtx_port, n1mm_port)
+    udpForm.value = { wsjtx_port: result.data.wsjtx_port, n1mm_port: result.data.n1mm_port }
     ElMessage.success(t('settings.settingsSaved'))
-  } catch { ElMessage.error(t('udp.toggleFailed')) }
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.detail || t('udp.toggleFailed'))
+  } finally {
+    savingUdp.value = false
+  }
 }
 
 const passwordForm = ref({ old_password: '', new_password: '', confirm_password: '' })
@@ -229,11 +242,17 @@ onMounted(async () => {
   try {
     const data = await fetchHealth()
     dbMode.value = data.database || 'sqlite'
+    authStore.dbMode = data.database
     isServerMode.value = dbMode.value === 'mysql'
     dbPath.value = data.db_path || ''
     dbDir.value = data.db_dir || ''
     appVersion.value = data.version || ''
   } catch { dbMode.value = 'unknown' }
+  if (!canControlRealtime.value) return
+  try {
+    const status = await udpApi.getStatus()
+    udpForm.value = { wsjtx_port: status.data.wsjtx_port, n1mm_port: status.data.n1mm_port }
+  } catch { ElMessage.error(t('udp.toggleFailed')) }
 })
 
 const copyDbPath = async () => {
@@ -255,11 +274,6 @@ const copyDbPath = async () => {
 
 const openDbFolder = () => {
   if (!dbDir.value) return
-  // Electron 环境：调用 shell.openPath
-  if (window.electronAPI?.openPath) {
-    window.electronAPI.openPath(dbDir.value)
-    return
-  }
   // Web 环境：复制路径让用户自己打开
   navigator.clipboard.writeText(dbDir.value).catch(() => {})
   ElMessage.info(t('settings.pathCopied') + '\n' + dbDir.value)
@@ -273,17 +287,14 @@ const handleLanguageChange = (lang: string) => {
 const savePreferences = async () => {
   savingPrefs.value = true
   prefResult.value = ''
+  prefFailed.value = false
   try {
-    await api.patch('/auth/me', {
-      timezone: timezone.value,
-      language: language.value,
-    })
-    // 同步更新 store 中的用户信息
-    authStore.user = { ...authStore.user, timezone: timezone.value, language: language.value } as any
-    // 同步到 storage
-    storage.setUser(authStore.user)
+    const user = await authApi.updateMe({ timezone: timezone.value, language: language.value })
+    authStore.user = user
+    storage.setUser(user)
     prefResult.value = t('settings.settingsSaved')
   } catch (err: any) {
+    prefFailed.value = true
     prefResult.value = t('errors.serverError') + ': ' + (err?.response?.data?.detail || '')
   } finally {
     savingPrefs.value = false
@@ -304,7 +315,7 @@ const changePassword = async () => {
       confirm_password: passwordForm.value.confirm_password
     })
     ElMessage.success(t('settings.passwordChanged'))
-    passwordForm.value = { old_password: '', new_password: '', confirm_password: '' }
+    authStore.clearSession()
   } catch (err: any) {
     ElMessage.error(err?.response?.data?.detail || t('errors.serverError'))
   } finally { changingPassword.value = false }

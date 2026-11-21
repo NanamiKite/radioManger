@@ -2,6 +2,7 @@
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
+from app.schemas.user import Password
 
 
 # ── 用户管理 ──
@@ -26,7 +27,7 @@ class AdminUserListResponse(BaseModel):
 
 
 class AdminResetPasswordRequest(BaseModel):
-    new_password: str
+    new_password: Password
 
 
 class AdminUserStatsResponse(BaseModel):

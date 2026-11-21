@@ -9,7 +9,7 @@ router = APIRouter()
 
 
 @router.post("", response_model=StationResponse, status_code=status.HTTP_201_CREATED)
-async def create_station(
+def create_station(
     station_data: StationCreate,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -22,7 +22,7 @@ async def create_station(
 
 
 @router.get("", response_model=list[StationResponse])
-async def get_stations(
+def get_stations(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -31,7 +31,7 @@ async def get_stations(
 
 
 @router.get("/{station_id}", response_model=StationResponse)
-async def get_station(
+def get_station(
     station_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -44,7 +44,7 @@ async def get_station(
 
 
 @router.patch("/{station_id}", response_model=StationResponse)
-async def update_station(
+def update_station(
     station_id: int,
     station_data: StationUpdate,
     db: Session = Depends(get_db),
@@ -58,7 +58,7 @@ async def update_station(
 
 
 @router.delete("/{station_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_station(
+def delete_station(
     station_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),

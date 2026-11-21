@@ -1,45 +1,16 @@
 """回收站服务 - 管理已删除的日志恢复和清理"""
 
-import json
 import logging
-from decimal import Decimal
-from datetime import datetime, timezone, timedelta, date as date_type
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.qso_log import QSOLog
 from app.models.deleted_log import DeletedLog
+from app.exceptions import NotFoundException, ValidationException
 
 logger = logging.getLogger("radiomanager.recycle")
 
-# 日期格式列表：(格式字符串, 期望长度)
-_DATE_FORMATS = [
-    ("%Y-%m-%d", 10),
-    ("%Y%m%d", 8),
-    ("%d-%m-%y", 8),
-    ("%d-%m-%Y", 10),
-    ("%y-%m-%d", 8),
-    ("%m-%d-%y", 8),
-    ("%m-%d-%Y", 10),
-]
-
-
-def _parse_date_flexible(raw: Optional[str]) -> Optional[date_type]:
-    """尝试多种格式解析日期字符串，返回 date 或 None"""
-    if not raw or not isinstance(raw, str):
-        return None
-    raw = raw.strip()
-    for fmt, expected_len in _DATE_FORMATS:
-        if len(raw) == expected_len:
-            try:
-                return datetime.strptime(raw, fmt).date()
-            except ValueError:
-                continue
-    # 最后尝试直接解析
-    try:
-        return datetime.strptime(raw[:10], "%Y-%m-%d").date()
-    except (ValueError, IndexError):
-        return None
 
 
 class DeletedLogService:
@@ -120,8 +91,6 @@ class DeletedLogService:
         )
         for log in logs:
             DeletedLogService.delete_and_backup(db, log, f"Station #{station_id} deleted")
-        if logs:
-            db.commit()
         return len(logs)
 
     @staticmethod
@@ -145,7 +114,7 @@ class DeletedLogService:
 
     @staticmethod
     def restore_log(db: Session, deleted_id: int, user_id: int) -> Optional[QSOLog]:
-        """从回收站恢复日志 — 恢复原记录而非创建新记录"""
+        """恢复日志；原记录不存在时从已验证的快照重建，不恢复父记录。"""
         entry = (
             db.query(DeletedLog)
             .filter(
@@ -156,9 +125,9 @@ class DeletedLogService:
             .first()
         )
         if not entry:
-            raise ValueError("Deleted log not found or already restored")
+            raise NotFoundException("Deleted log not found or already restored")
         if entry.expires_at and entry.expires_at < datetime.now(timezone.utc).replace(tzinfo=None):
-            raise ValueError("Deleted log has expired and cannot be restored")
+            raise ValidationException("Deleted log has expired and cannot be restored")
 
         # 恢复原记录：将 is_deleted 改回 False
         original_log = db.query(QSOLog).filter(
@@ -166,50 +135,37 @@ class DeletedLogService:
             QSOLog.user_id == user_id,
         ).first()
 
-        if original_log:
-            original_log.is_deleted = False
-        else:
-            # 原记录不存在（异常情况），从备份数据重建
+        from app.services.log_service import LogService
+        if original_log is None:
+            from app.schemas.qso_log import QSOLogBase
+            from app.services.import_export_service import _parse_date_flexible, _parse_time_flexible
+            from pydantic import ValidationError
             data = entry.log_data
-            original_log = QSOLog(
-                user_id=user_id,
-                station_id=data.get("station_id"),
-                location_id=data.get("location_id"),
-                call_sign=data.get("call_sign", ""),
-                qso_date=_parse_date_flexible(data.get("qso_date")),
-                qso_date_off=_parse_date_flexible(data.get("qso_date_off")),
-                time_on=datetime.strptime(data["time_on"][:8], "%H:%M:%S").time() if data.get("time_on") else None,
-                time_off=datetime.strptime(data["time_off"][:8], "%H:%M:%S").time() if data.get("time_off") else None,
-                band=data.get("band"),
-                band_rx=data.get("band_rx"),
-                freq=Decimal(str(data["freq"])) if data.get("freq") else None,
-                freq_rx=Decimal(str(data["freq_rx"])) if data.get("freq_rx") else None,
-                mode=data.get("mode"),
-                rst_sent=data.get("rst_sent"),
-                rst_rcvd=data.get("rst_rcvd"),
-                grid_square=data.get("grid_square"),
-                operator=data.get("operator"),
-                qth=data.get("qth"),
-                qsl_sent=data.get("qsl_sent", "N"),
-                qsl_rcvd=data.get("qsl_rcvd", "N"),
-                eqsl_sent=data.get("eqsl_sent", "N"),
-                eqsl_rcvd=data.get("eqsl_rcvd", "N"),
-                lotw_sent=data.get("lotw_sent", "N"),
-                lotw_rcvd=data.get("lotw_rcvd", "N"),
-                distance=data.get("distance"),
-                dxcc=data.get("dxcc"),
-                tx_pwr=data.get("tx_pwr"),
-                my_gridsquare=data.get("my_gridsquare"),
-                station_callsign=data.get("station_callsign"),
-                my_call=data.get("my_call"),
-                comment=data.get("comment"),
-                prop_mode=data.get("prop_mode"),
-                sat_name=data.get("sat_name"),
-                srx=data.get("srx"),
-                stx=data.get("stx"),
-                contest_id=data.get("contest_id"),
-            )
+            if not isinstance(data, dict) or data.get("user_id") != user_id:
+                raise ValidationException("Invalid snapshot owner or snapshot data")
+            data = data.copy()
+            try:
+                for field in ("qso_date", "qso_date_off"):
+                    raw = data.get(field)
+                    if raw is not None:
+                        data[field] = _parse_date_flexible(raw)
+                        if data[field] is None:
+                            raise ValueError(f"Invalid snapshot {field}")
+                for field in ("time_on", "time_off"):
+                    raw = data.get(field)
+                    if raw is not None:
+                        data[field] = _parse_time_flexible(raw)
+                        if data[field] is None:
+                            raise ValueError(f"Invalid snapshot {field}")
+                validated = QSOLogBase.model_validate(data)
+            except (ValidationError, ValueError, TypeError) as exc:
+                raise ValidationException(f"Invalid log snapshot: {exc}") from exc
+            LogService.validate_associations(db, user_id, validated.station_id, validated.location_id)
+            original_log = QSOLog(user_id=user_id, **validated.model_dump())
             db.add(original_log)
+        else:
+            LogService.validate_associations(db, user_id, original_log.station_id, original_log.location_id)
+        original_log.is_deleted = False
 
         # 标记回收站条目为已恢复
         entry.is_restored = True
@@ -217,23 +173,6 @@ class DeletedLogService:
         db.refresh(original_log)
         return original_log
 
-    @staticmethod
-    def cleanup_expired(db: Session, user_id: Optional[int] = None):
-        """清理过期回收站条目"""
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        query = db.query(DeletedLog).filter(
-            DeletedLog.expires_at <= now,
-            DeletedLog.is_restored == False,
-        )
-        if user_id:
-            query = query.filter(DeletedLog.user_id == user_id)
-
-        count = query.count()
-        query.delete(synchronize_session=False)
-        db.commit()
-        if count > 0:
-            logger.info(f"Cleaned up {count} expired deleted log entries")
-        return count
 
     @staticmethod
     def batch_permanent_delete(db: Session, deleted_ids: List[int], user_id: int) -> int:

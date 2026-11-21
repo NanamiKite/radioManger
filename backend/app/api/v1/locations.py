@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 @router.post("", response_model=LocationResponse, status_code=status.HTTP_201_CREATED)
-async def create_location(
+def create_location(
     data: LocationCreate,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -24,7 +24,7 @@ async def create_location(
 
 
 @router.get("", response_model=list[LocationResponse])
-async def get_locations(
+def get_locations(
     station_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -36,13 +36,15 @@ async def get_locations(
     from app.models.station import Station
     callsigns = {}
     if station_ids:
-        rows = db.query(Station.id, Station.callsign).filter(Station.id.in_(station_ids)).all()
+        rows = db.query(Station.id, Station.callsign).filter(
+            Station.id.in_(station_ids), Station.user_id == current_user.id, Station.is_deleted == False
+        ).all()
         callsigns = {row.id: row.callsign for row in rows}
     return [_enrich(l, callsigns) for l in locs]
 
 
 @router.get("/active/current", response_model=LocationResponse)
-async def get_active_location(
+def get_active_location(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -54,7 +56,7 @@ async def get_active_location(
 
 
 @router.post("/{location_id}/activate", response_model=LocationResponse)
-async def activate_location(
+def activate_location(
     location_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -68,7 +70,7 @@ async def activate_location(
 
 
 @router.patch("/{location_id}", response_model=LocationResponse)
-async def update_location(
+def update_location(
     location_id: int,
     data: LocationUpdate,
     db: Session = Depends(get_db),
@@ -83,7 +85,7 @@ async def update_location(
 
 
 @router.delete("/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_location(
+def delete_location(
     location_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -102,7 +104,9 @@ def _enrich(loc, callsigns_or_db=None) -> dict:
         data["station_callsign"] = callsigns_or_db.get(loc.station_id)
     elif callsigns_or_db is not None:
         from app.models.station import Station
-        stn = callsigns_or_db.query(Station.callsign).filter(Station.id == loc.station_id).first()
+        stn = callsigns_or_db.query(Station.callsign).filter(
+            Station.id == loc.station_id, Station.user_id == loc.user_id, Station.is_deleted == False
+        ).first()
         data["station_callsign"] = stn.callsign if stn else None
     else:
         data["station_callsign"] = None

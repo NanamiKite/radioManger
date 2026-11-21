@@ -3,6 +3,7 @@
 # RadioManager 生产环境部署脚本
 
 set -e
+cd "$(dirname "$0")"
 
 echo "================================================"
 echo "RadioManager - 生产环境部署"
@@ -15,31 +16,30 @@ if ! command -v docker &> /dev/null; then
 fi
 
 # 检查Docker Compose
-if ! command -v docker-compose &> /dev/null; then
+if ! docker compose version &> /dev/null; then
   echo "错误: Docker Compose未安装"
   exit 1
 fi
 
 echo ""
 echo "1. 构建Docker镜像..."
-docker-compose build
+docker compose build
 
 echo ""
 echo "2. 启动容器..."
-docker-compose up -d
+docker compose up -d
 
 echo ""
 echo "3. 显示服务状态..."
-docker-compose ps
+docker compose ps
 
 echo ""
 echo "================================================"
 echo "✅ 生产环境已部署"
 echo "================================================"
 echo ""
-echo "后端 API: http://localhost:8000"
-echo "前端应用: http://localhost:5173"
+echo "前端应用及 API: http://localhost (port 80)"
 echo ""
-echo "查看日志: docker-compose logs -f"
-echo "停止服务: docker-compose down"
+echo "查看日志: docker compose logs -f"
+echo "停止服务: docker compose down"
 echo ""

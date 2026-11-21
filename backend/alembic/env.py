@@ -16,10 +16,11 @@ import app.models  # noqa: F401 - 注册所有模型
 config = context.config
 
 # 从 app settings 读取数据库 URL
-config.set_main_option("sqlalchemy.url", settings.ACTIVE_DATABASE_URL)
+if not config.get_main_option("sqlalchemy.url") or config.attributes.get("use_settings_url", True):
+    config.set_main_option("sqlalchemy.url", settings.ACTIVE_DATABASE_URL.replace("%", "%%"))
 
 # 日志配置
-if config.config_file_name is not None:
+if config.config_file_name is not None and config.attributes.get("configure_loggers", True):
     fileConfig(config.config_file_name)
 
 # autogenerate 需要的 MetaData
@@ -43,6 +44,12 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """在线模式迁移"""
+    supplied_connection = config.attributes.get("connection")
+    if supplied_connection is not None:
+        context.configure(connection=supplied_connection, target_metadata=target_metadata, render_as_batch=True)
+        with context.begin_transaction():
+            context.run_migrations()
+        return
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

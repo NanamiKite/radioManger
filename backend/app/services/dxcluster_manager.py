@@ -5,15 +5,11 @@
 
 设计要点:
     - 单例模式：模块级 `dxcluster_manager` 实例，整个进程共享一个 telnet 连接。
-    - 纯内存：spot 存 deque(maxlen=200)，不落库。
+    - 纯内存：spot 存 deque(maxlen=100)，不落库。
     - 异步：基于 asyncio，与 FastAPI 事件循环共存。
     - 不自动重连：连接断开仅标记状态，由前端触发重连（避免无人看时疯狂重连）。
 
-多 worker 约束:
-    本管理器是进程内单例。若 uvicorn 以多 worker 启动（config.py 默认 WORKERS=4），
-    每个 worker 会建立独立的 telnet 连接。当前部署（start-*.sh / Dockerfile）
-    实际单 worker，不受影响。如需多 worker 共享，需引入 Redis pub/sub，
-    但 telnet socket 本身无法跨进程序列化，仍需选一个 worker 作单点连接。
+多 worker 约束：主机级实时状态只支持单 worker。
 
 参考:
     - DX Spider 协议: https://www.dxcluster.org/adminmanual_en-11.html
@@ -27,6 +23,10 @@ import logging
 from collections import deque
 from dataclasses import dataclass, asdict
 from typing import Optional, Any
+from urllib.parse import urlsplit
+from contextlib import suppress
+
+from app.config import settings
 
 from app.services.dxcluster_parser import parse_spot, SpotData
 
@@ -164,8 +164,12 @@ class DXClusterManager:
 
     @staticmethod
     def get_nodes() -> list[dict]:
-        """返回预设节点列表。"""
-        return [n.to_dict() for n in PRESET_NODES]
+        """Only deployer-controlled endpoints may be used for outbound connections."""
+        nodes = [n.to_dict() for n in PRESET_NODES]
+        for endpoint in settings.DX_CLUSTER_NODES:
+            parsed = urlsplit(f"//{endpoint}")
+            nodes.append(NodeInfo(parsed.hostname, parsed.port, endpoint, "Configured").to_dict())
+        return nodes
 
     # ------------------------------------------------------------------
     # 订阅 / 取消订阅（WebSocket 客户端用）
@@ -182,16 +186,10 @@ class DXClusterManager:
 
     async def _broadcast(self, spot: SpotData) -> None:
         """将 spot 广播给所有订阅者。慢消费者会被丢弃最旧消息（非阻塞）。"""
-        for q in list(self._subscribers):
-            try:
-                q.put_nowait(spot)
-            except asyncio.QueueFull:
-                # 订阅者消费太慢，丢最旧的一条腾位置
-                try:
-                    q.get_nowait()
-                    q.put_nowait(spot)
-                except Exception:
-                    pass
+        for queue in self._subscribers:
+            if queue.full():
+                queue.get_nowait()
+            queue.put_nowait(spot)
 
     # ------------------------------------------------------------------
     # 连接管理
@@ -204,11 +202,13 @@ class DXClusterManager:
         Raises:
             RuntimeError: 已在连接中 / 登录失败 / 连接超时
         """
+        if not any(item["host"] == node.host and item["port"] == node.port for item in self.get_nodes()):
+            raise ValueError("DX Cluster endpoint is not configured")
         async with self._lock:
             if self._connecting:
                 raise RuntimeError("Another connection attempt is in progress")
-            if self._connected:
-                await self._do_disconnect()
+            await self._do_disconnect()
+            self._spots.clear()
 
             self._connecting = True
             self._current_node = node
@@ -224,12 +224,10 @@ class DXClusterManager:
                 self._connected_at = asyncio.get_event_loop().time()
                 self._listen_task = asyncio.create_task(self._listen_loop())
                 logger.info("Connected to %s as %s", node.name, self._callsign)
-            except Exception as e:
+            except (OSError, asyncio.TimeoutError, ValueError) as exc:
                 self._connected = False
-                self._connecting = False
                 await self._cleanup_socket()
-                logger.error("Failed to connect to %s: %s", node.name, e)
-                raise RuntimeError(f"Connection failed: {e}") from e
+                raise ConnectionError("DX Cluster connection failed") from exc
             finally:
                 self._connecting = False
 
@@ -253,8 +251,7 @@ class DXClusterManager:
                     break
                 raw = await asyncio.wait_for(self._reader.readline(), timeout=max(remaining, 0.1))
                 if not raw:
-                    logger.info("EOF while waiting for login prompt after %d lines", line_count)
-                    break
+                    raise ConnectionError("DX Cluster closed during login")
                 line = _strip_telnet_commands(raw).strip()
                 line_count += 1
                 if not line:
@@ -266,8 +263,6 @@ class DXClusterManager:
                     break
         except (asyncio.TimeoutError, asyncio.IncompleteReadError):
             pass
-        except Exception as exc:
-            logger.warning("Login handshake exception: %s", exc)
 
         # 发送呼号 + 换行完成登录
         logger.info("Sending callsign: %s", self._callsign)
@@ -296,62 +291,46 @@ class DXClusterManager:
                     logger.warning("DX cluster connection closed by remote (EOF) after %d lines, %d spots", line_num, spot_num)
                     break
 
-                try:
-                    line = _strip_telnet_commands(raw).strip()
-                    line_num += 1
-                    if not line:
-                        continue
-                    if line_num <= 5:
-                        logger.info("Listen line %d: %s", line_num, line[:120])
-
-                    spot = parse_spot(line)
-                    if spot:
-                        spot_num += 1
-                        if spot_num <= 3:
-                            logger.info("Parsed spot #%d: %s by %s on %.1f (%s)",
-                                        spot_num, spot.dx_callsign, spot.spotter, spot.freq, spot.band)
-                        self._spots.append(spot)
-                        await self._broadcast(spot)
-                except Exception as e:
-                    logger.debug("Failed to process line %d: %s", line_num, e)
+                line = _strip_telnet_commands(raw).strip()
+                if not line:
                     continue
-        except Exception as e:
-            logger.error("DX cluster listen loop error: %s", e)
+                spot = parse_spot(line)
+                if spot:
+                    self._spots.append(spot)
+                    await self._broadcast(spot)
+        except (OSError, ValueError) as exc:
+            logger.warning("DX cluster receive failed: %s", exc)
         finally:
             self._connected = False
             self._connected_at = None
+            await self._cleanup_socket()
             logger.info("DX cluster listen loop ended")
             # 通知订阅者连接已断（通过特殊消息）
             await self._notify_disconnect()
 
     async def _notify_disconnect(self) -> None:
         """通知所有订阅者连接已断开。"""
-        for q in list(self._subscribers):
-            try:
-                q.put_nowait({"type": "disconnect"})
-            except asyncio.QueueFull:
-                pass
+        for queue in self._subscribers:
+            if queue.full():
+                queue.get_nowait()
+            queue.put_nowait({"type": "disconnect"})
 
     async def _cleanup_socket(self) -> None:
         """关闭并清理 socket。"""
         if self._writer is not None:
-            try:
-                self._writer.close()
-                await self._writer.wait_closed()
-            except Exception:
-                pass
-        self._reader = None
-        self._writer = None
+            writer = self._writer
+            self._reader = self._writer = None
+            writer.close()
+            with suppress(OSError):
+                await writer.wait_closed()
 
     async def _do_disconnect(self) -> None:
         """内部断开（不加锁）。"""
         self._connected = False
         if self._listen_task and not self._listen_task.done():
             self._listen_task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await self._listen_task
-            except (asyncio.CancelledError, Exception):
-                pass
         self._listen_task = None
         await self._cleanup_socket()
         self._connected_at = None

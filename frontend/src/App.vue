@@ -150,13 +150,13 @@ const authStore = useAuthStore()
 const logsStore = useLogsStore()
 const { locale } = useI18n()
 
-const { themeMode, isDark, toggleTheme, getThemeIcon, getThemeLabel } = useTheme()
+const { themeMode, toggleTheme, getThemeIcon, getThemeLabel } = useTheme()
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const currentUser = computed(() => authStore.user)
 // Admin 面板：仅服务器模式 + admin 角色
 const isAdminPanel = computed(() => {
-  return authStore.dbMode !== 'sqlite' && currentUser.value?.role === 'admin'
+  return authStore.dbMode === 'mysql' && currentUser.value?.role === 'admin'
 })
 const activeMenu = ref(route.path)
 const currentLanguage = ref(getLanguage())
@@ -186,7 +186,7 @@ const handleLanguageChange = (language: string) => {
 }
 
 const handleLogout = () => {
-  authStore.logout()
+  authStore.logout().catch((error) => ElMessage.error(error.message))
 }
 
 const goToSettings = () => {

@@ -1,7 +1,10 @@
 from typing import Optional
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from app.exceptions import RadioManagerException
+from app.services.session_service import SessionService
 from app.models.user import User
-from app.schemas.user import UserRegister, UserLogin, UserUpdate
+from app.schemas.user import UserRegister, UserUpdate
 from app.utils.security import SecurityUtils
 
 class UserService:
@@ -21,6 +24,12 @@ class UserService:
         # 检查密码匹配
         if user_data.password != user_data.confirm_password:
             raise ValueError("Passwords do not match")
+        existing = db.query(User).filter(User.username == user_data.username).first()
+        if existing:
+            raise RadioManagerException("Username already exists", 409)
+        existing = db.query(User).filter(User.email == user_data.email).first()
+        if existing:
+            raise RadioManagerException("Email already registered", 409)
         
         # 创建用户
         db_user = User(
@@ -33,7 +42,16 @@ class UserService:
         )
         
         db.add(db_user)
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            # Resolve only actual unique-name/email conflicts; other constraints propagate.
+            if db.query(User).filter(User.username == user_data.username).first():
+                raise RadioManagerException("Username already exists", 409)
+            if db.query(User).filter(User.email == user_data.email).first():
+                raise RadioManagerException("Email already registered", 409)
+            raise
         db.refresh(db_user)
         return db_user
     
@@ -69,6 +87,7 @@ class UserService:
             raise ValueError("Old password is incorrect")
         
         user.password_hash = SecurityUtils.hash_password(new_password)
+        SessionService.remove_all_sessions(db, user.id)
         db.commit()
         db.refresh(user)
         return user

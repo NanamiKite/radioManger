@@ -6,6 +6,7 @@ from app.models.user import User
 from app.models.qso_log import QSOLog
 from app.models.station import Station
 from app.utils.security import SecurityUtils
+from app.services.session_service import SessionService
 
 
 class AdminService:
@@ -47,6 +48,8 @@ class AdminService:
         user = db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
         if user:
             user.is_active = not user.is_active
+            if not user.is_active:
+                SessionService.remove_all_sessions(db, user.id)
             db.commit()
             db.refresh(user)
         return user
@@ -57,9 +60,7 @@ class AdminService:
         user = db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
         if user:
             user.password_hash = SecurityUtils.hash_password(new_password)
-            # 清除该用户所有 session，强制重新登录
-            from app.models.user_session import UserSession
-            db.query(UserSession).filter(UserSession.user_id == user_id).delete()
+            SessionService.remove_all_sessions(db, user.id)
             db.commit()
             db.refresh(user)
         return user
@@ -71,6 +72,7 @@ class AdminService:
         if user:
             user.is_deleted = True
             user.is_active = False
+            SessionService.remove_all_sessions(db, user.id)
             db.commit()
             return True
         return False

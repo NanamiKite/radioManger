@@ -25,9 +25,11 @@ bash build-win64-v2.6.0.sh
 
 脚本需要下载运行时和 Windows wheels，并使用 `pip`、`wget`、`unzip` 等工具；它会重建同名输出目录。版本名与输出目录以脚本为准。
 
-使用包时从解压目录运行 `start.bat`，浏览器访问 `http://localhost:8000`。`release_server.py` 挂载 `backend/frontend_dist`，首次创建 `TEST_ACCOUNT_*` 指定的账户；它不受 `ENABLE_TEST_ACCOUNT` 开关限制。脚本生成的默认账户是 `admin/admin123`，使用前应调整包根目录 `.env` 的密钥和账户配置。已有账户不会因修改初始密码配置而自动更新。
+使用包时从解压目录运行 `start.bat`，浏览器访问 `http://localhost:8000`。`release_server.py` 只监听本机，挂载 `backend/frontend_dist`，先执行数据库迁移。首次缺少 JWT 密钥时在包根目录 `.env` 生成并保存随机密钥，不覆盖已有值；不再创建默认管理员，首次使用在网页注册账户。旧包升级先备份并按[迁移说明](10_初始化备份与常见问题.md#1-数据库初始化)接管无版本旧库，旧默认密码须由用户自行修改。
 
 该包的 SQLite 默认位于解压目录根部，配置文件也是包根目录 `.env`。它与源码运行的 `backend/.env` 不是同一个运行入口。
+
+发布入口用安全的 `StaticFiles` 处理前端与 History 回退；包根地址显示网页，不再被独立后端的 `/` 信息 JSON 抢先响应。API、健康检查和缺失资源不会回退为网页。
 
 从本次图标更新后的源码构建的 Windows 包，首次运行 `start.bat` 或桌面启动器时会在解压目录创建带应用图标的 `RadioManager.lnk`。可将快捷方式复制到桌面；移动解压目录后，删除旧快捷方式并重新运行启动器生成。也可在包根目录手动运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\create-shortcut.ps1`。GitHub 上已有的发布包不会自动更新，需重新构建并发布。
 

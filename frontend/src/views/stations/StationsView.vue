@@ -15,7 +15,7 @@
 
     <el-card>
       <el-tree v-loading="loading" :data="treeData" node-key="id" default-expand-all>
-        <template #default="{ node, data }">
+        <template #default="{ data }">
           <!-- Station 节点 -->
           <div v-if="data._type === 'station'" class="tree-station">
             <span class="station-callsign">{{ data.callsign }}</span>
@@ -190,7 +190,6 @@ const handleDeleteStation = async (station: any) => {
     const logsResp = await logsApi.list({ station_id: sid, page_size: 1 })
     const logCount = logsResp.total
 
-    let action = 'delete'
     if (logCount > 0) {
       const result = await ElMessageBox.confirm(
         `${t('common.stationLogs', { count: logCount })} ` +

@@ -50,7 +50,7 @@ echo "4. 启动后端服务..."
 cd backend
 PYTHONPATH="$SCRIPT_DIR/backend" uvicorn app.main:app \
   --reload \
-  --host 0.0.0.0 \
+  --host 127.0.0.1 \
   --port 8000 &
 BACKEND_PID=$!
 cd ..

@@ -9,10 +9,6 @@ from starlette.responses import JSONResponse
 
 logger = logging.getLogger("radiomanager.middleware")
 
-# 可信代理 IP 白名单（在此列表中的代理 IP 才会读取 X-Forwarded-For）
-TRUSTED_PROXIES = {"127.0.0.1", "::1"}
-
-
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """简易内存速率限制中间件"""
 
@@ -30,17 +26,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self._requests: dict = defaultdict(list)
+        self._last_cleanup = time.monotonic()
 
     def _get_client_ip(self, request: Request) -> str:
-        """获取客户端真实 IP（支持反向代理）"""
-        client_ip = request.client.host if request.client else "unknown"
-        # 仅可信代理才读取 X-Forwarded-For
-        if client_ip in TRUSTED_PROXIES:
-            forwarded = request.headers.get("x-forwarded-for", "")
-            if forwarded:
-                # 取第一个 IP（最左边的是原始客户端）
-                return forwarded.split(",")[0].strip()
-        return client_ip
+        # Uvicorn alone resolves trusted proxy headers; never trust raw XFF here.
+        return request.client.host if request.client else "unknown"
 
     async def dispatch(self, request: Request, call_next):
         # 跳过静态资源和健康检查
@@ -49,8 +39,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # 获取客户端标识
         client_ip = self._get_client_ip(request)
-        now = time.time()
+        now = time.monotonic()
         window_start = now - self.window_seconds
+        if now - self._last_cleanup >= self.window_seconds:
+            self._requests = defaultdict(list, {
+                key: times for key, times in self._requests.items()
+                if times and times[-1] > window_start
+            })
+            self._last_cleanup = now
 
         # 用路径区分限流桶
         is_strict = request.url.path in self.STRICT_PATHS

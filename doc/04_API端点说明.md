@@ -30,7 +30,7 @@
 }
 ```
 
-用户名长度为 3～50，密码至少 8 个字符，邮箱须满足邮箱格式，两个密码须一致。`full_name` 可省略，时区和语言默认 `UTC`、`zh-CN`。
+用户名长度为 3～50，密码至少 8 个字符且最多 72 个 UTF-8 字节；注册、改密和管理员重置使用相同规则。邮箱须满足邮箱格式，两个密码须一致。`full_name` 可省略，时区和语言默认 `UTC`、`zh-CN`。
 
 登录请求为 JSON，不是 OAuth 表单：
 
@@ -40,7 +40,7 @@
 
 `remember_me` 不改变后端的令牌有效期。登录响应中的 `expires_in` 单位为秒；`user` 包含 `id`、`username`、`email`、`full_name`、`timezone`、`language`、`role`、`is_active`、`created_at`。
 
-PATCH 资料支持 `full_name`、`timezone`、`language`。改密请求支持 `old_password`、`new_password`、`confirm_password`。MySQL 改密会删除会话行，但认证不查询会话是否存在，不能据此认定旧 JWT 已撤销。
+PATCH 资料支持 `full_name`、`timezone`、`language`。改密请求支持 `old_password`、`new_password`、`confirm_password`。两种数据库模式下改密和管理员重置都会在同一事务中撤销全部旧会话；客户端随后重新登录。
 
 注销申请记录 30 天冷却期；到期后还需验证码确认，不会自动删除账户。邮件发送尚未接入，验证码也不通过申请接口返回，因此该流程尚不能作为完整的用户自助注销功能。
 
@@ -112,13 +112,13 @@ PATCH 资料支持 `full_name`、`timezone`、`language`。改密请求支持 `o
 {"call_sign":"JA1ABC","band":"20m","mode":"FT8","freq":14.074}
 ```
 
-`call_sign` 必填，最长 20 个字符。可显式指定 `station_id`、`location_id`、`qso_date`、`time_on`；未指定台站时要求已有激活位置，否则返回 400。已指定台站且未指定位置时，服务尝试使用该台站的激活位置。
+`call_sign` 必填，最长 20 个字符。可显式指定 `station_id`、`location_id`、`qso_date`、`time_on`；未指定时从当前激活位置补全。台站、位置必须属于当前用户且未删除，位置必须属于所选台站；归属不符返回 404，关联不一致返回 422。
 
 CRUD 支持的其余字段包括结束日期与时间、收发频率与波段、模式、RST、对方网格、操作员、QTH、QSL/eQSL/LoTW 状态、距离、DXCC、功率、本网格、台站呼号字段和备注。响应额外包含 `id`、`user_id`、时间戳及展示用的 `station_callsign`、`location_name`。
 
-普通 PATCH 不支持更换 `station_id`，也不执行创建时的 QSL 联动。纸质和 eQSL 状态允许 `Y/N/R/I`，LoTW 允许 `Y/N`。
+PATCH 可修改 `station_id`、`location_id`，但更新后的关联仍须满足归属规则；不执行创建时的 QSL 联动。纸质和 eQSL 状态允许 `Y/N/R/I`，LoTW 允许 `Y/N`。
 
-ORM 中的 `my_call`、`prop_mode`、`sat_name`、`srx`、`stx`、`contest_id` 未暴露在普通 CRUD Schema 中。字段与类型见[数据库文档](02_数据库设计说明.md)。
+创建和导入还支持 `my_call`、`prop_mode`、`sat_name`、`srx`、`stx`、`contest_id`；字段长度受 Schema 校验。字段与类型见[数据库文档](02_数据库设计说明.md)。
 
 ### 列表筛选与排序
 
@@ -137,13 +137,13 @@ curl -X POST 'http://localhost:8000/api/v1/logs/import?station_id=1' \
   -F 'file=@contacts.adi'
 ```
 
-`file` 为 multipart 字段，`station_id` 为查询参数。文件名须以小写 `.adi` 或 `.adif` 结尾，接口读取上限为 **50 MiB**，按 UTF-8 解码。此限制直接写在导入路由中，不由 `MAX_UPLOAD_SIZE` 控制。
+`file` 为 multipart 字段，`station_id` 为查询参数。文件名须以 `.adi` 或 `.adif` 结尾（不区分大小写），按 UTF-8 解码。上传上限由 `MAX_UPLOAD_SIZE` 控制，默认 **50 MiB**；代理允许 51 MiB 以容纳 multipart 开销。
 
 不传台站时使用当前激活位置所属台站。导入识别已有记录的键为 `(call_sign, qso_date, time_on, band, mode, freq)`，范围是当前用户全部未删除日志，台站不在键中。
 
 命中已有记录时，服务只补充空的 RST、网格、本网格、备注、功率和结束日期/时间；收到确认的 QSL、LoTW、eQSL 状态可向 `Y` 更新，并同时设置相应发送状态。未命中时创建记录，每累计 500 条新记录提交一次。导入不保证整文件原子性，也不保证所有 ADIF 字段原样往返。
 
-返回字段为 `file_id`、`total_records`、`imported`、`skipped`、`duplicates`、`merged`、`updated`、`errors`。`updated` 是 `merged` 的兼容字段；`errors` 最多返回 10 条，包含 `line`、`record`、`error`，其中 `line` 为记录序号。
+返回 `file_id`、`total_records`、`imported`、`skipped`、`duplicates`、`merged`、`updated`、`status`、`database_failed`、`errors`。`updated` 与 `merged` 相同；`errors` 最多返回 10 条，格式错误包含记录序号 `line`。格式错误可产生 `partial` 结果。数据库批次失败会回滚当前批次并中止处理，返回 HTTP 503，计数只包含已经提交的结果；此前批次不会撤回。调用方不能把 503 当作全文件未写入而盲目重试。
 
 ### 导出
 
@@ -151,7 +151,7 @@ curl -X POST 'http://localhost:8000/api/v1/logs/import?station_id=1' \
 
 传 `location_id` 时，实际按该位置网格的前 4 位筛选 `my_gridsquare`，不是直接按日志 `location_id` 筛选。文件名同时附加网格后缀。
 
-导出覆盖源码中明确输出的通联、收发频率/波段、RST、本台呼号与网格、功率、传播、卫星、比赛和备注字段。现有导出不包含 QSL/eQSL/LoTW 状态，不能作为数据库的无损完整备份。
+导出包含源码明确输出的通联、收发频率/波段、RST、本台呼号与网格、功率、传播、卫星、比赛、备注及六个 QSL/eQSL/LoTW 状态字段。ADI 仍不包含用户、台站关系、会话等完整数据库内容，不能替代数据库备份。
 
 ### 回收站
 
@@ -211,12 +211,12 @@ curl -X POST 'http://localhost:8000/api/v1/logs/import?station_id=1' \
 | --- | --- | --- |
 | GET | `/nodes` | 预设节点数组 |
 | GET | `/status` | 连接状态对象 |
-| GET | `/spots` | `limit=50`，范围 1～200；历史 spot 由新到旧 |
+| GET | `/spots` | `limit=50`，范围 1～100；历史 spot 由新到旧 |
 | POST | `/connect` | JSON `{"node_host":"host.example","node_port":7300}` |
 | POST | `/disconnect` | 返回断开后的状态 |
-| WebSocket | `/ws?token=...` | 历史和实时消息 |
+| WebSocket | `/ws` | 首条消息 `{"token":"<access_token>"}` 后接收历史和实时消息 |
 
-连接使用当前用户激活位置所属台站的呼号登录节点。管理器在进程内共享，切换和断开影响该进程的所有用户。后端没有自动重连 Telnet 节点的机制。
+连接使用操作者激活位置所属台站的呼号。管理器全进程共享，切换和断开影响所有订阅者，因此 MySQL 模式只允许管理员控制；公开 spot 可由已登录用户读取。连接仅允许预设或 `DX_CLUSTER_NODES` 配置的地址，不接受任意自定义目标。后端不自动重连 Telnet。
 
 WebSocket 连接后逐条发送最多 100 条历史，再发送实时数据：
 
@@ -238,9 +238,7 @@ WebSocket 连接后逐条发送最多 100 条历史，再发送实时数据：
 
 ## 十二、登出与账号状态
 
-`POST /auth/logout` 在 MySQL 模式尝试把当前 JWT 的 JTI 加入黑名单，并删除会话记录。SQLite 模式返回登出成功，由客户端清除本地登录信息，不执行 HTTP 令牌撤销。
-
-禁用和软删除用户会阻止后续认证。改密或重置密码后的会话删除不等同于令牌撤销，详见下文黑名单机制。
+`POST /auth/logout` 在 SQLite 和 MySQL 都删除当前会话，提交成功后才报告登出成功。改密或管理员重置、禁用或删除账号会撤销全部会话。旧令牌不能因用户重新启用而复活，客户端重新登录。
 
 ## 十三、管理员 API（`/api/v1/admin`）
 
@@ -261,24 +259,22 @@ WebSocket 连接后逐条发送最多 100 条历史，再发送实时数据：
 
 系统配置表不等同于环境配置；存储开关值不会自动调整导入限制、限流或节点列表。
 
-## 十四、Token 黑名单机制
+## 十四、会话与令牌撤销
 
-JWT 使用 `sub`、`exp`、`jti`。HTTP 业务认证在 MySQL 模式检查黑名单；两个 WebSocket 入口均检查黑名单和用户状态。
-
-MySQL 模式优先使用 Redis，键带剩余有效期 TTL；初始化时 Redis 不可用则回退进程内存。SQLite 可创建内存黑名单实例，但 HTTP 登出与认证不使用该撤销流程。会话表只用于追踪活动，认证没有“会话必须存在”的条件。
+JWT 包含 `sub`、`exp`、`jti`、`token_type=access`。HTTP 和 WebSocket 共用会话认证：令牌、用户状态及未过期会话必须同时有效。登出删除当前会话，改密、管理员重置、禁用和删除用户撤销其全部会话。Redis 与内存黑名单已移除；数据库失败不会被当作认证成功或普通 401。
 
 ## 十五、UDP 模块（`/api/v1/udp`）
 
 | 方法 | 路径 | 请求与返回 |
 | --- | --- | --- |
-| GET | `/status` | `{data: {running, wsjtx_port, n1mm_port, qso_count, last_qso, ws_clients}}` |
+| GET | `/status` | `{data: {running, receiving, wsjtx_port, n1mm_port, qso_count, last_qso, ws_clients}}`；非接收者看不到 QSO 内容及计数 |
 | POST | `/start` | JSON `{"wsjtx_port":2237,"n1mm_port":12060}`，字段可省略 |
 | POST | `/stop` | `{data: {running:false}}` |
 | POST | `/save-to-log` | `QSOLogCreate` JSON；成功为 `{data:{id,call_sign}}` |
-| WebSocket | `/ws?token=...` | 接收 QSO 与保存确认 |
+| WebSocket | `/ws` | 首条消息认证后接收 QSO 与保存确认 |
 
 广播消息为 `{type:"qso_received", source:"wsjtx"或"n1mm", data:QSO字段, count:计数}`。接收事件不会自动持久化。客户端可调用保存端点，也可发送 `{"action":"save","data":{"call_sign":"JA1ABC"}}`；后者成功后收到 `{type:"qso_saved",data:{id,call_sign}}`。
 
-保存端点失败时可能返回 HTTP 200 和 `{"error":"Failed to save QSO"}`；WebSocket 保存失败返回 `{type:"error",message:...}`，调用方需检查内容。
+REST 保存失败返回明确的 4xx/5xx，不再使用 HTTP 200 包装失败；WebSocket 参数与业务错误返回 `{type:"error",message:...}`，认证失效关闭 4401。
 
-监听端口绑定在后端主机；运行状态和广播在进程内共享，不是每用户独立监听器。
+主机只保留一个监听实例，启动者拥有本次监听及接收流，其他用户不能停止或接管。MySQL 模式仅管理员能启停；SQLite 允许已登录用户。默认仅绑定 `127.0.0.1` 并接收本机来源；其他设备需由部署方配置 `UDP_BIND_HOST`、`UDP_ALLOWED_SOURCES`。支持 WSJT-X schema 2/3 的 QSO Logged（type 5，QDataStream）与 N1MM XML；接收不自动保存。两个端口必须不同且在 1024～65535。

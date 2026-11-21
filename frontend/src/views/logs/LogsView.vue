@@ -65,7 +65,7 @@
           <el-button @click="handleReset">{{ $t('common.refresh') }}</el-button>
         </el-form-item>
         <el-form-item>
-          <el-button :type="udpRunning ? 'success' : 'info'" @click="toggleUdp" size="small">
+          <el-button v-if="canControlRealtime" :type="udpRunning ? 'success' : 'info'" @click="toggleUdp" size="small">
             {{ udpRunning ? '🟢 UDP ' + $t('udp.listening') + ' (' + udpCount + ')' : '⚪ UDP ' + $t('udp.stopped') }}
           </el-button>
         </el-form-item>
@@ -145,7 +145,8 @@
       <div v-if="importResult" style="margin-top:12px">
         <el-alert
           :title="$t('logs.importResult', { imported: importResult.imported, duplicates: importResult.duplicates || 0, updated: importResult.updated || 0, errors: importResult.skipped })"
-          :type="importResult.errors?.length ? 'warning' : 'success'" show-icon />
+          :type="importResult.database_failed ? 'error' : importResult.errors?.length ? 'warning' : 'success'" show-icon />
+        <p v-if="importResult.database_failed">{{ $t('logs.importCommitted') }}</p>
         <el-table v-if="importResult.errors?.length" :data="importResult.errors" size="small" style="margin-top:8px" max-height="200">
           <el-table-column prop="line" :label="$t('logs.line')" width="60" />
           <el-table-column prop="error" :label="$t('logs.error')" />
@@ -273,7 +274,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useLogsStore } from '@/stores/logs'
 import { logsApi } from '@/api/logs'
@@ -289,6 +290,7 @@ import { getDefaultFrequency } from '@/utils/constants'
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const canControlRealtime = computed(() => authStore.dbMode === 'sqlite' || (authStore.dbMode === 'mysql' && authStore.user?.role === 'admin'))
 const { t: $t } = useI18n()
 const logsStore = useLogsStore()
 
@@ -340,8 +342,16 @@ const handleImport = async () => {
   importing.value = true; importResult.value = null
   try {
     const res = await logsApi.importLogs(importFile.value, logsStore.activeStation?.id)
-    importResult.value = res; ElMessage.success(`${$t('common.imported')} ${res.imported} ${$t('common.records')}`); logsStore.fetchLogs()
-  } catch (err: any) { ElMessage.error(err?.response?.data?.detail || $t('common.importFailed')) }
+    importResult.value = res
+    if (res.status === 'partial') ElMessage.warning($t('logs.importPartial'))
+    else ElMessage.success(`${$t('common.imported')} ${res.imported} ${$t('common.records')}`)
+    await logsStore.fetchLogs()
+  } catch (err: any) {
+    const result = err?.response?.data
+    importResult.value = typeof result?.imported === 'number' && typeof result?.skipped === 'number' && Array.isArray(result?.errors) ? result : null
+    ElMessage.error(err?.response?.data?.errors?.[0]?.error || err?.response?.data?.detail || $t('common.importFailed'))
+    await logsStore.fetchLogs()
+  }
   finally { importing.value = false }
 }
 
@@ -365,10 +375,10 @@ const onExportStationChange = async (sid: number | null) => {
     } catch { exportLocations.value = [] }
   }
 }
-const handleExport = () => {
+const handleExport = async () => {
   exporting.value = true
   try {
-    logsApi.exportLogs({
+    await logsApi.exportLogs({
       format: exportFormat.value,
       start_date: exportRange.value?.[0] || undefined,
       end_date: exportRange.value?.[1] || undefined,
@@ -377,7 +387,7 @@ const handleExport = () => {
       location_id: exportLocationId.value,
     })
     showExportDialog.value = false
-  } catch { ElMessage.error($t('common.exportFailed')) }
+  } catch (error: unknown) { ElMessage.error(error instanceof Error ? error.message : $t('common.exportFailed')) }
   finally { exporting.value = false }
 }
 
@@ -395,17 +405,20 @@ const updateUtcNow = () => {
 }
 
 // ── UDP 监听控制 ──
-function toggleUdp() {
-  if (udpRunning.value) {
-    udpApi.stop().then(() => {
+async function toggleUdp() {
+  try {
+    if (udpRunning.value) {
+      await udpApi.stop()
       udpRunning.value = false
-      if (udpWs) { udpWs.close(); udpWs = null }
-    })
-  } else {
-    udpApi.start().then(() => {
-      udpRunning.value = true
-      connectUdpWs()
-    })
+      udpWs?.close()
+      udpWs = null
+    } else {
+      const response = await udpApi.start()
+      udpRunning.value = response.data.receiving
+      if (udpRunning.value) connectUdpWs()
+    }
+  } catch (error: any) {
+    ElMessage.error(error?.response?.data?.detail || error.message || $t('udp.toggleFailed'))
   }
 }
 
@@ -423,14 +436,17 @@ function connectUdpWs() {
       }
     } catch {}
   }
-  udpWs.onclose = () => { udpRunning.value = false }
+  udpWs.onclose = (event) => {
+    udpRunning.value = false
+    if (event.code === 4401) authStore.clearSession()
+  }
   udpWs.onerror = () => { udpRunning.value = false }
 }
 
 async function checkUdpStatus() {
   try {
     const res = await udpApi.getStatus()
-    udpRunning.value = res.data.running
+    udpRunning.value = res.data.receiving
     udpCount.value = res.data.qso_count || 0
     if (udpRunning.value) connectUdpWs()
   } catch {}

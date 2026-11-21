@@ -12,7 +12,6 @@ export const authApi = {
     remember_me?: boolean
   }): Promise<{
     access_token: string
-    refresh_token: string
     token_type: string
     expires_in: number
     user: User
@@ -22,6 +21,10 @@ export const authApi = {
 
   getMe(): Promise<User> {
     return api.get('/auth/me')
+  },
+
+  updateMe(data: Pick<User, 'timezone' | 'language'>): Promise<User> {
+    return api.patch('/auth/me', data)
   },
 
   logout(): Promise<any> {

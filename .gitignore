@@ -76,7 +76,6 @@ backend/venv/
 
 # Test output (generated test files, not project tests)
 radiomanage_test/
-backend/tests/
 *.pyc
 
 # Release builds

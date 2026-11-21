@@ -5,10 +5,13 @@ from datetime import timezone,  date, datetime, time
 from app.models.qso_log import QSOLog
 from app.models.location import Location
 from app.models.station import Station
-from app.schemas.qso_log import QSOLogCreate, QSOLogUpdate
+from app.schemas.qso_log import QSOLogBase, QSOLogCreate, QSOLogUpdate
 from app.services.station_service import StationService
 from app.utils.dxcc import lookup_dxcc
 from app.config import settings
+from app.services.location_service import LocationService
+from app.exceptions import NotFoundException, ValidationException
+from pydantic import ValidationError
 
 
 # 允许排序的安全字段白名单
@@ -22,46 +25,33 @@ SORTABLE_FIELDS = {
 
 class LogService:
     @staticmethod
+    def validate_associations(db: Session, user_id: int, station_id: int, location_id: Optional[int]):
+        StationService.get_station(db, station_id, user_id)
+        if location_id is not None:
+            location = LocationService.get_location(db, location_id, user_id)
+            if location.station_id != station_id:
+                raise ValidationException("Location does not belong to the selected station")
+
+    @staticmethod
     def create_log(db: Session, user_id: int, log_data: QSOLogCreate) -> QSOLog:
         """创建日志。自动推断DXCC+location_id+UTC时间+my_gridsquare。"""
         data = log_data.model_dump()
 
-        if not data.get("station_id"):
-            location = (
-                db.query(Location)
-                .filter(
-                    Location.user_id == user_id,
-                    Location.is_active == True,
-                    Location.is_deleted == False,
-                )
-                .first()
-            )
-            if location:
-                data["station_id"] = location.station_id
+        if data.get("station_id") is None:
+            location = (LocationService.get_location(db, data["location_id"], user_id)
+                        if data.get("location_id") is not None
+                        else LocationService.get_active_location(db, user_id))
+            if location is None:
+                raise ValidationException("No active location. Create and activate a location first.")
+            data["station_id"] = location.station_id
+            data["location_id"] = location.id
+        elif data.get("location_id") is None:
+            location = LocationService.get_active_location(db, user_id)
+            if location and location.station_id == data["station_id"]:
                 data["location_id"] = location.id
-                # 从激活位置自动填入 my_gridsquare
-                if location.grid_square and not data.get("my_gridsquare"):
-                    data["my_gridsquare"] = location.grid_square
-            else:
-                raise ValueError(
-                    "No active location. Please create a location and activate it first."
-                )
-        elif not data.get("location_id"):
-            location = (
-                db.query(Location)
-                .filter(
-                    Location.user_id == user_id,
-                    Location.station_id == data["station_id"],
-                    Location.is_active == True,
-                    Location.is_deleted == False,
-                )
-                .first()
-            )
-            if location:
-                data["location_id"] = location.id
-                if location.grid_square and not data.get("my_gridsquare"):
-                    data["my_gridsquare"] = location.grid_square
-
+        LogService.validate_associations(db, user_id, data["station_id"], data.get("location_id"))
+        if data.get("location_id") and not data.get("my_gridsquare"):
+            data["my_gridsquare"] = LocationService.get_location(db, data["location_id"], user_id).grid_square
         # 自动填入UTC+0当前时间（如果未指定time_on）
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         if not data.get("time_on"):
@@ -160,7 +150,7 @@ class LogService:
             .first()
         )
         if not log:
-            raise ValueError("Log not found")
+            raise NotFoundException("Log not found")
         return log
 
     @staticmethod
@@ -169,6 +159,15 @@ class LogService:
     ) -> QSOLog:
         db_log = LogService.get_log(db, log_id, user_id)
         update_data = log_data.model_dump(exclude_unset=True)
+        try:
+            current = QSOLogBase.model_validate(db_log, from_attributes=True).model_dump()
+            QSOLogBase.model_validate({**current, **update_data})
+        except ValidationError as exc:
+            raise ValidationException(str(exc)) from exc
+        LogService.validate_associations(
+            db, user_id, update_data.get("station_id", db_log.station_id),
+            update_data.get("location_id", db_log.location_id),
+        )
         if "call_sign" in update_data and update_data["call_sign"]:
             update_data["call_sign"] = update_data["call_sign"].strip().upper()
             # 呼号变更后重新推断 DXCC

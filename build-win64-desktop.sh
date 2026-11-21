@@ -36,23 +36,21 @@ echo "[2/6] 准备后端代码..."
 mkdir -p "$BUILD_DIR/backend"
 cp -r "$PROJECT_DIR/backend/app" "$BUILD_DIR/backend/"
 cp "$PROJECT_DIR/backend/release_server.py" "$BUILD_DIR/backend/"
+cp -r "$PROJECT_DIR/backend/alembic" "$BUILD_DIR/backend/"
+cp "$PROJECT_DIR/backend/alembic.ini" "$BUILD_DIR/backend/"
 cp "$PROJECT_DIR/backend/desktop_launcher.py" "$BUILD_DIR/backend/"
 cp "$PROJECT_DIR/backend/requirements.txt" "$BUILD_DIR/backend/"
 cp -r "$PROJECT_DIR/frontend/dist" "$BUILD_DIR/backend/frontend_dist"
 cp "$PROJECT_DIR/scripts/create-windows-shortcut.ps1" "$BUILD_DIR/create-shortcut.ps1"
-cat > "$BUILD_DIR/backend/.env" << 'EOF'
+cat > "$BUILD_DIR/.env" << 'EOF'
 DATABASE_MODE=sqlite
 SQLITE_URL=sqlite:///./radiomanager.db
-SECRET_KEY=CHANGE_THIS_TO_A_RANDOM_STRING
-ENABLE_TEST_ACCOUNT=true
-TEST_ACCOUNT_USERNAME=admin
-TEST_ACCOUNT_PASSWORD=admin123
-TEST_ACCOUNT_EMAIL=admin@radiomanager.dev
+SECRET_KEY=
 DEBUG=false
 ENVIRONMENT=production
 LOG_LEVEL=INFO
 UPLOAD_DIR=uploads
-MAX_UPLOAD_SIZE=104857600
+MAX_UPLOAD_SIZE=52428800
 EOF
 find "$BUILD_DIR" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null
 find "$BUILD_DIR" -name "*.pyc" -delete 2>/dev/null
@@ -82,7 +80,7 @@ echo "  ✅ Python 就绪"
 echo ""
 echo "[4/6] 下载 Python 依赖 (win64 wheels)..."
 TEMP_REQ=$(mktemp)
-grep -v -E "pytest|coverage|uvloop|alembic|redis|mysql-connector|PyMySQL" \
+grep -v -E "pytest|coverage|uvloop|redis|mysql-connector|PyMySQL" \
     "$PROJECT_DIR/backend/requirements.txt" > "$TEMP_REQ"
 echo "uvicorn==0.49.0" >> "$TEMP_REQ"
 echo "pywebview==6.2.1" >> "$TEMP_REQ"
@@ -168,7 +166,7 @@ RadioManager v${VERSION} - Windows 64-bit 桌面版
 启动后会打开一个原生桌面窗口，不是浏览器。
 数据库保存在 data/ 文件夹中。
 
-默认账号: admin / admin123
+首次使用请注册账号；不提供默认管理员密码。
 
 技术说明:
   - 使用 Edge WebView2（Windows 10/11 自带）

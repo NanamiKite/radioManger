@@ -40,12 +40,8 @@ class CallsignService:
         qrz_configured = bool(settings.QRZ_USERNAME and settings.QRZ_PASSWORD)
         qrz_data = None
         if qrz_configured:
-            try:
-                client = QRZClient()
-                qrz_data = client.lookup(call_sign)
-                client.close()
-            except Exception as e:
-                logger.warning(f"QRZ lookup failed for {call_sign}: {e}")
+            client = QRZClient()
+            qrz_data = client.lookup(call_sign)
 
         if qrz_data:
             cache_entry = CallsignService._save_cache(db, qrz_data)

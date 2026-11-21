@@ -19,7 +19,7 @@ router = APIRouter()
 
 # 固定路径路由必须放在 /{call_sign} 之前
 @router.get("/search/{prefix}", response_model=CallsignSearchResult)
-async def search_callsigns(
+def search_callsigns(
     prefix: str,
     country: Optional[str] = Query(None),
     db: Session = Depends(get_db),
@@ -31,7 +31,7 @@ async def search_callsigns(
 
 
 @router.delete("/cache/{call_sign}", status_code=status.HTTP_204_NO_CONTENT)
-async def clear_callsign_cache(
+def clear_callsign_cache(
     call_sign: str,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -41,14 +41,14 @@ async def clear_callsign_cache(
 
 
 @router.post("/batch-query", response_model=CallsignBatchResponse)
-async def batch_query_callsigns(
+def batch_query_callsigns(
     query: CallsignQuery,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     """批量查询呼号"""
     results = []
-    for cs in query.call_signs[:50]:
+    for cs in query.call_signs:
         result = CallsignService.lookup(db, cs)
         if result:
             results.append(result)
@@ -61,7 +61,7 @@ async def batch_query_callsigns(
 
 
 @router.get("/{call_sign}", response_model=CallsignInfo)
-async def lookup_callsign(
+def lookup_callsign(
     call_sign: str,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),

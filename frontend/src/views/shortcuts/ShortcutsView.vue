@@ -35,7 +35,8 @@ onMounted(async () => {
 })
 
 const openUrl = (url: string) => {
-  window.open(url, '_blank', 'noopener')
+  const target = new URL(url)
+  if (['http:', 'https:'].includes(target.protocol)) window.open(target.href, '_blank', 'noopener,noreferrer')
 }
 </script>
 

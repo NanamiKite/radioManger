@@ -21,7 +21,7 @@ router = APIRouter()
 
 # ── 用户管理 ──
 @router.get("/users", response_model=AdminUserListResponse)
-async def list_users(
+def list_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     keyword: Optional[str] = None,
@@ -37,7 +37,7 @@ async def list_users(
 
 
 @router.get("/users/{user_id}", response_model=AdminUserResponse)
-async def get_user(
+def get_user(
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
@@ -50,7 +50,7 @@ async def get_user(
 
 
 @router.post("/users/{user_id}/toggle", response_model=AdminUserResponse)
-async def toggle_user(
+def toggle_user(
     user_id: int,
     request: Request,
     db: Session = Depends(get_db),
@@ -69,7 +69,7 @@ async def toggle_user(
 
 
 @router.post("/users/{user_id}/reset-password")
-async def reset_password(
+def reset_password(
     user_id: int,
     body: AdminResetPasswordRequest,
     request: Request,
@@ -80,9 +80,6 @@ async def reset_password(
     user = AdminService.reset_password(db, user_id, body.new_password)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    # 重置密码后清除该用户所有旧会话
-    from app.services.session_service import SessionService
-    SessionService.remove_all_sessions(db, user_id)
     AuditService.log(db, current_user, "ADMIN_RESET_PASSWORD", "user", user_id,
                      detail=f"Reset password for user {user.username}",
                      ip_address=request.client.host if request.client else None)
@@ -90,7 +87,7 @@ async def reset_password(
 
 
 @router.delete("/users/{user_id}")
-async def delete_user(
+def delete_user(
     user_id: int,
     request: Request,
     db: Session = Depends(get_db),
@@ -108,7 +105,7 @@ async def delete_user(
 
 
 @router.get("/users/{user_id}/stats", response_model=AdminUserStatsResponse)
-async def get_user_stats(
+def get_user_stats(
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
@@ -119,7 +116,7 @@ async def get_user_stats(
 
 # ── 审计日志 ──
 @router.get("/audit-logs", response_model=AuditLogListResponse)
-async def list_audit_logs(
+def list_audit_logs(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     user_id: Optional[int] = None,
@@ -135,7 +132,7 @@ async def list_audit_logs(
 
 # ── 系统配置 ──
 @router.get("/system/config")
-async def get_configs(
+def get_configs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ):
@@ -144,7 +141,7 @@ async def get_configs(
 
 
 @router.patch("/system/config")
-async def update_config(
+def update_config(
     body: SystemConfigUpdateRequest,
     request: Request,
     db: Session = Depends(get_db),
@@ -164,7 +161,7 @@ async def update_config(
 
 
 @router.get("/system/status", response_model=SystemStatusResponse)
-async def get_system_status(
+def get_system_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ):

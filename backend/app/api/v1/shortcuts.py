@@ -3,6 +3,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+from urllib.parse import urlsplit
+from itertools import count
 
 from app.database.session import get_db
 from app.dependencies import get_current_user
@@ -22,6 +24,7 @@ router = APIRouter()
 # 用户自定义快捷链接
 # ⚠️ 仅内存存储，进程重启后数据丢失，多 worker 间不共享
 _user_shortcuts: dict = {}
+_shortcut_ids = count(7)
 
 
 @router.get("")
@@ -42,12 +45,14 @@ async def create_shortcut(
     current_user=Depends(get_current_user),
 ):
     """添加快捷链接"""
-    import time
+    parsed = urlsplit(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+        raise HTTPException(status_code=422, detail="Use an HTTP or HTTPS URL without credentials")
     user_id = current_user.id
     if user_id not in _user_shortcuts:
         _user_shortcuts[user_id] = []
 
-    shortcut_id = time.time_ns() % 10_000_000  # 纳秒时间戳取余，避免碰撞且无需全局状态
+    shortcut_id = next(_shortcut_ids)
     shortcut = {
         "id": shortcut_id,
         "name": name,

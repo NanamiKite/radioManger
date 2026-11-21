@@ -47,16 +47,21 @@ export const useDxClusterStore = defineStore('dxcluster', () => {
 
     // 构造 WS URL（同源，走 vite 代理 / 生产 nginx）
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const url = `${proto}://${window.location.host}/api/v1/dxcluster/ws?token=${encodeURIComponent(authStore.token)}`
+    const url = `${proto}://${window.location.host}/api/v1/dxcluster/ws`
     ws = new WebSocket(url)
 
     ws.onopen = () => {
+      ws?.send(JSON.stringify({ token: authStore.token }))
       wsConnected.value = true
       error.value = null
       _reconnectAttempts = 0
     }
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       wsConnected.value = false
+      if (event.code === 4401) {
+        authStore.clearSession()
+        return
+      }
       // 指数退避重连
       if (_reconnectAttempts < MAX_RECONNECT) {
         const delay = Math.min(1000 * Math.pow(2, _reconnectAttempts), 16000)
@@ -105,12 +110,7 @@ export const useDxClusterStore = defineStore('dxcluster', () => {
     error.value = null
     try {
       const res = await dxclusterApi.connect(selectedNode.value.host, selectedNode.value.port)
-      // 后端在连接失败时仍返回 HTTP 200 但 success=false，需要额外判断
-      if (!res.success) {
-        status.value = res.status
-        error.value = res.message
-        throw new Error(res.message || 'Connection failed')
-      }
+      if (!res.success) throw new Error(res.message || 'Connection failed')
       status.value = res.status
       // 连接成功后清空旧 spot，建 WS 接收新流
       spots.value = []
@@ -125,11 +125,10 @@ export const useDxClusterStore = defineStore('dxcluster', () => {
 
   /** 断开 cluster 连接 */
   const disconnect = async () => {
-    try {
-      disconnectWS()
-      status.value = await dxclusterApi.disconnect()
-      spots.value = []
-    } catch (e: any) { error.value = e?.message }
+    const nextStatus = await dxclusterApi.disconnect()
+    disconnectWS()
+    status.value = nextStatus
+    spots.value = []
   }
 
   // 组件卸载时自动清理 WebSocket 和重连定时器

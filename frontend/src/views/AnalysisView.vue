@@ -215,7 +215,6 @@ import { useRouter } from 'vue-router'
 import { useStatsStore } from '@/stores/stats'
 import { useLogsStore } from '@/stores/logs'
 import { useDxccEntities, type FullDxccEntity } from '@/composables/useDxccEntities'
-import type { DxccChartBandData } from '@/api/stats'
 
 const router = useRouter()
 const statsStore = useStatsStore()

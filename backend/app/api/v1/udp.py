@@ -1,143 +1,107 @@
-"""UDP 监听控制 API + WebSocket 实时推送"""
-
+"""Host-level UDP control and owner-scoped QSO subscription."""
+import asyncio
 import json
-import logging
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
 from typing import Optional
 
-from app.database.session import get_db
-from app.dependencies import get_current_user
-from app.config import settings
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel, Field, ValidationError
+from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
+
+from app.database.session import get_db, SessionLocal
+from app.dependencies import get_current_user, authenticate_token, authenticate_websocket, authenticate_websocket_token
+from app.dependencies_admin import get_realtime_user
+from app.exceptions import AuthException, RadioManagerException
 from app.services.udp_listener_service import udp_listener
 from app.services.log_service import LogService
 from app.schemas.qso_log import QSOLogCreate
-from app.utils.security import SecurityUtils
 
-logger = logging.getLogger("radiomanager.udp")
 router = APIRouter()
 
 
 class UDPStartRequest(BaseModel):
-    wsjtx_port: Optional[int] = None
-    n1mm_port: Optional[int] = None
+    wsjtx_port: Optional[int] = Field(None, ge=1024, le=65535)
+    n1mm_port: Optional[int] = Field(None, ge=1024, le=65535)
 
 
 @router.get("/status")
 async def udp_status(current_user=Depends(get_current_user)):
-    """获取 UDP 监听状态"""
-    return {"data": udp_listener.status}
+    return {"data": udp_listener.status_for(current_user.id)}
 
 
 @router.post("/start")
-async def udp_start(
-    req: UDPStartRequest,
-    current_user=Depends(get_current_user),
-):
-    """启动 UDP 监听"""
-    if udp_listener.is_running:
-        return {"data": udp_listener.status}
-    await udp_listener.start(
-        wsjtx_port=req.wsjtx_port,
-        n1mm_port=req.n1mm_port,
-    )
-    return {"data": udp_listener.status}
+async def udp_start(req: UDPStartRequest, current_user=Depends(get_realtime_user)):
+    try:
+        await udp_listener.start(current_user.id, req.wsjtx_port, req.n1mm_port)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=409, detail="Cannot bind requested UDP ports") from exc
+    return {"data": udp_listener.status_for(current_user.id)}
 
 
 @router.post("/stop")
-async def udp_stop(current_user=Depends(get_current_user)):
-    """停止 UDP 监听"""
-    await udp_listener.stop()
+async def udp_stop(current_user=Depends(get_realtime_user)):
+    await udp_listener.stop(current_user.id)
     return {"data": {"running": False}}
 
 
 @router.post("/save-to-log")
-async def save_qso_to_log(
-    qso_data: QSOLogCreate,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
-    """将接收到的 QSO 数据保存为日志（由前端调用或自动保存）"""
-    try:
-        log = LogService.create_log(db, current_user.id, qso_data)
-        return {"data": {"id": log.id, "call_sign": log.call_sign}}
-    except Exception:
-        return {"error": "Failed to save QSO"}
+def save_qso_to_log(qso_data: QSOLogCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    log = LogService.create_log(db, current_user.id, qso_data)
+    return {"data": {"id": log.id, "call_sign": log.call_sign}}
+
+
+def _save_websocket_qso(token: str, data: dict) -> dict:
+    qso = QSOLogCreate.model_validate(data)
+    with SessionLocal() as db:
+        user = authenticate_token(db, token)
+        log = LogService.create_log(db, user.id, qso)
+        return {"id": log.id, "call_sign": log.call_sign}
 
 
 @router.websocket("/ws")
 async def udp_ws(websocket: WebSocket):
-    """WebSocket 实时推送接收到的 QSO
-
-    连接时需要在 query 参数中传递 token:
-    ws://host/api/v1/udp/ws?token={jwt_token}
-
-    ⚠️ 安全提示: JWT 放在 URL query 中会被记录在 access log、浏览器历史、代理日志中。
-    长期方案应改为 WebSocket 建立后首条消息发送 token，或使用短期专用 token。
-    """
-    # 验证 token
-    token = websocket.query_params.get("token")
-    if not token:
-        await websocket.close(code=4001, reason="Missing token")
+    credentials = await authenticate_websocket(websocket)
+    if credentials is None:
         return
-    try:
-        payload = SecurityUtils.decode_token(token)
-        user_id = payload.get("sub")
-        jti = payload.get("jti")
-        if not user_id:
-            await websocket.close(code=4001, reason="Invalid token")
-            return
-        # 检查 token 黑名单（所有模式）
-        if jti:
-            from app.services.token_blacklist_service import token_blacklist
-            if token_blacklist.is_blacklisted(jti):
-                await websocket.close(code=4001, reason="Token revoked")
-                return
-        # 检查用户状态
-        from app.models.user import User as UserModel
-        from app.database.session import SessionLocal
-        db = SessionLocal()
-        user = db.query(UserModel).filter(UserModel.id == int(user_id)).first()
-        db.close()
-        if not user or user.is_deleted or not user.is_active:
-            await websocket.close(code=4001, reason="User disabled")
-            return
-    except Exception:
-        await websocket.close(code=4001, reason="Invalid token")
-        return
-
-    await websocket.accept()
-    udp_listener.register_ws(websocket)
-    logger.info(f"UDP WebSocket client connected (user {user_id})")
-
+    token, user = credentials
+    queue = udp_listener.subscribe(user.id)
+    received = asyncio.create_task(websocket.receive_text())
+    queued = asyncio.create_task(queue.get())
+    next_auth = asyncio.get_running_loop().time() + 10
     try:
         while True:
-            # 保持连接，接收前端消息（如确认保存）
-            msg = await websocket.receive_text()
-            try:
-                data = json.loads(msg)
-                if data.get("action") == "save":
-                    # 前端确认保存 QSO 到数据库
-                    qso_data = data.get("data", {})
-                    if qso_data:
-                        from app.database.base import SessionLocal
-                        db = SessionLocal()
-                        try:
-                            create_data = QSOLogCreate(**qso_data)
-                            log = LogService.create_log(db, int(user_id), create_data)
-                            await websocket.send_json({
-                                "type": "qso_saved",
-                                "data": {"id": log.id, "call_sign": log.call_sign},
-                            })
-                        except Exception:
-                            await websocket.send_json({"type": "error", "message": "Failed to save QSO"})
-                        finally:
-                            db.close()
-            except json.JSONDecodeError:
-                pass
+            done, _ = await asyncio.wait({received, queued}, timeout=10, return_when=asyncio.FIRST_COMPLETED)
+            if asyncio.get_running_loop().time() >= next_auth:
+                await run_in_threadpool(authenticate_websocket_token, token)
+                next_auth = asyncio.get_running_loop().time() + 10
+            if received in done:
+                raw = received.result()
+                received = asyncio.create_task(websocket.receive_text())
+                try:
+                    message = json.loads(raw)
+                    if not isinstance(message, dict) or message.get("action") != "save":
+                        raise ValueError("Expected action=save with QSO data")
+                    result = await run_in_threadpool(_save_websocket_qso, token, message.get("data"))
+                    await websocket.send_json({"type": "qso_saved", "data": result})
+                except AuthException:
+                    raise
+                except (ValueError, ValidationError) as exc:
+                    await websocket.send_json({"type": "error", "message": str(exc)})
+                except RadioManagerException as exc:
+                    await websocket.send_json({"type": "error", "message": exc.message})
+            if queued in done:
+                await asyncio.wait_for(websocket.send_json(queued.result()), timeout=5)
+                queued = asyncio.create_task(queue.get())
+    except AuthException:
+        await websocket.close(code=4401)
+    except asyncio.TimeoutError:
+        await websocket.close(code=1008, reason="Slow consumer")
     except WebSocketDisconnect:
         pass
     finally:
-        udp_listener.unregister_ws(websocket)
-        logger.info(f"UDP WebSocket client disconnected (user {user_id})")
+        udp_listener.unsubscribe(queue)
+        received.cancel()
+        queued.cancel()
+        await asyncio.gather(received, queued, return_exceptions=True)

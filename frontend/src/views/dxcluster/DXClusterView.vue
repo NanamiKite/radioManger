@@ -16,6 +16,7 @@
 
     <!-- ================= CONTROL ================= -->
     <el-card class="control-card" shadow="never">
+      <el-alert v-if="!canControlRealtime && authStore.dbMode === 'mysql'" :title="$t('dxcluster.sharedControl')" type="info" :closable="false" />
       <el-row :gutter="16" align="middle">
 
         <el-col :span="10">
@@ -24,7 +25,7 @@
             v-model="store.selectedNode"
             value-key="host"
             :placeholder="$t('dxcluster.selectNode')"
-            :disabled="store.isConnected"
+            :disabled="store.isConnected || !canControlRealtime"
             style="width: 100%; margin-left: 8px"
           >
             <el-option
@@ -41,7 +42,7 @@
             v-if="!store.isConnected"
             type="primary"
             :loading="connecting"
-            :disabled="!store.selectedNode"
+            :disabled="!store.selectedNode || !canControlRealtime"
             @click="handleConnect"
           >
             {{ $t('dxcluster.connect') }}
@@ -51,6 +52,7 @@
             v-else
             type="danger"
             plain
+            :disabled="!canControlRealtime"
             @click="handleDisconnect"
           >
             {{ $t('dxcluster.disconnect') }}
@@ -152,11 +154,14 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useDxClusterStore } from '@/stores/dxcluster'
+import { useAuthStore } from '@/stores/auth'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 
 
 const store = useDxClusterStore()
+const authStore = useAuthStore()
+const canControlRealtime = computed(() => authStore.dbMode === 'sqlite' || (authStore.dbMode === 'mysql' && authStore.user?.role === 'admin'))
 const connecting = ref(false)
 const { t } = useI18n()
 
@@ -201,8 +206,12 @@ const handleConnect = async () => {
 }
 
 const handleDisconnect = async () => {
-  await store.disconnect()
-  ElMessage.info(t('dxcluster.disconnected'))
+  try {
+    await store.disconnect()
+    ElMessage.info(t('dxcluster.disconnected'))
+  } catch (error: unknown) {
+    ElMessage.error(error instanceof Error ? error.message : t('errors.serverError'))
+  }
 }
 
 
@@ -210,9 +219,7 @@ const handleDisconnect = async () => {
 /* ================= LIFECYCLE ================= */
 onMounted(async () => {
   await store.fetchInit()
-  if (store.isConnected) {
-    store.connectWS()
-  }
+  store.connectWS()
 })
 
 onUnmounted(() => {

@@ -3,6 +3,7 @@ from typing import List, Optional
 from app.models.station import Station
 from app.models.location import Location
 from app.schemas.station import StationCreate, StationUpdate
+from app.exceptions import NotFoundException, ValidationException
 
 
 class StationService:
@@ -11,6 +12,11 @@ class StationService:
     @staticmethod
     def create_station(db: Session, user_id: int, station_data: StationCreate) -> Station:
         callsign = station_data.callsign.strip().upper()
+        if db.query(Station.id).filter(
+            Station.user_id == user_id, Station.callsign == callsign,
+            Station.is_deleted == False,
+        ).first():
+            raise ValidationException("A station already uses this callsign")
 
         # 检查是否有软删除的同名台站 → 恢复它
         existing = (
@@ -24,8 +30,6 @@ class StationService:
         )
         if existing:
             existing.is_deleted = False
-            from datetime import datetime, timezone
-            existing.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
             db.commit()
             db.refresh(existing)
             return existing
@@ -56,7 +60,7 @@ class StationService:
             .first()
         )
         if not station:
-            raise ValueError("Station not found")
+            raise NotFoundException("Station not found")
         return station
 
     @staticmethod
@@ -76,16 +80,17 @@ class StationService:
         """删除台站：日志移入回收站，位置和台站软删除"""
         stn = StationService.get_station(db, station_id, user_id)
 
-        # 日志移入回收站（7天保留）
         from app.services.deleted_log_service import DeletedLogService
-        DeletedLogService.delete_station_logs(db, user_id, station_id)
-
-        # 关联位置软删除
-        from app.models.location import Location
-        db.query(Location).filter(Location.station_id == station_id).update({"is_deleted": True})
-
-        stn.is_deleted = True
-        db.commit()
+        try:
+            DeletedLogService.delete_station_logs(db, user_id, station_id)
+            db.query(Location).filter(
+                Location.station_id == station_id, Location.user_id == user_id
+            ).update({"is_deleted": True, "is_active": False})
+            stn.is_deleted = True
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
 
     @staticmethod
     def get_primary_station(db: Session, user_id: int) -> Optional[Station]:
@@ -102,7 +107,7 @@ class StationService:
         if location:
             return (
                 db.query(Station)
-                .filter(Station.id == location.station_id, Station.is_deleted == False)
+                .filter(Station.id == location.station_id, Station.user_id == user_id, Station.is_deleted == False)
                 .first()
             )
         return None

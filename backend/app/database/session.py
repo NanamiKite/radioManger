@@ -1,4 +1,3 @@
-from sqlalchemy.orm import Session
 from app.database.base import SessionLocal
 
 def get_db():
@@ -6,5 +5,8 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()

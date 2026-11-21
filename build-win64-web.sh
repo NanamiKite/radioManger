@@ -36,6 +36,8 @@ echo "[2/6] 复制后端代码..."
 mkdir -p "$BUILD_DIR/backend"
 cp -r "$PROJECT_DIR/backend/app" "$BUILD_DIR/backend/"
 cp "$PROJECT_DIR/backend/release_server.py" "$BUILD_DIR/backend/"
+cp -r "$PROJECT_DIR/backend/alembic" "$BUILD_DIR/backend/"
+cp "$PROJECT_DIR/backend/alembic.ini" "$BUILD_DIR/backend/"
 # 版本号替换（仅修改构建产物，不动源码）
 sed -i 's/v2\.4\.1/v2.5.0/g' "$BUILD_DIR/backend/release_server.py"
 cp "$PROJECT_DIR/backend/requirements.txt" "$BUILD_DIR/backend/"
@@ -49,21 +51,17 @@ echo "  ✅ 后端代码已复制"
 # ── 3. 写入 release .env ──
 echo ""
 echo "[3/6] 写入配置文件..."
-cat > "$BUILD_DIR/backend/.env" << 'ENVEOF'
+cat > "$BUILD_DIR/.env" << 'ENVEOF'
 # RadioManager v2.5.0 Release Configuration
 DATABASE_MODE=sqlite
 SQLITE_URL=sqlite:///./radiomanager.db
-SECRET_KEY=CHANGE_THIS_TO_A_RANDOM_STRING
-ENABLE_TEST_ACCOUNT=true
-TEST_ACCOUNT_USERNAME=admin
-TEST_ACCOUNT_PASSWORD=admin123
-TEST_ACCOUNT_EMAIL=admin@radiomanager.dev
+SECRET_KEY=
 DEBUG=false
 ENVIRONMENT=production
 LOG_LEVEL=INFO
 LOG_FILE=logs/app.log
 UPLOAD_DIR=uploads
-MAX_UPLOAD_SIZE=104857600
+MAX_UPLOAD_SIZE=52428800
 ENVEOF
 echo "  ✅ .env 已写入"
 
@@ -98,7 +96,7 @@ echo "  ✅ Node.js portable 已解压"
 echo ""
 echo "[6/6] 下载 Python 依赖 (win64 wheels)..."
 TEMP_REQ=$(mktemp)
-grep -v -E "pytest|coverage|uvloop|alembic|redis|mysql-connector|PyMySQL" \
+grep -v -E "pytest|coverage|uvloop|redis|mysql-connector|PyMySQL" \
     "$PROJECT_DIR/backend/requirements.txt" > "$TEMP_REQ"
 echo "uvicorn==0.49.0" >> "$TEMP_REQ"
 
@@ -137,7 +135,7 @@ echo.
 echo   Web UI:  http://localhost:8000
 echo   API Doc: http://localhost:8000/docs
 echo.
-echo   Default: admin / admin123
+echo   Register an account on first use. No default password.
 echo   Press Ctrl+C to stop
 echo ==================================================
 echo.
@@ -215,7 +213,7 @@ RadioManager v2.5.0 - Windows 64-bit 本地部署版
   python/            - Python 3.12 运行时
   node/              - Node.js 22 运行时
   backend/           - 后端代码 + 前端构建产物
-  backend/.env       - 配置文件
+  .env               - 配置文件
   backend/app/       - 应用代码
 
 数据文件（自动创建）:

@@ -15,7 +15,7 @@ RadioManager 以 FastAPI 和 Vue 3 管理业余无线电 QSO 日志。SQLite 用
 | 网页 | Vue 3、TypeScript、Vite、Element Plus、Pinia、Router、vue-i18n |
 | 地图 | Leaflet、OpenStreetMap、SunCalc |
 | 后端 | FastAPI、SQLAlchemy 2、Pydantic 2、Uvicorn |
-| 存储 | SQLite / MySQL；Redis 用于服务器令牌黑名单 |
+| 存储 | SQLite / MySQL；SQL 会话表保存登录与撤销状态 |
 | 身份 | PyJWT、passlib/bcrypt |
 | 客户端 | Electron、Capacitor 配置；独立 Windows pywebview 启动器 |
 | 部署 | Docker Compose、Nginx、Windows 本地包装脚本 |
@@ -40,15 +40,15 @@ RadioManager 以 FastAPI 和 Vue 3 管理业余无线电 QSO 日志。SQLite 用
 
 `DATABASE_MODE=sqlite` 选择 `SQLITE_URL`，`mysql` 选择 `DATABASE_URL`。两者共用 12 个 ORM 模型。SQLite 启用 WAL 和外键，MySQL 配置连接池检查。
 
-MySQL 增加管理员路由、会话追踪和 Redis 黑名单。SQLite 仍执行用户认证。切换模式不迁移数据。路径和迁移行为见[数据库设计](doc/02_数据库设计说明.md)。
+MySQL 增加管理员路由与审计。两种模式都使用 SQL 会话认证和撤销，不依赖 Redis。切换模式不迁移数据，详见[数据库设计](doc/02_数据库设计说明.md)。
 
 ## 5. 认证与鉴权
 
-登录 → bcrypt 校验 → 生成 access/refresh token → 前端保存 access token 与用户。
+登录 → bcrypt 校验 → 生成 access JWT → 保存 SQL 会话 → 前端保存令牌与用户。
 
-请求 → `get_current_user` → 解码 JWT → MySQL 检查黑名单 → 查询用户启用/删除状态 → 执行业务。管理员依赖另检查角色。
+请求 → `get_current_user` → 验证访问 JWT → 查询有效会话与用户状态 → 业务服务校验对象归属。管理员依赖另查角色。
 
-无刷新端点。MySQL 登出撤销当前 JTI；改密后的会话删除本身不使所有旧 JWT 失效。会话表不作为 JWT 必须存在的白名单。
+无 refresh token。登出删除当前会话，改密、管理员重置、禁用和删除用户撤销全部会话。WebSocket 首条消息认证，URL 不传 JWT，写操作前再次校验。
 
 ## 6. 数据模型关系
 
@@ -82,7 +82,6 @@ erDiagram
 | `UserService` / `AdminService` | 用户操作与管理 |
 | `SessionService` / `AuditService` | 活动追踪与审计 |
 | `ConfigService` | 系统配置项存取 |
-| `token_blacklist` / `cache` | Redis 或内存实现的基础工具 |
 | `EmailService` / `SyncService` / `GitHubService` | 验证码与同步预留逻辑 |
 
 ## 8. API 路由总览
@@ -130,7 +129,7 @@ Electron 优先加载构建文件，否则加载 5173 页面；不启动 Python�
 | 台站与位置分离 | 同一呼号可记录多个操作地点 |
 | 软删除与 JSON 快照 | 保留原 QSO，并提供 7 天恢复窗口 |
 | 六字段服务层匹配 | 可识别已有 QSO 后补空，但不提供数据库级去重保证 |
-| 实时服务使用进程内实例 | 单 worker；多用户共享连接和广播 |
+| 实时服务使用进程内实例 | 单 worker；DX 公共 spot 共享，UDP 数据仅交付启动者 |
 | 前端使用同源路径 | 代理需覆盖 API、health 与 WebSocket |
 | 后台配置表与 Settings 分离 | 存储配置项不等同于修改所有运行开关 |
 
@@ -148,4 +147,4 @@ Electron 优先加载构建文件，否则加载 5173 页面；不启动 Python�
 
 GitHub 未传输日志，邮件未发送；自定义快捷链接和验证码只存内存。Web App Manifest 不包含离线缓存实现；Electron 和 Android 构建配置不代表已包含完整本地后端。
 
-回收站优先恢复原记录，清空只删除快照；ADI 导出不包含 QSL 状态，不能替代数据库备份。部署与备份步骤见[部署文档](doc/README.md)，完整流程图见[系统架构图](doc/11_系统架构图.md)。
+回收站优先恢复原记录，清空只删除快照；ADI 导出包含确认状态，但不包含全部关系，不能替代数据库备份。部署与备份见[部署文档](doc/README.md)，流程见[系统架构图](doc/11_系统架构图.md)。

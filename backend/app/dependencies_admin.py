@@ -6,15 +6,21 @@ from app.exceptions import PermissionException
 from app.config import settings
 
 
-async def get_current_admin(
+def get_current_admin(
     current_user: User = Depends(get_current_user),
 ) -> User:
-    """检查当前用户是否为管理员（仅服务器模式生效）"""
-    if settings.DATABASE_MODE == "sqlite":
-        # 本地模式不做权限检查
-        return current_user
+    """Require administrator privileges in every database mode."""
     if current_user.role != "admin":
         raise PermissionException("Admin access required")
     if not current_user.is_active:
         raise PermissionException("Account disabled")
+    return current_user
+
+
+def get_realtime_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Local realtime controls require login; server controls require an admin."""
+    if settings.DATABASE_MODE == "mysql":
+        return get_current_admin(current_user)
     return current_user

@@ -36,6 +36,8 @@ echo "[2/7] 复制后端代码..."
 mkdir -p "$BUILD_DIR/backend"
 cp -r "$PROJECT_DIR/backend/app" "$BUILD_DIR/backend/"
 cp "$PROJECT_DIR/backend/release_server.py" "$BUILD_DIR/backend/"
+cp -r "$PROJECT_DIR/backend/alembic" "$BUILD_DIR/backend/"
+cp "$PROJECT_DIR/backend/alembic.ini" "$BUILD_DIR/backend/"
 cp "$PROJECT_DIR/backend/requirements.txt" "$BUILD_DIR/backend/"
 cp -r "$PROJECT_DIR/frontend/dist" "$BUILD_DIR/backend/frontend_dist"
 cp "$PROJECT_DIR/scripts/create-windows-shortcut.ps1" "$BUILD_DIR/create-shortcut.ps1"
@@ -51,20 +53,14 @@ cat > "$BUILD_DIR/.env" << 'ENVEOF'
 # RadioManager v2.6.0 Release Configuration
 DATABASE_MODE=sqlite
 SQLITE_URL=sqlite:///./radiomanager.db
-SECRET_KEY=CHANGE_THIS_TO_A_RANDOM_STRING
-ENABLE_TEST_ACCOUNT=true
-TEST_ACCOUNT_USERNAME=admin
-TEST_ACCOUNT_PASSWORD=admin123
-TEST_ACCOUNT_EMAIL=admin@radiomanager.dev
+SECRET_KEY=
 DEBUG=false
 ENVIRONMENT=production
 LOG_LEVEL=INFO
 LOG_FILE=logs/app.log
 UPLOAD_DIR=uploads
-MAX_UPLOAD_SIZE=104857600
+MAX_UPLOAD_SIZE=52428800
 ENVEOF
-# 同时复制一份到 backend/ 目录（以防 release_server.py 切换 cwd）
-cp "$BUILD_DIR/.env" "$BUILD_DIR/backend/.env"
 echo "  ✅ .env 已写入"
 
 # ── 4. 下载 Python embeddable ──
@@ -100,7 +96,7 @@ echo ""
 echo "[6/7] 下载 Python 依赖 (win64 wheels)..."
 TEMP_REQ=$(mktemp)
 # 过滤掉开发/测试依赖和仅 Linux 的包
-grep -v -E "pytest|coverage|uvloop|alembic|redis|mysql-connector|PyMySQL" \
+grep -v -E "pytest|coverage|uvloop|redis|mysql-connector|PyMySQL" \
     "$PROJECT_DIR/backend/requirements.txt" > "$TEMP_REQ"
 
 mkdir -p "$BUILD_DIR/wheels"
@@ -137,7 +133,7 @@ echo ==================================================
 echo.
 echo   Web UI:  http://localhost:8000
 echo.
-echo   Default: admin / admin123
+echo   Register an account on first use. No default password.
 echo   Press Ctrl+C to stop
 echo ==================================================
 echo.
@@ -214,7 +210,7 @@ RadioManager v2.6.0 - Windows 64-bit 本地部署版
   python/            - Python 3.12 运行时 + 所有依赖
   node/              - Node.js 22 运行时
   backend/           - 后端代码 + 前端构建产物
-  backend/.env       - 配置文件（可编辑）
+  .env               - 配置文件（可编辑）
   backend/app/       - 应用代码
 
 数据文件（首次运行自动创建）:
@@ -223,9 +219,8 @@ RadioManager v2.6.0 - Windows 64-bit 本地部署版
   backend/logs/      - 日志文件
 
 配置说明:
-  编辑 backend/.env 可修改以下设置:
-  - SECRET_KEY:     JWT 密钥（请修改为随机字符串）
-  - ENABLE_TEST_ACCOUNT: 是否启用测试账号
+  编辑根目录 .env 可修改以下设置:
+  - SECRET_KEY:     首次启动自动生成并保存在根目录 .env；保留该值以维持登录会话
   - QRZ_USERNAME/QRZ_PASSWORD: QRZ.com 查询凭证
 
 系统要求:

@@ -11,9 +11,9 @@ echo.
 
 :: Python
 set PY_CMD=
-python --version >/dev/null 2>&1
+python --version >nul 2>&1
 if %errorlevel% equ 0 (set PY_CMD=python & goto :PY_FOUND)
-py --version >/dev/null 2>&1
+py --version >nul 2>&1
 if %errorlevel% equ 0 (set PY_CMD=py & goto :PY_FOUND)
 echo [ERROR] Python not found. Install from https://www.python.org/
 pause & exit /b 1
@@ -23,7 +23,7 @@ for /f "delims=" %%v in ('%PY_CMD% --version') do set PY_VERSION=%%v
 echo [OK] Python: %PY_CMD% - %PY_VERSION%
 
 :: Node
-node --version >/dev/null 2>&1
+node --version >nul 2>&1
 if %errorlevel% neq 0 (echo [ERROR] Node.js not found & pause & exit /b 1)
 for /f "delims=" %%v in ('node --version') do set NODE_VERSION=%%v
 echo [OK] Node.js: %NODE_VERSION%
@@ -74,7 +74,7 @@ if exist "!PROJECT_DIR!backend\venv\Scripts\python.exe" (
 (
 echo @echo off
 echo cd /d "!PROJECT_DIR!backend"
-echo "!PY_EXE!" -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+echo "!PY_EXE!" -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 echo pause
 ) > "%TEMP%\radiomanager_backend.bat"
 start "RadioManager-Backend" cmd /k "%TEMP%\radiomanager_backend.bat"
@@ -83,12 +83,13 @@ set WAIT_MAX=15
 set /a WAIT_COUNT=0
 
 :BACKEND_WAIT
-timeout /t 1 /nobreak >/dev/null
+timeout /t 1 /nobreak >nul
 set /a WAIT_COUNT+=1
-powershell -NoProfile -NonInteractive -Command "try { $r = Invoke-WebRequest -Uri 'http://localhost:8000/health' -UseBasicParsing -TimeoutSec 1; if ($r.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >/dev/null 2>&1
+powershell -NoProfile -NonInteractive -Command "try { $r = Invoke-RestMethod -Uri 'http://localhost:8000/health' -TimeoutSec 1; if ($r.status -eq 'ok') { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
 if !errorlevel! equ 0 (echo   [OK] Backend is running & goto :BACKEND_UP)
 if %WAIT_COUNT% lss %WAIT_MAX% goto :BACKEND_WAIT
-echo [WARN] Backend not responding - check RadioManager-Backend window.
+echo [ERROR] Backend not responding - check RadioManager-Backend window.
+pause & exit /b 1
 
 :BACKEND_UP
 echo.
@@ -102,7 +103,7 @@ if not exist "!PROJECT_DIR!frontend" (
 )
 echo   OK - frontend directory exists
 
-where npm >/dev/null 2>&1
+where npm >nul 2>&1
 if %errorlevel% neq 0 (
     echo [ERROR] npm not found. Install Node.js from https://nodejs.org/
     pause & exit /b 1

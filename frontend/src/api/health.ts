@@ -14,5 +14,8 @@ export interface HealthResponse {
 
 export async function fetchHealth(): Promise<HealthResponse> {
   const res = await healthAxios.get<HealthResponse>('/health')
+  if (!res.data || !['sqlite', 'mysql'].includes(res.data.database)) {
+    throw new Error('Health endpoint returned an invalid response')
+  }
   return res.data
 }

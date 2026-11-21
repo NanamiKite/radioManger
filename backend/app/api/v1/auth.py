@@ -2,21 +2,21 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
-import logging
 from app.database.session import get_db
-from app.schemas.user import UserRegister, UserLogin, UserResponse, TokenResponse, UserUpdate
+from app.schemas.user import Password, UserRegister, UserLogin, UserResponse, TokenResponse, UserUpdate
 from app.services.user_service import UserService
 from app.utils.security import SecurityUtils
 from app.config import settings
 from app.dependencies import get_current_user
+from app.exceptions import AuthException
+from app.services.session_service import SessionService
 
-logger = logging.getLogger("radiomanager.auth")
 
 
 class ChangePasswordRequest(BaseModel):
     old_password: str
-    new_password: str
-    confirm_password: str
+    new_password: Password
+    confirm_password: Password
 
 
 class DeleteAccountRequest(BaseModel):
@@ -31,24 +31,8 @@ router = APIRouter()
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserRegister, request: Request, db: Session = Depends(get_db)):
+def register(user_data: UserRegister, request: Request, db: Session = Depends(get_db)):
     """用户注册"""
-    # 检查用户名是否已存在
-    existing_user = UserService.get_user_by_username(db, user_data.username)
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Username already exists"
-        )
-
-    # 检查邮箱是否已存在
-    existing_email = UserService.get_user_by_email(db, user_data.email)
-    if existing_email:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Email already registered"
-        )
-
     try:
         user = UserService.create_user(db, user_data)
 
@@ -67,65 +51,42 @@ async def register(user_data: UserRegister, request: Request, db: Session = Depe
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(user_data: UserLogin, request: Request, db: Session = Depends(get_db)):
+def login(user_data: UserLogin, request: Request, db: Session = Depends(get_db)):
     """用户登录"""
-    try:
-        user = UserService.authenticate_user(db, user_data.username, user_data.password)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid credentials"
-            )
+    user = UserService.authenticate_user(db, user_data.username, user_data.password)
+    if not user:
+        raise AuthException("Invalid credentials")
 
-        # 创建令牌
-        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token, access_jti = SecurityUtils.create_token(
-            data={"sub": str(user.id)},
-            expires_delta=access_token_expires
-        )
-
-        refresh_token, refresh_jti = SecurityUtils.create_token(
-            data={"sub": str(user.id)},
-            expires_delta=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-        )
-
-        # 服务器模式：创建会话 + 审计日志
-        if settings.DATABASE_MODE == "mysql":
-            from app.services.session_service import SessionService
-            from app.services.audit_service import AuditService
-
-            ip = request.client.host if request.client else None
-            ua = request.headers.get("user-agent", "")[:500] if request else ""
-            SessionService.create_session(
-                db, user.id, access_jti,
-                ip_address=ip, user_agent=ua,
-                expires_in_seconds=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            )
-            AuditService.log(db, user, "LOGIN", ip_address=ip)
-
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "Bearer",
-            "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "user": UserResponse.model_validate(user)
-        }
-    except ValueError:
-        # 统一返回 "Invalid credentials"，不泄露用户是否存在/是否被禁用
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
-        )
+    access_token, access_jti = SecurityUtils.create_token(
+        data={"sub": str(user.id)},
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    ip = request.client.host if request.client else None
+    SessionService.create_session(
+        db, user.id, access_jti,
+        ip_address=ip, user_agent=request.headers.get("user-agent", "")[:500],
+        expires_in_seconds=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+    db.commit()
+    if settings.DATABASE_MODE == "mysql":
+        from app.services.audit_service import AuditService
+        AuditService.log(db, user, "LOGIN", ip_address=ip)
+    return {
+        "access_token": access_token,
+        "token_type": "Bearer",
+        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        "user": UserResponse.model_validate(user),
+    }
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user_info(current_user=Depends(get_current_user)):
+def get_current_user_info(current_user=Depends(get_current_user)):
     """获取当前用户信息"""
     return current_user
 
 
 @router.patch("/me", response_model=UserResponse)
-async def update_user_info(
+def update_user_info(
     user_data: UserUpdate,
     request: Request,
     db: Session = Depends(get_db),
@@ -143,7 +104,7 @@ async def update_user_info(
 
 
 @router.post("/change-password")
-async def change_password(
+def change_password(
     req: ChangePasswordRequest,
     request: Request,
     db: Session = Depends(get_db),
@@ -159,10 +120,7 @@ async def change_password(
     try:
         UserService.change_password(db, current_user, req.old_password, req.new_password)
 
-        # 改密码后清除该用户所有旧会话，使旧 token 失效
         if settings.DATABASE_MODE == "mysql":
-            from app.services.session_service import SessionService
-            SessionService.remove_all_sessions(db, current_user.id)
             from app.services.audit_service import AuditService
             AuditService.log(db, current_user, "CHANGE_PASSWORD",
                              ip_address=request.client.host if request.client else None)
@@ -176,34 +134,15 @@ async def change_password(
 
 
 @router.post("/logout")
-async def logout(
+def logout(
     request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    """登出 - 将 token 加入黑名单并移除会话"""
+    """Revoke the authenticated session before reporting a successful logout."""
+    SessionService.remove_session(db, request.state.auth_jti)
+    db.commit()
     if settings.DATABASE_MODE == "mysql":
-        # 从 Authorization header 提取 token 并解析 jti
-        auth_header = request.headers.get("authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-            try:
-                payload = SecurityUtils.decode_token(token)
-                jti = payload.get("jti")
-                if jti:
-                    # 加入黑名单
-                    from app.services.token_blacklist_service import token_blacklist
-                    remaining = payload.get("exp", 0) - int(datetime.now(timezone.utc).timestamp())
-                    if remaining > 0:
-                        token_blacklist.add(jti, ttl_seconds=remaining)
-
-                    # 移除会话
-                    from app.services.session_service import SessionService
-                    SessionService.remove_session(db, jti)
-            except Exception as exc:
-                logger.warning("Logout token cleanup failed: %s", exc)
-
-        # 审计日志
         from app.services.audit_service import AuditService
         ip = request.client.host if request.client else None
         AuditService.log(db, current_user, "LOGOUT", ip_address=ip)
@@ -214,7 +153,7 @@ async def logout(
 # ── 账号注销（仅服务器模式）──
 
 @router.post("/delete-account")
-async def request_delete_account(
+def request_delete_account(
     req: DeleteAccountRequest,
     request: Request,
     db: Session = Depends(get_db),
@@ -257,7 +196,7 @@ async def request_delete_account(
 
 
 @router.post("/cancel-delete")
-async def cancel_delete_account(
+def cancel_delete_account(
     request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
@@ -282,7 +221,7 @@ async def cancel_delete_account(
 
 
 @router.post("/confirm-delete")
-async def confirm_delete_account(
+def confirm_delete_account(
     req: ConfirmDeleteRequest,
     request: Request,
     db: Session = Depends(get_db),
@@ -310,6 +249,7 @@ async def confirm_delete_account(
     current_user.is_deleted = True
     current_user.is_active = False
     current_user.deletion_scheduled_at = None
+    SessionService.remove_all_sessions(db, current_user.id)
     db.commit()
 
     # 审计日志
