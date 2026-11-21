@@ -1,7 +1,11 @@
 """HTTP: doc/03 response/status/rate contract; middleware remains enabled."""
+import sqlite3
+
+import pytest
+from pymysql.err import OperationalError as MySQLOperationalError
 from fastapi.testclient import TestClient
 from sqlalchemy import event
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import IntegrityError, InterfaceError, OperationalError, ProgrammingError, TimeoutError as DatabaseTimeoutError
 
 
 def test_all_business_resources_require_bearer(api_client):
@@ -69,14 +73,56 @@ def test_health_reports_database_ok_and_failure(api_client, db):
     assert failed.json()["subsystems"]["database"] == "error"
 
 
-def test_database_failure_is_not_401_or_success(api_client, db, owner):
-    def offline(*args, **kwargs):
-        raise OperationalError("contract injected database fault", {}, RuntimeError("offline"))
+@pytest.mark.parametrize("path", ["/api/v1/auth/me", "/api/v1/logs"])
+@pytest.mark.parametrize("fault,expected", [
+    pytest.param("disconnected", 503, id="invalidated-connection"),
+    pytest.param("pool", 503, id="pool-timeout"),
+    pytest.param("sqlite", 503, id="sqlite-cannot-open"),
+    pytest.param("mysql-connect", 503, id="mysql-connect-refused"),
+    pytest.param("mysql-capacity", 503, id="mysql-connection-limit"),
+    pytest.param("mysql-sql", 500, id="mysql-missing-table"),
+    pytest.param("sqlite-sql", 500, id="sqlite-missing-table"),
+    pytest.param("constraint", 500, id="unhandled-constraint"),
+    pytest.param("programming", 500, id="sql-programming-error"),
+])
+def test_database_failures_are_classified_without_leaking_details(api_client, db, owner, path, fault, expected):
+    statement = "SELECT private_contract_data FROM private_table"
+    parameters = {"password": "private_contract_password"}
+    if fault == "disconnected":
+        error = InterfaceError(statement, parameters, RuntimeError("closed connection"), connection_invalidated=True)
+    elif fault == "pool":
+        error = DatabaseTimeoutError("private pool configuration")
+    elif fault in ("sqlite", "sqlite-sql"):
+        cause = sqlite3.OperationalError("unable to open private database file" if fault == "sqlite" else "no such table: private_table")
+        cause.sqlite_errorcode = sqlite3.SQLITE_CANTOPEN if fault == "sqlite" else sqlite3.SQLITE_ERROR
+        error = OperationalError(statement, parameters, cause)
+    elif fault.startswith("mysql-"):
+        code = {"mysql-connect": 2003, "mysql-capacity": 1040, "mysql-sql": 1146}[fault]
+        error = OperationalError(statement, parameters, MySQLOperationalError(code, "private driver details"))
+    elif fault == "constraint":
+        error = IntegrityError(statement, parameters, RuntimeError("private constraint details"))
+    else:
+        error = ProgrammingError(statement, parameters, RuntimeError("private SQL details"))
+
+    attempts = []
+
+    def fail(*args, **kwargs):
+        attempts.append(True)
+        raise error
 
     engine = db.get_bind()
-    event.listen(engine, "before_cursor_execute", offline)
+    event.listen(engine, "before_cursor_execute", fail)
     try:
-        response = api_client.get("/api/v1/auth/me", headers=owner.headers)
+        response = api_client.get(path, headers=owner.headers)
     finally:
-        event.remove(engine, "before_cursor_execute", offline)
-    assert response.status_code == 503, response.text
+        event.remove(engine, "before_cursor_execute", fail)
+    assert response.status_code == expected, response.text
+    assert response.json() == {
+        "code": expected,
+        "message": "Database unavailable" if expected == 503 else "Internal server error",
+        "data": None,
+    }
+    assert attempts == [True], "A failed database request must not be retried"
+    recovered = api_client.get("/api/v1/auth/me", headers=owner.headers)
+    assert recovered.status_code == 200, recovered.text
+    assert recovered.json()["id"] == owner.id

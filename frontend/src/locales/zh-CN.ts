@@ -283,7 +283,7 @@ export default {
     lotwConfirmed: 'LoTW确认',
     dropFile: '拖放 .adi/.adif 文件到此处或',
     clickToBrowse: '点击浏览',
-    importResult: '已导入: {imported} | 重复: {duplicates} | QSL更新: {updated} | 错误: {errors}',
+    importResult: "已导入: {imported} {'|'} 重复: {duplicates} {'|'} QSL更新: {updated} {'|'} 错误: {errors}",
     importPartial: '部分导入',
     importCommitted: '导入中断，已保存记录不会撤回。',
     line: '行号',

@@ -75,7 +75,8 @@ def test_no_active_position_is_a_business_rejection(api_client, owner, db):
     response = api_client.get("/api/v1/locations/active/current", headers=owner.headers)
     assert response.status_code == 404, response.text
     response = api_client.post("/api/v1/logs", headers=owner.headers, json={"call_sign": "JA1ABC"})
-    assert response.status_code == 400, response.text
+    assert response.status_code == 422, response.text
+    assert "active location" in response.json()["message"].lower()
     assert db.query(QSOLog).filter_by(user_id=owner.id).count() == 0
 
 

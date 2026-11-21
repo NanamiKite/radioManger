@@ -110,7 +110,8 @@ def test_expired_snapshot_is_hidden_and_rejected_without_mutation(api_client, ow
     frozen_clock.instant += timedelta(days=7, seconds=1)
     assert listing(api_client, owner)["total"] == 0
     response = api_client.post(f"{ROOT}/recycle/{snapshot['id']}/restore", headers=owner.headers)
-    assert response.status_code == 400, response.text
+    assert response.status_code == 422, response.text
+    assert "expired" in response.json()["message"].lower()
     db.expire_all()
     assert db.get(QSOLog, row["id"]).is_deleted is True
     assert db.get(DeletedLog, snapshot["id"]).is_restored is False

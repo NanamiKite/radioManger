@@ -42,16 +42,43 @@ test('UDP equal ports are visibly rejected without starting a listener', async (
   expect(boundary.requests.filter(r => r.path === '/udp/start')).toEqual([])
 })
 
-for (const value of ['1023', '65536']) {
-  test(`UDP rejects out-of-range input ${value} rather than starting with defaults`, async ({ page, boundary }) => {
+for (const [value, expected] of [['1023', 1024], ['65536', 65535], ['1024', 1024], ['65535', 65535]] as const) {
+  test(`UDP input ${value} displays and submits port ${expected} without reverting to defaults`, async ({ page, boundary }) => {
     await boundary.login(page, '/settings')
+    const received: unknown[] = []
+    await page.route('**/api/v1/udp/start', async route => {
+      const ports = route.request().postDataJSON()
+      received.push(ports)
+      expect(route.request().headers().authorization).toBe(`Bearer ${TOKEN}`)
+      await json(route, { data: { ...udpStatus, running: true, receiving: true, ...ports } })
+    })
     await page.getByRole('tab', { name: 'UDP Settings', exact: true }).click()
     const panel = page.getByRole('tabpanel', { name: 'UDP Settings', exact: true })
     const port = panel.getByRole('spinbutton').first()
     await port.fill(value)
     await port.press('Tab')
-    await panel.getByRole('button', { name: 'Apply and Start', exact: true }).press('Enter')
-    await expect(page.locator('.el-form-item__error:visible, .el-message--error:visible').first()).toContainText(/port|1024|65535|range/i)
+    await expect(port).toHaveValue(String(expected))
+    await panel.getByRole('button', { name: 'Apply and Start', exact: true }).click()
+    await expect(page.locator('.el-message--success').filter({ hasText: 'Settings saved' })).toBeVisible()
+    expect(received).toEqual([
+      { wsjtx_port: expected, n1mm_port: 12060 },
+    ])
+    await expect(port).toHaveValue(String(expected))
+    await expect(panel.getByRole('spinbutton').nth(1)).toHaveValue('12060')
+  })
+}
+
+for (const index of [0, 1]) {
+  test(`UDP empty port field ${index + 1} prevents starting a listener`, async ({ page, boundary }) => {
+    await boundary.login(page, '/settings')
+    await page.getByRole('tab', { name: 'UDP Settings', exact: true }).click()
+    const panel = page.getByRole('tabpanel', { name: 'UDP Settings', exact: true })
+    const port = panel.getByRole('spinbutton').nth(index)
+    await port.fill('')
+    await port.press('Tab')
+    const start = panel.getByRole('button', { name: 'Apply and Start', exact: true })
+    await expect(start).toBeDisabled()
+    await start.press('Enter')
     expect(boundary.requests.filter(r => r.path === '/udp/start')).toEqual([])
     await expect(page.locator('.el-message--success').filter({ hasText: 'Settings saved' })).toHaveCount(0)
   })

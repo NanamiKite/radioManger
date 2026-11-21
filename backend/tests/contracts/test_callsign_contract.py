@@ -162,17 +162,40 @@ def test_search_country_and_twenty_result_bound(api_client, db, owner, other):
     assert [r["call_sign"] for r in response.json()["results"]] == ["JA1FOREIGN"]
 
 
-@pytest.mark.parametrize("size", [50, 51])
-def test_batch_processes_first_fifty_only(api_client, db, owner, size):
-    names = [f"JA1T{i:02d}" for i in range(size)]
+def test_batch_accepts_fifty_callsigns(api_client, db, owner):
+    names = [f"JA1T{i:02d}" for i in range(50)]
     for name in names:
         cache(db, name)
     response = api_client.post("/api/v1/callsigns/batch-query", headers=owner.headers, json={"call_signs": names})
     assert response.status_code == 200, response.text
     data = response.json()
-    assert [r["call_sign"] for r in data["results"]] == names[:50]
+    assert [r["call_sign"] for r in data["results"]] == names
     assert data["found"] == 50
     assert all(r["cached"] is True for r in data["results"])
+    assert data["not_found"] == 0
+
+
+def test_batch_rejects_fifty_one_without_queries(api_client, db, owner):
+    names = [f"JA1T{i:02d}" for i in range(51)]
+    statements = []
+
+    def record_query(connection, cursor, statement, parameters, context, executemany):
+        if "callsign_cache" in statement.lower():
+            statements.append(statement)
+
+    from sqlalchemy import event
+
+    engine = db.get_bind()
+    event.listen(engine, "before_cursor_execute", record_query)
+    try:
+        response = api_client.post("/api/v1/callsigns/batch-query", headers=owner.headers, json={"call_signs": names})
+    finally:
+        event.remove(engine, "before_cursor_execute", record_query)
+    assert response.status_code == 422, response.text
+    errors = response.json()["detail"]
+    assert any(error["loc"] == ["body", "call_signs"] and error["type"] == "too_long" for error in errors)
+    assert statements == []
+    assert db.query(CallsignCache).count() == 0
 
 
 def test_shared_cache_delete_hit_and_miss(api_client, db, owner, other):

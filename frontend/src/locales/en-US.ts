@@ -283,7 +283,7 @@ export default {
     lotwConfirmed: 'LoTW Confirmed',
     dropFile: 'Drop .adi/.adif file here or',
     clickToBrowse: 'click to browse',
-    importResult: 'Imported: {imported} | Duplicates: {duplicates} | QSL Updated: {updated} | Errors: {errors}',
+    importResult: "Imported: {imported} {'|'} Duplicates: {duplicates} {'|'} QSL Updated: {updated} {'|'} Errors: {errors}",
     importPartial: 'Partially imported',
     importCommitted: 'Import interrupted. Saved records remain.',
     line: 'Line',

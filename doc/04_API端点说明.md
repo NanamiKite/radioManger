@@ -114,6 +114,8 @@ PATCH 资料支持 `full_name`、`timezone`、`language`。改密请求支持 `o
 
 `call_sign` 必填，最长 20 个字符。可显式指定 `station_id`、`location_id`、`qso_date`、`time_on`；未指定时从当前激活位置补全。台站、位置必须属于当前用户且未删除，位置必须属于所选台站；归属不符返回 404，关联不一致返回 422。
 
+未指定 `station_id` 时，先使用显式 `location_id`，否则使用当前激活位置推断台站；两者都不可用时返回 422，不创建日志。显式指定合法台站的请求不要求存在激活位置。
+
 CRUD 支持的其余字段包括结束日期与时间、收发频率与波段、模式、RST、对方网格、操作员、QTH、QSL/eQSL/LoTW 状态、距离、DXCC、功率、本网格、台站呼号字段和备注。响应额外包含 `id`、`user_id`、时间戳及展示用的 `station_callsign`、`location_name`。
 
 PATCH 可修改 `station_id`、`location_id`，但更新后的关联仍须满足归属规则；不执行创建时的 QSL 联动。纸质和 eQSL 状态允许 `Y/N/R/I`，LoTW 允许 `Y/N`。
@@ -159,6 +161,8 @@ curl -X POST 'http://localhost:8000/api/v1/logs/import?station_id=1' \
 
 保留期为 7 天。恢复优先取消原日志的软删除；原日志不存在时才从快照重建。过期清理和“永久删除”操作只删除回收站备份，不物理删除 `qso_logs` 中的软删除行。
 
+恢复过期条目返回 422，原日志保持删除状态，快照不标记为已恢复，也不新增日志。
+
 ## 六、统计分析模块（`/api/v1/stats`）
 
 全部返回 `{data: ...}`。
@@ -182,7 +186,7 @@ curl -X POST 'http://localhost:8000/api/v1/logs/import?station_id=1' \
 | GET | `/search/{prefix}` | 搜索数据库缓存，可选查询参数 `country`，最多 20 条 |
 | DELETE | `/cache/{call_sign}` | 删除共享缓存；无论是否命中均返回 204 |
 
-查询顺序为新缓存、在线 QRZ、旧缓存、离线 DXCC 推断。离线结果不代表 QRZ 注册情况，详细身份信息可能为空。批量查询最多处理输入的前 50 个呼号。
+查询顺序为新缓存、在线 QRZ、旧缓存、离线 DXCC 推断。离线结果不代表 QRZ 注册情况，详细身份信息可能为空。批量查询单次最多提交 50 个呼号；超过 50 个返回 422，拒绝整个请求且不执行呼号查询，不截断输入。当前前端界面仅支持单呼号查询，批量端点供 API 客户端使用。
 
 ## 八、数据同步模块（`/api/v1/sync`，预留）
 

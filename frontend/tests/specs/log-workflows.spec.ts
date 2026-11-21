@@ -16,21 +16,45 @@ for (const [status, detail] of [[422, 'Only ADI/ADIF files are accepted'], [404,
   })
 }
 
-test('503 partial import displays committed counts, original record error and rollback explanation', async ({ page, boundary }) => {
-  await boundary.login(page)
-  await page.route('**/api/v1/logs/import*', route => json(route, {
-    status: 'partial', database_failed: true, imported: 7, duplicates: 2, updated: 3, skipped: 1,
-    errors: [{ line: 14, error: 'Database unavailable; current batch rolled back' }],
-  }, 503))
-  await page.getByRole('button', { name: 'Import', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Import Logs' })
-  await dialog.locator('input[type=file]').setInputFiles({ name: 'partial.adi', mimeType: 'text/plain', buffer: Buffer.from('<EOH><CALL:5>W1AWX<EOR>') })
-  await dialog.getByRole('button', { name: 'Import', exact: true }).click()
-  await expect(dialog).toContainText('Imported: 7 | Duplicates: 2 | QSL Updated: 3 | Errors: 1')
-  await expect(dialog.locator('.el-alert--error')).toContainText('Saved records remain')
-  await expect(dialog.getByRole('row').filter({ hasText: 'current batch rolled back' })).toContainText('14')
-  await expect(dialog.getByRole('button', { name: 'Import', exact: true })).toBeDisabled()
-})
+for (const language of ['en-US', 'zh-CN'] as const) {
+  for (const partial of [false, true]) {
+    test(`import counts in ${language} remain complete after ${partial ? '503 partial commit' : 'success'}`, async ({ page, boundary }, testInfo) => {
+      await boundary.login(page)
+      const chinese = language === 'zh-CN'
+      if (chinese) {
+        await page.locator('.header-right').getByRole('combobox').focus()
+        await page.locator('.header-right').getByRole('combobox').press('ArrowDown')
+        await page.getByRole('option', { name: '中文', exact: true }).click()
+      }
+      await page.route('**/api/v1/logs/import*', route => json(route, {
+        status: partial ? 'partial' : 'success', database_failed: partial,
+        imported: 7, duplicates: 2, updated: 3, skipped: partial ? 1 : 0,
+        errors: partial ? [{ line: 14, error: 'Database unavailable; current batch rolled back' }] : [],
+      }, partial ? 503 : 200))
+      await page.getByRole('button', { name: chinese ? '导入' : 'Import', exact: true }).click()
+      const dialog = page.getByRole('dialog', { name: chinese ? '导入日志' : 'Import Logs' })
+      await dialog.locator('input[type=file]').setInputFiles({ name: 'contract.adi', mimeType: 'text/plain', buffer: Buffer.from('<EOH><CALL:5>W1AWX<EOR>') })
+      await dialog.getByRole('button', { name: chinese ? '导入' : 'Import', exact: true }).click()
+      const labels = chinese ? ['已导入', '重复', 'QSL更新', '错误'] : ['Imported', 'Duplicates', 'QSL Updated', 'Errors']
+      for (const [index, count] of [7, 2, 3, partial ? 1 : 0].entries()) {
+        await expect(dialog).toContainText(new RegExp(`${labels[index]}:\\s*${count}(?!\\d)`))
+      }
+      const submit = dialog.getByRole('button', { name: chinese ? '导入' : 'Import', exact: true })
+      if (partial) {
+        await expect(dialog.locator('.el-alert--error')).toContainText(chinese ? '已保存记录不会撤回' : 'Saved records remain')
+        await expect(dialog.getByRole('row').filter({ hasText: 'current batch rolled back' })).toContainText('14')
+        await expect(submit).toBeDisabled()
+        await expect(dialog.locator('.el-alert--success')).toHaveCount(0)
+      } else {
+        await expect(dialog.locator('.el-alert--success')).toBeVisible()
+        await expect(submit).toBeEnabled()
+      }
+      await testInfo.attach(`import-${language}-${partial ? 'partial' : 'success'}`, {
+        body: await dialog.screenshot(), contentType: 'image/png',
+      })
+    })
+  }
+}
 
 for (const outcome of ['failure', 'success'] as const) {
   test(`export stays loading until response and ${outcome === 'failure' ? 'retains dialog on failure' : 'downloads before closing'}`, async ({ page, boundary }) => {
