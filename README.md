@@ -38,6 +38,7 @@ RadioManager 是业余无线电 QSO 日志管理工具。个人使用时，日�
 
 - [文档索引](doc/README.md) —— 部署、接口和架构说明
 - [PROJECT.md](PROJECT.md) —— 从功能定位源码
+- [CI 与目标验证](doc/12_测试设计与验收.md#github-actions) —— PR 按范围检查，平台候选包与完整诊断手动运行
 
 ## 限制
 

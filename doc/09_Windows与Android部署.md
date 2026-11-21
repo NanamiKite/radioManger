@@ -95,3 +95,12 @@ python scripts/generate-icons.py
 ```
 
 脚本重新生成网页 PNG、多尺寸 ICO、ICNS、maskable 图标和 `frontend/resources/android/` 下的位图；之后重新构建前端。资源已提交到仓库，普通构建不需要安装图像处理工具。Android 自适应图标 XML 与背景色定义也保存在 `frontend/resources/android/` 中。
+
+## 8. CI 候选包
+
+GitHub Actions 的 **Manual target validation** 仅手动运行，一次选择一个目标：`windows-web` 调用 `build-win64-web.sh`，`windows-desktop` 调用 `build-win64-desktop.sh`，`macos` 调用 `build_release.sh mac`。它们都只使用 SQLite，不要求本机或 runner 安装 MySQL 服务。原有其他打包入口未在此次接入中合并。
+
+Windows 在 Linux runner 解析目标平台 wheels、打包，再在 Windows runner 使用嵌入式 Python 验证；桌面依赖中的纯 Python `proxy_tools` 单独构建并只接受通用 wheel，其他依赖不得混入构建机的原生 wheel。下载失败会传播为构建失败。macOS 包的首次安装需求仍保留，只在临时解压副本中创建虚拟环境和数据库。
+
+产物可从对应运行的 Artifacts 下载，保留 7 天。Windows 构建候选标记为 `unverified`；随后 `runtime-*` 报告包含原始包的 SHA-256、提交、版本、验证系统/架构及后端结果。桌面 GUI/WebView2 未由该检查覆盖，macOS 也不是独立 `.app` 或跨架构认证。完整触发规则与验证边界见[GitHub Actions](12_测试设计与验收.md#github-actions)。
+

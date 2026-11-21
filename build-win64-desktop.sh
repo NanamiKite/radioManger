@@ -3,7 +3,7 @@
 # 使用 pywebview + Edge WebView2 原生窗口，不是浏览器
 # 用法: ./build-win64-desktop.sh
 
-set -e
+set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VERSION="$(node -p 'require(process.argv[1]).version' "$PROJECT_DIR/frontend/package.json")"
@@ -81,40 +81,35 @@ echo "[4/6] 下载 Python 依赖 (win64 wheels)..."
 TEMP_REQ=$(mktemp)
 grep -v -E "pytest|coverage|uvloop|redis|mysql-connector|PyMySQL" \
     "$PROJECT_DIR/backend/requirements.txt" > "$TEMP_REQ"
-echo "uvicorn==0.49.0" >> "$TEMP_REQ"
 echo "pywebview==6.2.1" >> "$TEMP_REQ"
 echo "bottle==0.13.4" >> "$TEMP_REQ"
 
+WHEEL_WORK=$(mktemp -d)
+trap 'rm -f "$TEMP_REQ"; rm -rf "$WHEEL_WORK"' EXIT
 mkdir -p "$BUILD_DIR/wheels"
-# 第一步：下载带 C 扩展的包的 win64 wheels
+# proxy_tools only publishes an sdist. Build it explicitly on the host, without
+# dependencies, and accept only a platform-independent wheel for the target.
+pip wheel --no-deps --wheel-dir "$WHEEL_WORK" proxy_tools==0.1.0
+PURE_WHEELS=("$WHEEL_WORK"/*-none-any.whl)
+if [ "${#PURE_WHEELS[@]}" -ne 1 ] || [ ! -f "${PURE_WHEELS[0]}" ]; then
+    echo "ERROR: proxy_tools did not produce one platform-independent wheel" >&2
+    exit 1
+fi
+echo "proxy_tools==0.1.0" >> "$TEMP_REQ"
+echo "pythonnet==3.0.5" >> "$TEMP_REQ"
+# Resolve every other dependency for Windows; never download host-native wheels.
 pip download -d "$BUILD_DIR/wheels" \
     --platform win_amd64 --python-version 3.12 --only-binary=:all: \
-    -i https://pypi.tuna.tsinghua.edu.cn/simple \
-    pydantic-core bcrypt watchfiles greenlet Mako MarkupSafe cffi cryptography PyYAML \
-    httptools pydantic SQLAlchemy httpx requests pythonnet 2>&1 | tail -3
-# 第二步：下载全部依赖的纯 Python 包（不限平台）
-pip download -d "$BUILD_DIR/wheels" \
+    --find-links "$WHEEL_WORK" \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
     -r "$TEMP_REQ" 2>&1 | tail -3
-# pywebview 及其依赖（pythonnet 是 Windows 上 pywebview 的必需依赖）
-pip download -d "$BUILD_DIR/wheels" \
-    -i https://pypi.tuna.tsinghua.edu.cn/simple \
-    pywebview==6.2.1 bottle==0.13.4 proxy_tools pythonnet 2>&1 | tail -3
 rm -f "$TEMP_REQ"
 
 SITE="$BUILD_DIR/python/Lib/site-packages"
 mkdir -p "$SITE"
-# 先提取 win64 二进制 wheels（带平台标识的优先）
-for whl in "$BUILD_DIR/wheels"/*win_amd64*.whl "$BUILD_DIR/wheels"/*win32*.whl; do
-    [ -f "$whl" ] && unzip -qo "$whl" -d "$SITE" 2>/dev/null
-done
-# 再提取通用 wheels 和纯 Python 包
+# The resolver above permits only Windows-compatible or universal wheels.
 for whl in "$BUILD_DIR/wheels"/*.whl; do
     [ -f "$whl" ] && unzip -qo "$whl" -d "$SITE" 2>/dev/null
-done
-# tar.gz 用 pip install --target 安装（正确处理 setup.py）
-for tarball in "$BUILD_DIR/wheels"/*.tar.gz; do
-    [ -f "$tarball" ] && pip install --target="$SITE" --no-deps "$tarball" 2>&1 | tail -1
 done
 rm -rf "$BUILD_DIR/wheels"
 

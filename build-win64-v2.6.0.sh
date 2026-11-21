@@ -3,7 +3,7 @@
 # 用法: ./build-win64-v2.6.0.sh
 # 不修改任何项目源码，仅在 releases/ 输出打包文件
 
-set -e
+set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VERSION="$(node -p 'require(process.argv[1]).version' "$PROJECT_DIR/frontend/package.json")"
@@ -95,6 +95,7 @@ echo "  ✅ Node.js portable 已解压"
 echo ""
 echo "[6/7] 下载 Python 依赖 (win64 wheels)..."
 TEMP_REQ=$(mktemp)
+trap 'rm -f "$TEMP_REQ"' EXIT
 # 过滤掉开发/测试依赖和仅 Linux 的包
 grep -v -E "pytest|coverage|uvloop|redis|mysql-connector|PyMySQL" \
     "$PROJECT_DIR/backend/requirements.txt" > "$TEMP_REQ"

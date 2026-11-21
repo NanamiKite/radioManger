@@ -3,7 +3,7 @@
 # 用法: ./build-win64-web.sh
 # 不修改任何项目源码，仅在 releases/ 输出打包文件
 
-set -e
+set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VERSION="$(node -p 'require(process.argv[1]).version' "$PROJECT_DIR/frontend/package.json")"
@@ -94,9 +94,9 @@ echo "  ✅ Node.js portable 已解压"
 echo ""
 echo "[6/6] 下载 Python 依赖 (win64 wheels)..."
 TEMP_REQ=$(mktemp)
+trap 'rm -f "$TEMP_REQ"' EXIT
 grep -v -E "pytest|coverage|uvloop|redis|mysql-connector|PyMySQL" \
     "$PROJECT_DIR/backend/requirements.txt" > "$TEMP_REQ"
-echo "uvicorn==0.49.0" >> "$TEMP_REQ"
 
 mkdir -p "$BUILD_DIR/wheels"
 pip download -d "$BUILD_DIR/wheels" \

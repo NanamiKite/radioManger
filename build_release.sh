@@ -1,7 +1,7 @@
 #!/bin/bash
 # RadioManager Release Builder
 # 构建 Windows 和 macOS 本地部署包
-set -e
+set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VERSION="$(node -p 'require(process.argv[1]).version' "$PROJECT_DIR/frontend/package.json")"
@@ -59,10 +59,10 @@ build_windows() {
 
     # 下载 Windows wheels
     echo "  Downloading Windows dependencies..."
-    local TEMP_REQ=$(mktemp)
+    local TEMP_REQ
+    TEMP_REQ=$(mktemp)
     grep -v -E "pytest|coverage|uvloop|redis|mysql-connector|PyMySQL" \
         "$PROJECT_DIR/backend/requirements.txt" > "$TEMP_REQ"
-    echo "uvicorn==0.49.0" >> "$TEMP_REQ"
 
     mkdir -p "$WIN_DIR/wheels"
     pip download -d "$WIN_DIR/wheels" \
@@ -136,11 +136,15 @@ build_macos() {
 
     # 后端文件
     prepare_backend "$MAC_DIR"
+    # Local macOS packages use SQLite, without server-only or test dependencies.
+    grep -v -E "pytest|coverage|mysql-connector|PyMySQL" \
+        "$PROJECT_DIR/backend/requirements.txt" > "$MAC_DIR/backend/requirements.txt"
 
     # macOS 启动脚本（自动检测/安装 Python，创建 venv）
     printf '#!/bin/bash\nVERSION="%s"\n' "$VERSION" > "$MAC_DIR/start.sh"
     cat >> "$MAC_DIR/start.sh" << 'SHEOF'
 # RadioManager macOS 启动脚本
+set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
@@ -179,7 +183,6 @@ if [ ! -d "venv" ]; then
     echo "  Creating virtual environment..."
     $PYTHON -m venv venv
     source venv/bin/activate
-    pip install --upgrade pip -q
     pip install -r backend/requirements.txt -q
     echo "  ✓ Dependencies installed"
 else
@@ -191,7 +194,7 @@ export PYTHONPATH="$SCRIPT_DIR/backend"
 export DATABASE_MODE=sqlite
 export SQLITE_URL="sqlite:///./radiomanager.db"
 
-python backend/release_server.py
+exec python backend/release_server.py
 SHEOF
 
     chmod +x "$MAC_DIR/start.sh"
@@ -235,5 +238,5 @@ esac
 echo ""
 echo "[4/4] Done!"
 echo "================================================"
-ls -lh "$PROJECT_DIR/releases/"*.zip "$PROJECT_DIR/releases/"*.tar.gz 2>/dev/null
+find "$PROJECT_DIR/releases" -maxdepth 1 -type f \( -name '*.zip' -o -name '*.tar.gz' \) -exec ls -lh {} +
 echo "================================================"
