@@ -55,7 +55,7 @@ Electron 优先加载 `dist/index.html`，没有构建目录时加载本地 5173
 
 ## 4. Android 浏览器与主屏幕入口
 
-手机可通过浏览器访问服务器网页。`public/manifest.json` 和图标提供主屏幕显示信息；仓库没有 Service Worker 或离线资源缓存，不支持离线网页运行。
+手机可通过浏览器访问服务器网页。`public/manifest.json` 和图标提供主屏幕显示信息。
 
 ## 5. Capacitor APK 打包
 
@@ -82,7 +82,7 @@ npm run android:build
 
 ## 6. 网络配置
 
-Capacitor 配置使用 `webDir=dist`、HTTPS scheme，并关闭明文流量。页面仍使用同源 `/api/v1` 和 `/health`；允许导航的主机不指定 API 后端，容器需配置网页服务器或适配请求地址。Android 包不包含 Python 后端或本地数据库服务。
+Capacitor 配置使用 `webDir=dist`、HTTPS scheme，并关闭明文流量。页面仍使用同源 `/api/v1` 和 `/health`；允许导航的主机不指定 API 后端，容器需配置网页服务器或适配请求地址。
 
 ## 7. 应用图标
 
@@ -102,5 +102,11 @@ GitHub Actions 的 **Manual target validation** 仅手动运行，一次选择�
 
 Windows 在 Linux runner 解析目标平台 wheels、打包，再在 Windows runner 使用嵌入式 Python 验证；桌面依赖中的纯 Python `proxy_tools` 单独构建并只接受通用 wheel，其他依赖不得混入构建机的原生 wheel。下载失败会传播为构建失败。macOS 包的首次安装需求仍保留，只在临时解压副本中创建虚拟环境和数据库。
 
-产物可从对应运行的 Artifacts 下载，保留 7 天。Windows 构建候选标记为 `unverified`；随后 `runtime-*` 报告包含原始包的 SHA-256、提交、版本、验证系统/架构及后端结果。桌面 GUI/WebView2 和 macOS 独立 `.app` 不在该检查范围内。完整触发规则与验证边界见[GitHub Actions](12_测试设计与验收.md#github-actions)。
+产物可从对应运行的 Artifacts 下载，保留 7 天。Windows 构建候选标记为 `unverified`；随后 `runtime-*` 报告包含原始包的 SHA-256、提交、版本、验证系统/架构及后端结果。桌面 GUI/WebView2 和 macOS 独立 `.app` 需要人工验收。完整触发规则见[GitHub Actions](12_测试设计与验收.md#github-actions)。
+
+## 已知限制 / TODO
+
+- Electron 和 Android 包只包含前端，Python 后端需另行部署。
+- Windows 桌面窗口、WebView2 和 macOS 独立 `.app` 需要人工验收。
+- 网页和 Android 容器不支持离线运行。
 

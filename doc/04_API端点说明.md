@@ -42,7 +42,7 @@
 
 PATCH 资料支持 `full_name`、`timezone`、`language`。改密请求支持 `old_password`、`new_password`、`confirm_password`。两种数据库模式下改密和管理员重置都会在同一事务中撤销全部旧会话；客户端随后重新登录。
 
-注销申请记录 30 天冷却期；到期后还需验证码确认，不会自动删除账户。验证码不通过申请接口返回；邮件服务目前只生成验证码，不发送邮件。
+注销申请记录 30 天冷却期；到期后还需验证码确认，不会自动删除账户。验证码不通过申请接口返回。
 
 ## 二、用户信息模块（`/api/v1/users`）
 
@@ -143,7 +143,7 @@ curl -X POST 'http://localhost:8000/api/v1/logs/import?station_id=1' \
 
 不传台站时使用当前激活位置所属台站。导入识别已有记录的键为 `(call_sign, qso_date, time_on, band, mode, freq)`，范围是当前用户全部未删除日志，台站不在键中。
 
-命中已有记录时，服务只补充空的 RST、网格、本网格、备注、功率和结束日期/时间；收到确认的 QSL、LoTW、eQSL 状态可向 `Y` 更新，并同时设置相应发送状态。未命中时创建记录，每累计 500 条新记录提交一次。导入不保证整文件原子性，也不保证所有 ADIF 字段原样往返。
+命中已有记录时，服务只补充空的 RST、网格、本网格、备注、功率和结束日期/时间；收到确认的 QSL、LoTW、eQSL 状态可向 `Y` 更新，并同时设置相应发送状态。未命中时创建记录，每累计 500 条新记录提交一次。导入按批提交，失败的批次会回滚；不支持的 ADIF 字段不会写入。
 
 返回 `file_id`、`total_records`、`imported`、`skipped`、`duplicates`、`merged`、`updated`、`status`、`database_failed`、`errors`。`updated` 与 `merged` 相同；`errors` 最多返回 10 条，格式错误包含记录序号 `line`。格式错误可产生 `partial` 结果。数据库批次失败会回滚当前批次并中止处理，返回 HTTP 503，计数只包含已经提交的结果；此前批次不会撤回。调用方应按响应中的已提交计数处理 503，不要直接重试整个文件。
 
@@ -153,7 +153,7 @@ curl -X POST 'http://localhost:8000/api/v1/logs/import?station_id=1' \
 
 传 `location_id` 时，实际按该位置网格的前 4 位筛选 `my_gridsquare`，不是直接按日志 `location_id` 筛选。文件名同时附加网格后缀。
 
-导出包含源码明确输出的通联、收发频率/波段、RST、本台呼号与网格、功率、传播、卫星、比赛、备注及六个 QSL/eQSL/LoTW 状态字段。ADI 仍不包含用户、台站关系、会话等完整数据库内容，不能替代数据库备份。
+导出包含源码明确输出的通联、收发频率/波段、RST、本台呼号与网格、功率、传播、卫星、比赛、备注及六个 QSL/eQSL/LoTW 状态字段。ADI 只包含日志字段，不作为完整备份。
 
 ### 回收站
 
@@ -196,8 +196,6 @@ curl -X POST 'http://localhost:8000/api/v1/logs/import?station_id=1' \
 | POST | `/github/push` | 要求配置 `GITHUB_TOKEN`；记录同步历史，不执行文件上传 |
 | POST | `/github/pull` | 返回 `not_implemented`，不下载数据 |
 | GET | `/history` | 当前用户的同步历史分页 |
-
-数据同步与邮件服务目前仅保留接口骨架，暂未接入真实传输（TODO）。
 
 ## 九、快捷链接模块（`/api/v1/shortcuts`）
 
@@ -282,3 +280,7 @@ JWT 包含 `sub`、`exp`、`jti`、`token_type=access`。HTTP 和 WebSocket 共�
 REST 保存失败返回 4xx/5xx；WebSocket 参数与业务错误返回 `{type:"error",message:...}`，认证失效关闭 4401。
 
 主机只保留一个监听实例，启动者拥有本次监听及接收流，其他用户不能停止或接管。MySQL 模式仅管理员能启停；SQLite 允许已登录用户。默认仅绑定 `127.0.0.1` 并接收本机来源；其他设备需由部署方配置 `UDP_BIND_HOST`、`UDP_ALLOWED_SOURCES`。支持 WSJT-X schema 2/3 的 QSO Logged（type 5，QDataStream）与 N1MM XML；接收不自动保存。两个端口必须不同且在 1024～65535。
+
+## 十六、已知限制 / TODO
+
+- GitHub 自动同步与邮件通知暂未实现，相关接口只保留骨架。

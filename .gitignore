@@ -80,3 +80,14 @@ radiomanage_test/
 
 # Release builds
 releases/
+
+# AI assistant scaffolding
+.ai/
+.agents/
+.codex/
+.cursor/
+.claude/
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+implementation_plan.md

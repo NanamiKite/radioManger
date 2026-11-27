@@ -6,7 +6,7 @@
 
 RadioManager 以 FastAPI 和 Vue 3 管理业余无线电 QSO 日志。SQLite 用于本机数据，MySQL 用于服务器数据；ADI/ADIF 用于文件交换。地图、DX Cluster、呼号查询和计算工具共用网页界面。
 
-数据库承担实际存储；前端没有 HTTP/本地数据库两套实现。GitHub 同步和邮件发送尚未接通。
+数据库承担实际存储；前端没有 HTTP/本地数据库两套实现。
 
 ## 2. 技术栈
 
@@ -82,7 +82,7 @@ erDiagram
 | `UserService` / `AdminService` | 用户操作与管理 |
 | `SessionService` / `AuditService` | 活动追踪与审计 |
 | `ConfigService` | 系统配置项存取 |
-| `EmailService` / `SyncService` / `GitHubService` | 验证码与同步预留逻辑 |
+| `EmailService` / `SyncService` / `GitHubService` | 验证码与同步接口骨架 |
 
 ## 8. API 路由总览
 
@@ -98,11 +98,11 @@ erDiagram
 
 ### 9.2 ADIF 导入
 
-multipart 文件 → 50 MiB 上限检查 → `ADIParser` → `(call_sign, qso_date, time_on, band, mode, freq)` 匹配 → 新增或补空合并 → 每累计 500 条新记录提交 → `log_files` 元数据。去重范围跨当前用户台站，不是数据库唯一约束。
+multipart 文件 → 50 MiB 上限检查 → `ADIParser` → `(call_sign, qso_date, time_on, band, mode, freq)` 匹配 → 新增或补空合并 → 每累计 500 条新记录提交 → `log_files` 元数据。去重范围跨当前用户台站，数据库没有唯一约束。
 
 ### 9.3 统计查询
 
-概览由 `LogService.get_stats` 聚合，可指定台站；分布、DXCC 图表和矩阵由 `StatsService` 聚合当前用户日志。`statistics` 不是这些 API 的自动刷新缓存。
+概览由 `LogService.get_stats` 聚合，可指定台站；分布、DXCC 图表和矩阵由 `StatsService` 聚合当前用户日志。这些 API 直接聚合 `qso_logs`，不读取 `statistics` 快照。
 
 ### 9.4 DX Cluster 实时推送
 
@@ -118,9 +118,9 @@ Pinia 分为 `auth`、`logs`、`stats`、`dxcluster`。Axios 默认同源 `/api/
 
 ## 11. Electron 安全配置
 
-[`main.js`](frontend/electron/main.js) 使用 `contextIsolation=true`、`nodeIntegration=false`、`sandbox=true`，并申请单实例锁。`preload.js` 暴露空的 `window.electron` 对象，没有后端或文件系统 IPC 实现。
+[`main.js`](frontend/electron/main.js) 使用 `contextIsolation=true`、`nodeIntegration=false`、`sandbox=true`，并申请单实例锁。`preload.js` 只暴露空的 `window.electron` 对象。
 
-Electron 优先加载构建文件，否则加载 5173 页面；不启动 Python，不把后端打入包中。`RADIOMANAGER_MODE` 用于窗口模式标签，不决定 API 地址。
+Electron 优先加载构建文件，否则加载 5173 页面；不启动 Python，也不打包后端。`RADIOMANAGER_MODE` 只用于窗口模式标签。
 
 ## 12. 设计决策备忘
 
@@ -128,10 +128,10 @@ Electron 优先加载构建文件，否则加载 5173 页面；不启动 Python�
 | --- | --- |
 | 台站与位置分离 | 同一呼号可记录多个操作地点 |
 | 软删除与 JSON 快照 | 保留原 QSO，并提供 7 天恢复窗口 |
-| 六字段服务层匹配 | 可识别已有 QSO 后补空，但不提供数据库级去重保证 |
+| 六字段服务层匹配 | 可识别已有 QSO 后补空；数据库没有唯一约束 |
 | 实时服务使用进程内实例 | 单 worker；DX 公共 spot 共享，UDP 数据仅交付启动者 |
 | 前端使用同源路径 | 代理需覆盖 API、health 与 WebSocket |
-| 后台配置表与 Settings 分离 | 存储配置项不等同于修改所有运行开关 |
+| 后台配置表与 Settings 分离 | 两套配置来源，运行参数仍从 Settings 读取 |
 
 ## 13. 常量与工具
 
@@ -143,8 +143,11 @@ Electron 优先加载构建文件，否则加载 5173 页面；不启动 Python�
 
 普通 HTTP 请求：`RateLimit → Logging → ErrorHandler → CORS → 路由`。认证是路由依赖。限流为单进程内存，普通桶 100 次/60 秒，敏感认证路径共用 5 次/60 秒。
 
-## 15. 功能边界
+## 15. 已知限制 / TODO
 
-GitHub 未传输日志，邮件未发送；自定义快捷链接和验证码只存内存。Web App Manifest 不包含离线缓存实现；Electron 和 Android 构建配置不代表已包含完整本地后端。
+- GitHub 自动同步与邮件通知暂未实现。
+- Electron 和 Android 包只包含前端，Python 后端需另行部署。
+- ADI 导出只包含支持的字段，不作为完整数据库备份。
+- WAZ 统计未完成。
 
-回收站优先恢复原记录，清空只删除快照；ADI 导出包含确认状态，但不包含全部关系，不能替代数据库备份。部署与备份见[部署文档](doc/README.md)，流程见[系统架构图](doc/11_系统架构图.md)。
+回收站优先恢复原记录，清空只删除快照。部署与备份见[部署文档](doc/README.md)，流程见[系统架构图](doc/11_系统架构图.md)。
