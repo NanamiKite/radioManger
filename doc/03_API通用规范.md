@@ -66,9 +66,9 @@ FastAPI 处理的 HTTP 异常通常返回 `{"detail":"..."}`，请求校验错�
 {"code":429,"message":"Too many requests. Please try again later.","data":null}
 ```
 
-客户端应同时识别 `detail`、`message` 及端点专用的错误字段，不能假定所有错误格式一致。
+客户端需同时识别 `detail`、`message` 及端点专用的错误字段。
 
-认证及业务请求遇到数据库连接不可用、连接中断或连接池超时，返回 HTTP 503 和 `{"code":503,"message":"Database unavailable","data":null}`。服务端记录异常，响应不包含 SQL、连接信息或堆栈；不重试、不绕过认证。约束冲突与 SQL 编程错误不因属于数据库异常而统一转换为 503。导入批次失败仍使用端点专用的计数和错误响应。
+认证及业务请求遇到数据库连接不可用、连接中断或连接池超时，返回 HTTP 503 和 `{"code":503,"message":"Database unavailable","data":null}`。服务端记录异常，响应不包含 SQL、连接信息或堆栈。约束冲突与 SQL 编程错误按原异常处理。导入批次失败仍使用端点专用的计数和错误响应。
 
 ### 限流
 

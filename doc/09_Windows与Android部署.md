@@ -31,9 +31,9 @@ bash build-win64-v2.6.0.sh
 
 发布入口用安全的 `StaticFiles` 处理前端与 History 回退；包根地址显示网页，不再被独立后端的 `/` 信息 JSON 抢先响应。API、健康检查和缺失资源不会回退为网页。
 
-从本次图标更新后的源码构建的 Windows 包，首次运行 `start.bat` 或桌面启动器时会在解压目录创建带应用图标的 `RadioManager.lnk`。可将快捷方式复制到桌面；移动解压目录后，删除旧快捷方式并重新运行启动器生成。也可在包根目录手动运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\create-shortcut.ps1`。GitHub 上已有的发布包不会自动更新，需重新构建并发布。
+从本次图标更新后的源码构建的 Windows 包，首次运行 `start.bat` 或桌面启动器时会在解压目录创建带应用图标的 `RadioManager.lnk`。可将快捷方式复制到桌面；移动解压目录后，删除旧快捷方式并重新运行启动器生成。也可在包根目录手动运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\create-shortcut.ps1`。GitHub 上已有的发布包不会自动更新，需要重新构建发布。
 
-`build-win64-web.sh`、`build-win64-desktop.sh`、`build_release.sh` 使用相同项目版本，但包内容与启动方式仍有差异；版本号统一不代表它们已经合并为一个打包流程。
+`build-win64-web.sh`、`build-win64-desktop.sh`、`build_release.sh` 使用相同项目版本，但包内容与启动方式仍有差异。
 
 ## 3. 桌面窗口与 Electron
 
@@ -49,13 +49,13 @@ npm run electron:linux
 npm run electron:mac
 ```
 
-Electron 优先加载 `dist/index.html`，没有构建目录时加载本地 5173。打包配置只包含前端与 Electron 文件，`extraResources` 为空；主进程不会启动 Python 后端。现有相对 API、WebSocket 和 History 路由依赖 HTTP 服务，不能把前端壳构建成功等同于可直接使用的完整本地桌面应用。
+Electron 优先加载 `dist/index.html`，没有构建目录时加载本地 5173。打包配置只包含前端与 Electron 文件，`extraResources` 为空；主进程不会启动 Python 后端。现有相对 API、WebSocket 和 History 路由依赖 HTTP 服务，Electron 只提供前端壳。
 
 `start-windows-web.bat` 中输入的 `RADIOMANAGER_API_URL` 没有被现有客户端读取；远程使用应配置同源代理或直接访问服务器网页。
 
 ## 4. Android 浏览器与主屏幕入口
 
-手机可通过浏览器访问服务器网页。`public/manifest.json` 和图标提供主屏幕显示信息；仓库没有 Service Worker 或离线资源缓存实现，不能承诺完整 PWA 安装能力或离线网页运行。
+手机可通过浏览器访问服务器网页。`public/manifest.json` 和图标提供主屏幕显示信息；仓库没有 Service Worker 或离线资源缓存，不支持离线网页运行。
 
 ## 5. Capacitor APK 打包
 
@@ -82,7 +82,7 @@ npm run android:build
 
 ## 6. 网络配置
 
-Capacitor 配置使用 `webDir=dist`、HTTPS scheme，并关闭明文流量。页面仍使用同源 `/api/v1` 和 `/health`，仅设置允许导航的主机不会指定 API 后端；需要为容器明确配置网页服务器或适配请求地址后再使用。Android 包不包含 Python 后端或本地数据库服务。
+Capacitor 配置使用 `webDir=dist`、HTTPS scheme，并关闭明文流量。页面仍使用同源 `/api/v1` 和 `/health`；允许导航的主机不指定 API 后端，容器需配置网页服务器或适配请求地址。Android 包不包含 Python 后端或本地数据库服务。
 
 ## 7. 应用图标
 
@@ -98,9 +98,9 @@ python scripts/generate-icons.py
 
 ## 8. CI 候选包
 
-GitHub Actions 的 **Manual target validation** 仅手动运行，一次选择一个目标：`windows-web` 调用 `build-win64-web.sh`，`windows-desktop` 调用 `build-win64-desktop.sh`，`macos` 调用 `build_release.sh mac`。它们都只使用 SQLite，不要求本机或 runner 安装 MySQL 服务。原有其他打包入口未在此次接入中合并。
+GitHub Actions 的 **Manual target validation** 仅手动运行，一次选择一个目标：`windows-web` 调用 `build-win64-web.sh`，`windows-desktop` 调用 `build-win64-desktop.sh`，`macos` 调用 `build_release.sh mac`。它们都只使用 SQLite，不要求本机或 runner 安装 MySQL 服务。其他打包入口仍单独维护。
 
 Windows 在 Linux runner 解析目标平台 wheels、打包，再在 Windows runner 使用嵌入式 Python 验证；桌面依赖中的纯 Python `proxy_tools` 单独构建并只接受通用 wheel，其他依赖不得混入构建机的原生 wheel。下载失败会传播为构建失败。macOS 包的首次安装需求仍保留，只在临时解压副本中创建虚拟环境和数据库。
 
-产物可从对应运行的 Artifacts 下载，保留 7 天。Windows 构建候选标记为 `unverified`；随后 `runtime-*` 报告包含原始包的 SHA-256、提交、版本、验证系统/架构及后端结果。桌面 GUI/WebView2 未由该检查覆盖，macOS 也不是独立 `.app` 或跨架构认证。完整触发规则与验证边界见[GitHub Actions](12_测试设计与验收.md#github-actions)。
+产物可从对应运行的 Artifacts 下载，保留 7 天。Windows 构建候选标记为 `unverified`；随后 `runtime-*` 报告包含原始包的 SHA-256、提交、版本、验证系统/架构及后端结果。桌面 GUI/WebView2 和 macOS 独立 `.app` 不在该检查范围内。完整触发规则与验证边界见[GitHub Actions](12_测试设计与验收.md#github-actions)。
 
